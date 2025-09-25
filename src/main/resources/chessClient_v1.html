@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        :root{
+            --size: 64px;
+            --board-gap: 8px;
+        }
+        body{font-family: system-ui, Arial; display:flex; gap:24px; padding:24px; background:#f5f5f5;}
+        .wrapper{display:flex;flex-direction:column;align-items:center}
+        .board{
+            display:grid;
+            grid-template-columns: repeat(8, var(--size));
+            grid-template-rows: repeat(8, var(--size));
+            gap:0;
+            border: 4px solid #333;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+            user-select:none;
+        }
+        .square{
+            width:var(--size); height:var(--size);
+            display:flex;align-items:center;justify-content:center;
+            font-size:32px; cursor:pointer; position:relative;
+        }
+        .square.light{ background: #f0d9b5; }
+        .square.dark{ background: #b58863; }
+        .square.highlight{ outline: 4px solid rgba(50,180,50,0.6); box-sizing:border-box; }
+        .square.last-move{ box-shadow: inset 0 0 0 3px rgba(255,255,0,0.4); }
+        .coords{font-size:12px; position:absolute; bottom:2px; right:4px; color:rgba(0,0,0,0.35)}
+        .info{max-width:320px; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+        .status{font-weight:600; margin-bottom:12px; padding:8px; background:#e8f4fd; border-radius:4px; text-align:center}
+        .connection-status{font-size:14px; margin-bottom:8px; padding:6px; border-radius:4px; text-align:center}
+        .connected{background:#d4edda; color:#155724}
+        .disconnected{background:#f8d7da; color:#721c24}
+        .game-info{margin:12px 0; font-size:14px}
+        .game-info div{margin:4px 0}
+        #playerName{margin-bottom:8px; padding:8px; border:1px solid #ddd; border-radius:4px; width:100%}
+        button{margin:4px 0; padding:8px 12px; border-radius:4px; border:1px solid #007bff;
+            background:#007bff; color:white; cursor:pointer; width:100%}
+        button:hover{background:#0056b3}
+        button:disabled{background:#6c757d; cursor:not-allowed}
+        .waiting{color:#856404; background:#fff3cd; border:1px solid #ffeaa7; padding:8px; border-radius:4px; text-align:center}
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div id="board" class="board" aria-label="Chess board"></div>
+</div>
+
+<div class="info">
+    <div id="connectionStatus" class="connection-status disconnected">Chưa kết nối</div>
+
+    <div id="loginSection">
+        <input type="text" id="playerName" placeholder="Nhập tên của bạn" value="Player1">
+        <button id="connectBtn">Kết nối</button>
+    </div>
+
+    <div id="gameSection" style="display:none">
+        <div class="status" id="status">Đang chờ...</div>
+
+        <div class="game-info">
+            <div><strong>Phòng:</strong> <span id="roomInfo">-</span></div>
+            <div><strong>Màu quân:</strong> <span id="colorInfo">-</span></div>
+            <div><strong>ID:</strong> <span id="playerIdInfo">-</span></div>
+        </div>
+
+        <div id="waitingMessage" class="waiting" style="display:none">
+            Đang tìm đối thủ...
+        </div>
+
+        <button id="newGameBtn">Tìm trận mới</button>
+    </div>
+</div>
+
+<script>
+    // Game state
+    let websocket = null;
+    let playerId = null;
+    let playerName = null;
+    let yourColor = null;
+    let roomId = null;
+    let gameActive = false;
+
+    // Chess board setup
+    const PIECES = {
+        'r':'\u265C','n':'\u265E','b':'\u265D','q':'\u265B','k':'\u265A','p':'\u265F', // black
+        'R':'\u2656','N':'\u2658','B':'\u2657','Q':'\u2655','K':'\u2654','P':'\u2659'  // white
+    };
+
+    let board = [
+        ['r','n','b','q','k','b','n','r'],
+        ['p','p','p','p','p','p','p','p'],
+        ['','','','','','','',''],
+        ['','','','','','','',''],
+        ['','','','','','','',''],
+        ['','','','','','','',''],
+        ['P','P','P','P','P','P','P','P'],
+        ['R','N','B','Q','K','B','N','R']
+    ];
+
+    let boardEl = document.getElementById('board');
+    let statusEl = document.getElementById('status');
+    let selected = null;
+    let lastMove = null;
+    let flipped = false;
+    let currentTurn = 'white';
+
+    // UI Elements
+    const connectionStatusEl = document.getElementById('connectionStatus');
+    const loginSectionEl = document.getElementById('loginSection');
+    const gameSectionEl = document.getElementById('gameSection');
+    const playerNameInput = document.getElementById('playerName');
+    const connectBtn = document.getElementById('connectBtn');
+    const newGameBtn = document.getElementById('newGameBtn');
+    const waitingMessageEl = document.getElementById('waitingMessage');
+    const roomInfoEl = document.getElementById('roomInfo');
+    const colorInfoEl = document.getElementById('colorInfo');
+    const playerIdInfoEl = document.getElementById('playerIdInfo');
+
+    // WebSocket connection
+    function connect() {
+        const name = playerNameInput.value.trim();
+        if (!name) {
+            alert('Vui lòng nhập tên!');
+            return;
+        }
+
+        playerName = name;
+        const url = "ws://localhost:8080";
+
+        try {
+            websocket = new WebSocket(url);
+
+            websocket.onopen = () => {
+                updateConnectionStatus(true);
+                websocket.send(JSON.stringify({
+                    type: "join",
+                    playerName: playerName
+                }));
+            };
+
+            websocket.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                console.log('Received:', msg);
+                handleMessage(msg);
+            };
+
+            websocket.onclose = () => {
+                updateConnectionStatus(false);
+                resetGameState();
+            };
+
+            websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus(false);
+            };
+
+        } catch (error) {
+            console.error('Connection error:', error);
+            alert('Không thể kết nối tới server!');
+        }
+    }
+
+    function handleMessage(msg) {
+        switch (msg.type) {
+            case 'player_info':
+                playerId = msg.playerId;
+                playerIdInfoEl.textContent = playerId;
+                loginSectionEl.style.display = 'none';
+                gameSectionEl.style.display = 'block';
+                waitingMessageEl.style.display = 'block';
+                statusEl.textContent = 'Đang tìm đối thủ...';
+                break;
+
+            case 'room_info':
+                roomId = msg.roomId;
+                roomInfoEl.textContent = roomId;
+                break;
+
+            case 'color':
+                yourColor = msg.color;
+                colorInfoEl.textContent = msg.color === 'white' ? 'Trắng (đi trước)' : 'Đen (đi sau)';
+                if (msg.color === 'black') {
+                    flip();
+                }
+                break;
+
+            case 'game_start':
+                gameActive = true;
+                waitingMessageEl.style.display = 'none';
+                currentTurn = msg.currentTurn || 'white';
+                updateStatus();
+                resetBoard();
+                break;
+
+            case 'player_move':
+                handleOpponentMove(msg);
+                break;
+
+            case 'turn_change':
+                currentTurn = msg.currentTurn;
+                updateStatus();
+                break;
+
+            case 'player_left':
+            case 'player_disconnected':
+                alert('Đối thủ đã rời khỏi game!');
+                resetGameState();
+                break;
+
+            case 'error':
+                alert('Lỗi: ' + msg.message);
+                break;
+
+            default:
+                console.log('Unknown message type:', msg.type);
+        }
+    }
+
+    function handleOpponentMove(msg) {
+        const from = parseSquare(msg.from);
+        const to = parseSquare(msg.to);
+
+        if (from && to) {
+            makeMove(from, to, false); // false = don't send to server
+        }
+    }
+
+    function parseSquare(algNotation) {
+        if (!algNotation || algNotation.length !== 2) return null;
+        const file = algNotation.charCodeAt(0) - 'a'.charCodeAt(0); // 0-7
+        const rank = 8 - parseInt(algNotation[1]); // 0-7 (0=rank 8, 7=rank 1)
+        return { r: rank, c: file };
+    }
+
+    function coordToAlg(r, c) {
+        const file = String.fromCharCode('a'.charCodeAt(0) + c);
+        const rank = 8 - r;
+        return file + rank;
+    }
+
+    function updateConnectionStatus(connected) {
+        if (connected) {
+            connectionStatusEl.textContent = 'Đã kết nối';
+            connectionStatusEl.className = 'connection-status connected';
+            connectBtn.disabled = true;
+        } else {
+            connectionStatusEl.textContent = 'Mất kết nối';
+            connectionStatusEl.className = 'connection-status disconnected';
+            connectBtn.disabled = false;
+        }
+    }
+
+    function resetGameState() {
+        gameActive = false;
+        yourColor = null;
+        roomId = null;
+        currentTurn = 'white';
+        waitingMessageEl.style.display = 'none';
+        statusEl.textContent = 'Đã ngắt kết nối';
+        resetBoard();
+        render();
+    }
+
+    function resetBoard() {
+        board = [
+            ['r','n','b','q','k','b','n','r'],
+            ['p','p','p','p','p','p','p','p'],
+            ['','','','','','','',''],
+            ['','','','','','','',''],
+            ['','','','','','','',''],
+            ['','','','','','','',''],
+            ['P','P','P','P','P','P','P','P'],
+            ['R','N','B','Q','K','B','N','R']
+        ];
+        selected = null;
+        lastMove = null;
+        render();
+    }
+
+    function render() {
+        boardEl.innerHTML = '';
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const rr = flipped ? 7 - r : r;
+                const cc = flipped ? 7 - c : c;
+
+                const square = document.createElement('div');
+                square.className = 'square ' + (((rr + c) % 2 === 0) ? 'light' : 'dark');
+                square.dataset.r = rr;
+                square.dataset.c = cc;
+                square.dataset.alg = coordToAlg(rr, cc);
+                square.addEventListener('click', onSquareClick);
+
+                const piece = board[rr][cc];
+                if (piece) {
+                    const span = document.createElement('span');
+                    span.textContent = PIECES[piece] || '?';
+                    span.dataset.piece = piece;
+                    square.appendChild(span);
+                }
+
+                if (selected && selected.r === rr && selected.c === cc) {
+                    square.classList.add('highlight');
+                }
+
+                if (lastMove &&
+                    ((lastMove.from.r === rr && lastMove.from.c === cc) ||
+                        (lastMove.to.r === rr && lastMove.to.c === cc))) {
+                    square.classList.add('last-move');
+                }
+
+                const coord = document.createElement('div');
+                coord.className = 'coords';
+                coord.textContent = square.dataset.alg;
+                square.appendChild(coord);
+
+                boardEl.appendChild(square);
+            }
+        }
+    }
+
+    function onSquareClick(e) {
+        if (!gameActive || !yourColor) return;
+
+        const sq = e.currentTarget;
+        const r = parseInt(sq.dataset.r);
+        const c = parseInt(sq.dataset.c);
+        const piece = board[r][c];
+
+        // Check if it's our turn
+        if (currentTurn !== yourColor) {
+            alert('Chưa đến lượt của bạn!');
+            return;
+        }
+
+        if (selected) {
+            // If clicking the same square, deselect
+            if (selected.r === r && selected.c === c) {
+                selected = null;
+                render();
+                return;
+            }
+
+            const selPiece = board[selected.r][selected.c];
+            if (!selPiece) {
+                selected = null;
+                render();
+                return;
+            }
+
+            // Check if we're selecting another piece of our color
+            if (piece && isPieceOurColor(piece)) {
+                selected = { r, c };
+                render();
+                return;
+            }
+
+            // Try to make the move
+            makeMove(selected, { r, c }, true); // true = send to server
+            selected = null;
+        } else {
+            // Select a piece only if it's our color
+            if (piece && isPieceOurColor(piece)) {
+                selected = { r, c };
+                render();
+            }
+        }
+    }
+
+    function isPieceOurColor(piece) {
+        if (!yourColor || !piece) return false;
+        const isWhitePiece = piece === piece.toUpperCase();
+        return (yourColor === 'white' && isWhitePiece) || (yourColor === 'black' && !isWhitePiece);
+    }
+
+    function makeMove(from, to, sendToServer = false) {
+        const { r: fr, c: fc } = from;
+        const { r: tr, c: tc } = to;
+        const movingPiece = board[fr][fc];
+        const capturedPiece = board[tr][tc];
+
+        if (!movingPiece) return false;
+
+        // Update board
+        board[tr][tc] = movingPiece;
+        board[fr][fc] = '';
+
+        lastMove = { from, to, piece: movingPiece, capture: capturedPiece };
+
+        render();
+
+        // Send move to server
+        if (sendToServer && websocket && websocket.readyState === WebSocket.OPEN) {
+            const moveData = {
+                type: 'move',
+                roomId: roomId,
+                from: coordToAlg(fr, fc),
+                to: coordToAlg(tr, tc),
+                piece: movingPiece
+            };
+            console.log('Sending move:', moveData);
+            websocket.send(JSON.stringify(moveData));
+        }
+
+        return true;
+    }
+
+    function updateStatus() {
+        if (!gameActive) {
+            statusEl.textContent = 'Chưa có game';
+            return;
+        }
+
+        const turnText = currentTurn === 'white' ? 'Trắng' : 'Đen';
+        const isMyTurn = currentTurn === yourColor;
+        statusEl.textContent = `Lượt: ${turnText}${isMyTurn ? ' (Bạn)' : ' (Đối thủ)'}`;
+        statusEl.style.backgroundColor = isMyTurn ? '#d4edda' : '#fff3cd';
+    }
+
+    function flip() {
+        flipped = !flipped;
+        render();
+    }
+
+    function findNewGame() {
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            resetGameState();
+            websocket.send(JSON.stringify({
+                type: "join",
+                playerName: playerName
+            }));
+            waitingMessageEl.style.display = 'block';
+            statusEl.textContent = 'Đang tìm đối thủ...';
+        }
+    }
+
+    // Event listeners
+    connectBtn.addEventListener('click', connect);
+    newGameBtn.addEventListener('click', findNewGame);
+
+    playerNameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            connect();
+        }
+    });
+
+    // Initialize
+    render();
+</script>
+</body>
+</html>
