@@ -1,1 +1,122 @@
-<img src="../PBL4_imgs/image/bB.png" alt="">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Menu Hover + Click</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      padding: 50px;
+    }
+
+    /* Menu Container */
+    .menu-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    /* Nút chính */
+    #menuBtn {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    /* Menu phụ (ẩn mặc định) */
+    .submenu {
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 10px;
+      position: absolute;
+      margin-top: 5px;
+      z-index: 10;
+      min-width: 160px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Khi hiện ra */
+    .submenu.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .menu-item {
+      padding: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .menu-item:hover {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="menu-container" id="menuContainer">
+    <button id="menuBtn">Bạn bè</button>
+    <div class="submenu" id="submenu">
+      <div class="menu-item">Danh sách bạn bè</div>
+      <div class="menu-item">Tìm kiếm</div>
+      <div class="menu-item">Mời bạn</div>
+    </div>
+  </div>
+
+  <script>
+    const menuBtn = document.getElementById('menuBtn');
+    const submenu = document.getElementById('submenu');
+    const menuContainer = document.getElementById('menuContainer');
+
+    let hideTimeout;
+
+    // Hiện menu
+    function showMenu() {
+      clearTimeout(hideTimeout);
+      submenu.classList.add('show');
+    }
+
+    // Ẩn menu có delay
+    function hideMenu() {
+      hideTimeout = setTimeout(() => {
+        submenu.classList.remove('show');
+      }, 250); // Delay nhỏ khi rời chuột
+    }
+
+    // Hover: hiện/ẩn
+    menuContainer.addEventListener('mouseenter', showMenu);
+    menuContainer.addEventListener('mouseleave', hideMenu);
+
+    // Click nút: toggle menu
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Không cho lan ra ngoài
+      submenu.classList.toggle('show');
+    });
+
+    // Click ra ngoài: ẩn menu
+    document.addEventListener('click', (e) => {
+      if (!menuContainer.contains(e.target)) {
+        submenu.classList.remove('show');
+      }
+    });
+
+    // (Tuỳ chọn) Bắt sự kiện click vào từng mục
+    document.querySelectorAll('.menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        alert('Bạn chọn: ' + item.textContent);
+        submenu.classList.remove('show');
+      });
+    });
+  </script>
+
+</body>
+</html>

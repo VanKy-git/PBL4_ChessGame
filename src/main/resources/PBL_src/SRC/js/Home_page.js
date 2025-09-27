@@ -1,6 +1,5 @@
 const boardEl = document.getElementById('chessBoard');
-const lightPicker = document.getElementById('light');
-const darkPicker = document.getElementById('dark');
+
 const flipBtn = document.getElementById('flipBtn');
 const resetBtn = document.getElementById('resetBtn');
 
@@ -67,4 +66,38 @@ function nextTheme() {
 
 // áp dụng theme đầu tiên khi load
 applyTheme(currentTheme);
+
+const btn = document.getElementById('menu_banbe');
+ friendsList = document.getElementById('friendsList');
+
+function hideFriendsList() {
+  friendsList.style.display = 'none';
+}
+
+btn.addEventListener('click', function(e) {
+  e.preventDefault();
+  if (friendsList.style.display === 'block') {
+    friendsList.style.display = 'none';
+  } else {
+    friendsList.style.display = 'block';
+  }
+});
+
+// Ẩn khi chuột rời khỏi cả nút và vùng danh sách bạn bè
+btn.addEventListener('mouseleave', () => {
+  // Đợi chút để kiểm tra xem chuột có đang ở trong friendsList không
+  setTimeout(() => {
+    if (!btn.matches(':hover') && !friendsList.matches(':hover')) {
+      hideFriendsList();
+    }
+  }, 100); // delay nhẹ cho thao tác chuột chuyển mượt hơn
+});
+
+friendsList.addEventListener('mouseleave', () => {
+  setTimeout(() => {
+    if (!btn.matches(':hover') && !friendsList.matches(':hover')) {
+      hideFriendsList();
+    }
+  }, 100);
+});
 

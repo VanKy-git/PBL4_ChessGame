@@ -15,6 +15,18 @@
       background:url(../../PBL4_imgs/image/background5.png) no-repeat center center fixed;
       background-size:cover;}
     .muted{opacity:0.7;font-size:13px}
+    .menu {position: relative;;}
+    .friends-list{
+      display:none;
+      position:absolute;
+      top:70px;left:220px;
+      background:rgba(0,0,0,0.8);
+      padding:10px 15px;
+      border-radius:8px;
+      z-index:1000;}
+    .menu-banbe:hover .friends-list{display:block;}
+      
+    
   </style>
 </head>
 <body>
@@ -29,13 +41,27 @@
         </div>
       </div>
       <nav class="menu">
-        <a href="#"><span class="icon">📜</span> Lịch sử</a>
-        <a href="#"><span class="icon">👤</span> Tài khoản</a>
-        <a href="#"><span class="icon">👥</span> Bạn bè</a>
+        <a href="#"><i class="fa-solid fa-rectangle-history"></i> Lịch sử</a>
+        <a href="#" ><span class="icon">👤</span> Tài khoản</a>
+        <div class="menu-banbe">
+          <a href="#" id="menu_banbe"><span class="icon">👥</span> Bạn bè</a>
+          <div class="friends-list" id="friendsList">
+            <p><strong>Danh sách bạn bè:</strong></p>
+            <ul>
+              <li>Nguyễn Văn A</li>
+              <li>Trần Thị B</li>
+              <li>Phạm Văn C</li>
+            </ul>
+          </div>
+        </div>
+        
         <a href="#"><span class="icon">🏆</span> Bảng xếp hạng</a>
         <a href="#"><span class="icon">⚙️</span> Cài đặt</a>
       </nav>
     </aside>
+
+    
+  
 
     <!-- CENTER -->
     <main class="center">
@@ -44,9 +70,10 @@
         <div class="muted">Tùy chỉnh màu sắc bàn cờ bên dưới</div>
       </div>
       <div class="board-wrap">
-        <button class="arrow left" onclick="prevTheme()">◀</button>
-        <div class="board" id="chessBoard"></div>
+        <button class="arrow left" onclick="prevTheme()">◀</button> 
         <button class="arrow right" onclick="nextTheme()">▶</button>
+        <div class="board" id="chessBoard"></div>
+
       </div>
       
     </main>

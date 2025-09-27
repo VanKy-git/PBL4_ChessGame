@@ -58,7 +58,8 @@
       display:flex;
       gap:10px;
       align-items:center;
-      padding:10px;border-radius:8px;
+      padding:10px;
+      border-radius:8px;
       text-decoration:none;
       color:inherit;
     }
@@ -90,27 +91,30 @@
     border: none;
     color: white;
     font-size: 28px;
-    padding: 8px 12px;
-    border-radius:8px;
+    width: 56px;   /* cố định ngang */
+    height: 56px;  /* cố định dọc */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
     cursor: pointer;
     transition: 0.2s;
+    z-index: 10;
   }
   
-  .arrow:hover {
-    background: rgba(255,255,255,0.3);
-  }
+
   
   .arrow.left {
-    left: -20px; /* chỉnh khoảng cách ra ngoài bàn cờ */
+    left: 70px; /* chỉnh khoảng cách ra ngoài bàn cờ */
+
   }
   
   .arrow.right {
-    right: -20px;
+    right: 70px;
+    background: rgba(0,0,0,0.5);
   }
-  .coords{
-    display:flex;
-    gap:8px;
-    align-items:center
+  .arrow:hover {
+   background: rgba(255,255,255,0.3);
   }
 
 
