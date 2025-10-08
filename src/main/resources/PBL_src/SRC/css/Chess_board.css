@@ -4,7 +4,7 @@
   display:grid;
   grid-template-columns:repeat(8,1fr);
   grid-template-rows:repeat(8,1fr);
-  width: 98%;
+  width: 60%;
   border-radius:12px;
   overflow:hidden;
   box-shadow:0 12px 30px rgba(2,6,23,0.7)
