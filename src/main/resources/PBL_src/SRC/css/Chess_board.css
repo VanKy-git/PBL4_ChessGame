@@ -9,6 +9,10 @@
   overflow:hidden;
   box-shadow:0 12px 30px rgba(2,6,23,0.7)
 }
+
+.match_board{
+  width: 90%;
+}
   
 square{display:flex;
   align-items:center;
