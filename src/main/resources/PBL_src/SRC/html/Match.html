@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/Match.css">
+    <link rel="stylesheet" href="../css/Chess_board.css">
+    <title>Document</title>
+</head>
+<body>
+    <div class="game-layout">
+
+        <div class="player-info opponent">
+          <div class="player-name">Nguyễn Văn A</div>
+          <div class="player-id">ID: 12345</div>
+          <div class="player-elo">ELO: 1600</div>
+          <div class="timer">Thời gian: <span id="opponent-timer">10:00</span></div>
+        </div>
+      
+        <div class="board-container">
+          <div class="board" id="chessBoard"></div>
+        </div>
+      
+        <div class="player-info self">
+          <div class="player-name">Bạn</div>
+          <div class="player-id">ID: 67890</div>
+          <div class="player-elo">ELO: 1500</div>
+          <div class="timer">Thời gian: <span id="self-timer">10:00</span></div>
+      
+          <div class="game-controls">
+            <button id="resign-btn" class="btn">Xin Thua</button>
+            <button id="draw-btn" class="btn">Cầu Hoà</button>
+          </div>
+        </div>
+      
+      </div>
+    <script src="../js/Chess_board.js"></script>
+    <script src="../js/Match.js"></script>
+</body>
+</html>

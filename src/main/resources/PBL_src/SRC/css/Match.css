@@ -1,0 +1,96 @@
+body {
+  background-color: #011627; 
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background:url(../../PBL4_imgs/image/background5.png) no-repeat center center fixed;
+  background-size:cover;
+}
+:root {
+  --panel: rgba(4, 21, 40, 0.95);
+  --accent: #ef476f;
+  --text-light: #dce9ff;
+  --bg-dark: #011627;
+  --btn-hover: #ff4c4c;
+}
+
+.game-layout {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0px;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  
+  .player-info {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 16px 24px;
+    width: 300px;
+    color: #dce9ff;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+  
+  .opponent {
+    align-self: flex-start;
+  }
+  
+  .self {
+    align-self: flex-end;
+  }
+  
+  .player-name {
+    font-weight: 700;
+    font-size: 18px;
+  }
+  
+  .timer {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .board-container {
+    width: 100%;
+    /* aspect-ratio: 1 / 1; */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .board {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(2, 6, 23, 0.7);
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+  }
+  
+  .game-controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+  }
+  
+  .btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+    transition: background-color 0.2s ease;
+  }
+  
+  .btn:hover {
+    background: #ff4c4c;
+  }
+  
