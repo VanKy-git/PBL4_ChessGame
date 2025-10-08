@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bạn bè Dropdown</title>
+  <style>
+    * {
+      font-size: 20px;
+      box-sizing: border-box;
+    }
+    body {
+      padding: 50px;
+    }
+    .menu-container {
+      position: relative;
+      display: inline-block;
+    }
+    #menu_banbe {
+      cursor: pointer;
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .friends-list {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      padding: 10px;
+      width: 200px;
+      z-index: 10;
+    }
+    .friends-list ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .friends-list li {
+      padding: 5px 0;
+    }
+    .friends-list.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu-container" id="menuContainer">
+    <div id="menu_banbe"><span>Bạn bè</span></div>
+    <div class="friends-list" id="friendsList">
+      <p><strong>Danh sách bạn bè:</strong></p>
+      <ul>
+        <li>Nguyễn Văn A</li>
+        <li>Trần Thị B</li>
+        <li>Phạm Văn C</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const menu = document.getElementById("menu_banbe");
+    const friendsList = document.getElementById("friendsList");
+    const container = document.getElementById("menuContainer");
+
+    let isClicked = false;
+
+    // Hover logic
+    container.addEventListener("mouseenter", () => {
+      if (!isClicked) {
+        friendsList.classList.add("show");
+      }
+    });
+
+    container.addEventListener("mouseleave", () => {
+      if (!isClicked) {
+        friendsList.classList.remove("show");
+      }
+    });
+
+    // Click toggle logic
+    menu.addEventListener("click", () => {
+      isClicked = !isClicked;
+      if (isClicked) {
+        friendsList.classList.add("show");
+      } else {
+        friendsList.classList.remove("show");
+      }
+    });
+
+    // Optional: click outside để đóng menu nếu đã mở bằng click
+    document.addEventListener("click", (event) => {
+      if (
+        isClicked &&
+        !container.contains(event.target)
+      ) {
+        isClicked = false;
+        friendsList.classList.remove("show");
+      }
+    });
+  </script>
+</body>
+</html>
