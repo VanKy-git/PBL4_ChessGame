@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Log In</title>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .text {
+      text-align: center;
+      font-size: 96px;
+      font-family: Arial, sans-serif;
+      font-weight: bolder;
+      color: white;
+      position: absolute;
+      left: 435px;
+      top: 250px;
+      z-index: 10;
+      user-select: none;
+    }
+    .text :hover {
+      transform: scale(1.25); /* to ra một chút */
+    }
+    .clickable-text {
+      color: white;
+      font-size: 20px;
+      cursor: pointer; /* khi di chuột vào đổi thành bàn tay */
+      position: absolute;
+      left: 690px;
+      top: 500px;
+      font-weight: lighter;
+      font-family: Arial, Helvetica, sans-serif;
+      z-index: 20;
+    }
+    .clickable-text:hover {
+      text-decoration: underline; /* gạch chân khi hover */
+    }
+    .rectangle {
+      width: 620px;
+      height: 1760px;
+      background-color: rgba(3, 2, 3, 0.75);
+      transform: rotate(-35deg);
+      position: absolute;
+      left: 500px;
+      top: -422px;
+    }
+    .img img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+    .button input {
+      background-color: rgba(7, 137, 251, 1); 
+      border: none; 
+      color: white; 
+      text-align: center; 
+      border-radius: 20px; 
+      font-size: 32px; 
+      font-weight: bold; 
+      padding: 10px 30px;
+      cursor: pointer;
+      position: absolute;
+      left: 520px;  /* chỉnh toạ độ nút */
+      top: 400px;   /* chỉnh toạ độ nút */
+      z-index: 10;
+      width: 420px;
+      height: 81px;
+    }
+    /* Khi hover chuột lên */
+    .button input:hover {
+      background-color: rgb(46, 147, 255);
+      transform: scale(1.05); /* to ra một chút */
+    }
+
+    /* Khi click (active) */
+    .button input:active {
+      background-color: rgb(46, 147, 255);
+      transform: scale(0.95); /* thu nhỏ nhẹ để có cảm giác nhấn */
+    }
+  </style>
+</head>
+<body>
+  <div class="img">
+    <img src="background.jpg" alt="Log-In"/>
+  </div>
+  <div class="rectangle"></div>
+  <div class="text">Chess game</div>
+  <div class="button">
+    <input type="button" value="Log In" onclick=""/>
+    <span class="clickable-text">or Sign In</span>
+  </div>
+</body>
+</html>
