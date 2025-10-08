@@ -201,6 +201,20 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
+    //Auto generateRoomID
+    private String generateUniqueRoomId() {
+        Random random = new Random();
+        String roomId;
+
+        do {
+            // Tạo số ngẫu nhiên 6 chữ số (000000 - 999999)
+            int number = random.nextInt(1000000);
+            roomId = String.format("%06d", number); // Đảm bảo đủ 6 số
+        } while (gameRooms.containsKey(roomId)); // Kiểm tra trùng
+
+        return roomId;
+    }
+
     private void handleCreateRoom(WebSocket webSocket, Map<String, Object> data) {
         Player player = connectionPlayerMap.get(webSocket);
         if (player == null) return;
@@ -208,7 +222,7 @@ public class ChessServer extends WebSocketServer {
         // Remove player from waiting queue if they're in it
         waitingQueue.remove(player);
 
-        String roomId = UUID.randomUUID().toString();
+        String roomId = generateUniqueRoomId();
 
         GameRoom room = new GameRoom(roomId);
         player.setColor("white"); // Room creator is white
