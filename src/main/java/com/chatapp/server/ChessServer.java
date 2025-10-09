@@ -59,6 +59,9 @@ public class ChessServer extends WebSocketServer {
             String type = (String) data.get("type");
 
             switch (type) {
+                case "connect":
+                    handlePlayerConnect(webSocket, data);
+                    break;
                 case "join":
                     handlePlayerJoin(webSocket, data);
                     break;
@@ -89,19 +92,37 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
-    private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
+    private void handlePlayerConnect(WebSocket  webSocket, Map<String, Object> data) {
         String playerId = UUID.randomUUID().toString();
         String playerName = (String) data.get("playerName");
 
         Player player = new Player(playerId, playerName, webSocket);
         connectionPlayerMap.put(webSocket, player);
 
+        System.out.println("checked");
         // Gửi thông tin người chơi
         Map<String, Object> response = new HashMap<>();
         response.put("type", "player_info");
         response.put("playerId", playerId);
         response.put("playerName", playerName);
         webSocket.send(gson.toJson(response));
+    }
+
+    private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
+//        String playerId = UUID.randomUUID().toString();
+//        String playerName = (String) data.get("playerName");
+//
+//        Player player = new Player(playerId, playerName, webSocket);
+//        connectionPlayerMap.put(webSocket, player);
+//
+//        // Gửi thông tin người chơi
+//        Map<String, Object> response = new HashMap<>();
+//        response.put("type", "player_info");
+//        response.put("playerId", playerId);
+//        response.put("playerName", playerName);
+//        webSocket.send(gson.toJson(response));
+        Player player = connectionPlayerMap.get(webSocket);
+        String playerId = player.getPlayerId();
 
         // Thêm vào queue tìm trận
         waitingQueue.offer(player);
@@ -116,7 +137,7 @@ public class ChessServer extends WebSocketServer {
             Player player2 = waitingQueue.poll();
 
             if (player1 != null && player2 != null) {
-                String roomId = UUID.randomUUID().toString();
+                String roomId = generateUniqueRoomId();
 
                 GameRoom room = new GameRoom(roomId);
                 player1.setColor("white");
@@ -366,6 +387,7 @@ public class ChessServer extends WebSocketServer {
         String roomId = (String) data.get("roomId");
         String message = (String) data.get("message");
         GameRoom room = gameRooms.get(roomId);
+        System.out.println(message + player.getPlayerName());
 
         if (room != null) {
             Map<String, Object> chatData = new HashMap<>();
