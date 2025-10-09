@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login & Signup</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0c2340;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      position: relative;
+      width: 1100px;
+      height: 600px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      display: flex;
+      transition: transform 0.8s ease-in-out;
+    }
+
+    .left, .right {
+      flex: 1; /* Chia đều 50% - 50% */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      box-sizing: border-box;
+      transition: transform 0.8s ease-in-out;
+    }
+
+    .left {
+      background: url("background.jpg") no-repeat center center;
+      background-size: cover;
+      color: white;
+    }
+
+    .right {
+      background: rgba(0,0,0,0.85);
+      color: white;
+    }
+
+     /* Logo ở giữa */
+    .logo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 50%;
+      padding: 15px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      z-index: 30;
+    }
+    .logo img {
+      width: 80px;
+      height: 80px;
+      display: block;
+    }
+
+    .title {
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 30px;
+    }
+
+    .form {
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .form input {
+      padding: 12px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    .btn {
+      padding: 12px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      color: white;
+      transition: 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-login { background: #0789fb; }
+    .btn-login:hover { background: #056cd6; }
+
+    .btn-google { background: #f44336; }
+    .btn-google:hover { background: #c62828; }
+
+    .btn-google img {
+      width: 20px;
+      height: 20px;
+    }
+
+    .link {
+      margin-top: 15px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #bbb;
+    }
+    .link:hover { color: white; text-decoration: underline; }
+
+    /* Khi bật Signup mode */
+    .container.show-signup .left {
+      transform: translateX(100%);
+    }
+    .container.show-signup .right {
+      transform: translateX(-100%);
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="container">
+    <div class="left"></div>
+    <div class="logo">
+      <img src="logo.png" alt="Logo">
+    </div>
+    <div class="right" id="form-box">
+      <div class="title" id="form-title">Log In</div>
+      <div class="form" id="form-content">
+        <input type="text" placeholder="Username">
+        <input type="password" placeholder="Password">
+        <button class="btn btn-login">Log In</button>
+        <button class="btn btn-google">
+          <img src="google.png" alt="Google Logo">
+            Log In With Google
+        </button>
+      </div>
+      <div class="link" onclick="toggleForm()">Don’t have an account? Sign Up</div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById("container");
+    const formTitle = document.getElementById("form-title");
+    const formContent = document.getElementById("form-content");
+    const link = document.querySelector(".link");
+
+    let isSignup = false;
+
+    function toggleForm() {
+      isSignup = !isSignup;
+      container.classList.toggle("show-signup");
+
+      if (isSignup) {
+        formTitle.textContent = "Sign Up";
+        formContent.innerHTML = `
+          <input type="text" placeholder="Full Name">
+          <input type="email" placeholder="Email">
+          <input type="text" placeholder="Username">         
+          <input type="password" placeholder="Password">
+          <input type="password" placeholder="Confirm Password">
+          <button class="btn btn-login">Sign Up</button>
+          <button class="btn btn-google">
+            <img src="google.png" alt="Google Logo">
+            Sign Up With Google
+          </button>
+        `;
+        link.textContent = "Already have an account? Log In";
+      } else {
+        formTitle.textContent = "Log In";
+        formContent.innerHTML = `
+          <input type="text" placeholder="Username">
+          <input type="password" placeholder="Password">
+          <button class="btn btn-login">Log In</button>
+          <button class="btn btn-google">
+            <img src="google.png" alt="Google Logo">
+            Log In With Google
+          </button>
+        `;
+        link.textContent = "Don't have an account? Sign Up";
+      }
+    }
+  </script>
+</body>
+</html>

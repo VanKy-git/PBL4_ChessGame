@@ -11,6 +11,7 @@ public class GameRoom {
     private String currentTurn; // "white" or "black"
     private String gameState; // Chess board state (could be FEN notation or custom format)
     private long createdAt;
+    private ChessValidator validator;
 
     public GameRoom(String roomId) {
         this.roomId = roomId;
@@ -19,6 +20,7 @@ public class GameRoom {
         this.currentTurn = "white";
         this.gameState = getInitialChessState();
         this.createdAt = System.currentTimeMillis();
+        this.validator = new ChessValidator();
     }
 
     private String getInitialChessState() {
@@ -39,6 +41,10 @@ public class GameRoom {
                 player.setColor("black");
             }
         }
+    }
+
+    public ChessValidator getValidator() {
+        return validator;
     }
 
     public void removePlayer(Player player) {

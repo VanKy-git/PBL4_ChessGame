@@ -59,6 +59,9 @@ public class ChessServer extends WebSocketServer {
             String type = (String) data.get("type");
 
             switch (type) {
+                case "connect":
+                    handlePlayerConnect(webSocket, data);
+                    break;
                 case "join":
                     handlePlayerJoin(webSocket, data);
                     break;
@@ -71,7 +74,7 @@ public class ChessServer extends WebSocketServer {
                 case "leave_room":
                     handleLeaveRoom(webSocket, data);
                     break;
-                case "move":
+                case "move_request":
                     handleGameMove(webSocket, data);
                     break;
                 case "chat":
@@ -89,19 +92,37 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
-    private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
+    private void handlePlayerConnect(WebSocket  webSocket, Map<String, Object> data) {
         String playerId = UUID.randomUUID().toString();
         String playerName = (String) data.get("playerName");
 
         Player player = new Player(playerId, playerName, webSocket);
         connectionPlayerMap.put(webSocket, player);
 
+        System.out.println("checked");
         // Gửi thông tin người chơi
         Map<String, Object> response = new HashMap<>();
         response.put("type", "player_info");
         response.put("playerId", playerId);
         response.put("playerName", playerName);
         webSocket.send(gson.toJson(response));
+    }
+
+    private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
+//        String playerId = UUID.randomUUID().toString();
+//        String playerName = (String) data.get("playerName");
+//
+//        Player player = new Player(playerId, playerName, webSocket);
+//        connectionPlayerMap.put(webSocket, player);
+//
+//        // Gửi thông tin người chơi
+//        Map<String, Object> response = new HashMap<>();
+//        response.put("type", "player_info");
+//        response.put("playerId", playerId);
+//        response.put("playerName", playerName);
+//        webSocket.send(gson.toJson(response));
+        Player player = connectionPlayerMap.get(webSocket);
+        String playerId = player.getPlayerId();
 
         // Thêm vào queue tìm trận
         waitingQueue.offer(player);
@@ -116,7 +137,7 @@ public class ChessServer extends WebSocketServer {
             Player player2 = waitingQueue.poll();
 
             if (player1 != null && player2 != null) {
-                String roomId = UUID.randomUUID().toString();
+                String roomId = generateUniqueRoomId();
 
                 GameRoom room = new GameRoom(roomId);
                 player1.setColor("white");
@@ -154,6 +175,7 @@ public class ChessServer extends WebSocketServer {
         notifyRoomPlayers(room, "game_start", gameStartData);
     }
 
+    //Send message to two players in Gameroom
     private void notifyRoomPlayers(GameRoom room, String messagesType, Map<String, Object> data) {
         Map<String, Object> message = new HashMap<>();
         message.put("type", messagesType);
@@ -172,6 +194,7 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
+    //Get list of all room in status waitin ( Just have one player )
     private void broadcastRoomsList() {
         List<Map<String, Object>> roomsList = new ArrayList<>();
 
@@ -201,6 +224,20 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
+    //Auto generateRoomID
+    private String generateUniqueRoomId() {
+        Random random = new Random();
+        String roomId;
+
+        do {
+            // Tạo số ngẫu nhiên 6 chữ số (000000 - 999999)
+            int number = random.nextInt(1000000);
+            roomId = String.format("%06d", number); // Đảm bảo đủ 6 số
+        } while (gameRooms.containsKey(roomId)); // Kiểm tra trùng
+
+        return roomId;
+    }
+
     private void handleCreateRoom(WebSocket webSocket, Map<String, Object> data) {
         Player player = connectionPlayerMap.get(webSocket);
         if (player == null) return;
@@ -208,7 +245,7 @@ public class ChessServer extends WebSocketServer {
         // Remove player from waiting queue if they're in it
         waitingQueue.remove(player);
 
-        String roomId = UUID.randomUUID().toString();
+        String roomId = generateUniqueRoomId();
 
         GameRoom room = new GameRoom(roomId);
         player.setColor("white"); // Room creator is white
@@ -316,15 +353,31 @@ public class ChessServer extends WebSocketServer {
         moveData.put("color", player.getColor());
         moveData.put("piece", data.get("piece"));
 
-        notifyRoomPlayers(room, "player_move", moveData);
+        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(moveData.get("from").toString(), moveData.get("to").toString(),
+                moveData.get("color").toString());
+        if(!moveResult.valid)
+        {
+            moveData.put("result", false);
+            webSocket.send(gson.toJson(moveData));
+        }
+        else {
+            moveData.put("result", true);
+            notifyRoomPlayers(room, "move_result", moveData);
+            if(moveResult.winner != null)
+            {
+                Map<String, Object> response = new HashMap<>();
+                response.put("winner", moveResult.winner);
+                notifyRoomPlayers(room, "end_game", response);
+            }
+            System.out.println(moveData.get("from").toString() + " " + moveData.get("to").toString());
+            // Change turn
+            String nextTurn = player.getColor().equals("white") ? "black" : "white";
+            room.setCurrentTurn(nextTurn);
 
-        // Change turn
-        String nextTurn = player.getColor().equals("white") ? "black" : "white";
-        room.setCurrentTurn(nextTurn);
-
-        Map<String, Object> turnData = new HashMap<>();
-        turnData.put("currentTurn", nextTurn);
-        notifyRoomPlayers(room, "turn_change", turnData);
+            Map<String, Object> turnData = new HashMap<>();
+            turnData.put("currentTurn", nextTurn);
+            notifyRoomPlayers(room, "turn_change", turnData);
+        }
     }
 
     private void handleChatMessage(WebSocket webSocket, Map<String, Object> data) {
@@ -334,6 +387,7 @@ public class ChessServer extends WebSocketServer {
         String roomId = (String) data.get("roomId");
         String message = (String) data.get("message");
         GameRoom room = gameRooms.get(roomId);
+        System.out.println(message + player.getPlayerName());
 
         if (room != null) {
             Map<String, Object> chatData = new HashMap<>();

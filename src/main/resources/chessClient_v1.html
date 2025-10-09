@@ -1,49 +1,53 @@
 <!doctype html>
 <html lang="vi">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <style>
-        :root{
-            --size: 64px;
-            --board-gap: 8px;
-        }
-        body{font-family: system-ui, Arial; display:flex; gap:24px; padding:24px; background:#f5f5f5;}
-        .wrapper{display:flex;flex-direction:column;align-items:center}
-        .board{
-            display:grid;
-            grid-template-columns: repeat(8, var(--size));
-            grid-template-rows: repeat(8, var(--size));
-            gap:0;
-            border: 4px solid #333;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-            user-select:none;
-        }
-        .square{
-            width:var(--size); height:var(--size);
-            display:flex;align-items:center;justify-content:center;
-            font-size:32px; cursor:pointer; position:relative;
-        }
-        .square.light{ background: #f0d9b5; }
-        .square.dark{ background: #b58863; }
-        .square.highlight{ outline: 4px solid rgba(50,180,50,0.6); box-sizing:border-box; }
-        .square.last-move{ box-shadow: inset 0 0 0 3px rgba(255,255,0,0.4); }
-        .coords{font-size:12px; position:absolute; bottom:2px; right:4px; color:rgba(0,0,0,0.35)}
-        .info{max-width:320px; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-        .status{font-weight:600; margin-bottom:12px; padding:8px; background:#e8f4fd; border-radius:4px; text-align:center}
-        .connection-status{font-size:14px; margin-bottom:8px; padding:6px; border-radius:4px; text-align:center}
-        .connected{background:#d4edda; color:#155724}
-        .disconnected{background:#f8d7da; color:#721c24}
-        .game-info{margin:12px 0; font-size:14px}
-        .game-info div{margin:4px 0}
-        #playerName{margin-bottom:8px; padding:8px; border:1px solid #ddd; border-radius:4px; width:100%}
-        button{margin:4px 0; padding:8px 12px; border-radius:4px; border:1px solid #007bff;
-            background:#007bff; color:white; cursor:pointer; width:100%}
-        button:hover{background:#0056b3}
-        button:disabled{background:#6c757d; cursor:not-allowed}
-        .waiting{color:#856404; background:#fff3cd; border:1px solid #ffeaa7; padding:8px; border-radius:4px; text-align:center}
-    </style>
-</head>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <style>
+            :root{
+                --size: 64px;
+                --board-gap: 8px;
+            }
+            body{font-family: system-ui, Arial; display:flex; gap:24px; padding:24px;
+                background-image: url(../resources/background5.png);
+                background-size: cover;
+                background-position: center;
+                background-attachment: fixed;}
+            .wrapper{display:flex;flex-direction:column;align-items:center}
+            .board{
+                display:grid;
+                grid-template-columns: repeat(8, var(--size));
+                grid-template-rows: repeat(8, var(--size));
+                gap:0;
+                border: 4px solid #333;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+                user-select:none;
+            }
+            .square{
+                width:var(--size); height:var(--size);
+                display:flex;align-items:center;justify-content:center;
+                font-size:32px; cursor:pointer; position:relative;
+            }
+            .square.light{ background: #f0d9b5; }
+            .square.dark{ background: #b58863; }
+            .square.highlight{ outline: 4px solid rgba(50,180,50,0.6); box-sizing:border-box; }
+            .square.last-move{ box-shadow: inset 0 0 0 3px rgba(255,255,0,0.4); }
+            .coords{font-size:12px; position:absolute; bottom:2px; right:4px; color:rgba(0,0,0,0.35)}
+            .info{max-width:320px; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+            .status{font-weight:600; margin-bottom:12px; padding:8px; background:#e8f4fd; border-radius:4px; text-align:center}
+            .connection-status{font-size:14px; margin-bottom:8px; padding:6px; border-radius:4px; text-align:center}
+            .connected{background:#d4edda; color:#155724}
+            .disconnected{background:#f8d7da; color:#721c24}
+            .game-info{margin:12px 0; font-size:14px}
+            .game-info div{margin:4px 0}
+            #playerName{margin-bottom:8px; padding:8px; border:1px solid #ddd; border-radius:4px; width:100%}
+            button{margin:4px 0; padding:8px 12px; border-radius:4px; border:1px solid #007bff;
+                background:#007bff; color:white; cursor:pointer; width:100%}
+            button:hover{background:#0056b3}
+            button:disabled{background:#6c757d; cursor:not-allowed}
+            .waiting{color:#856404; background:#fff3cd; border:1px solid #ffeaa7; padding:8px; border-radius:4px; text-align:center}
+        </style>
+    </head>
 <body>
 <div class="wrapper">
     <div id="board" class="board" aria-label="Chess board"></div>
@@ -214,6 +218,21 @@
                 alert('Lỗi: ' + msg.message);
                 break;
 
+            case 'move_result' :
+                if(msg.result == false)
+                {
+                    alert("Nuoc di khong hop le");
+                    selected = algToCoord(msg.from.toString());
+                }
+                else {
+                    makeMove(msg.from, msg.to);
+                }
+                break;
+
+            case 'end_game' :
+                alert(msg.winner, 'chien thang  tran dau!');
+                break;
+
             default:
                 console.log('Unknown message type:', msg.type);
         }
@@ -235,12 +254,23 @@
         return { r: rank, c: file };
     }
 
+    //Change from index in matrix -> move in chess. Ex: (3,4) -> e4
     function coordToAlg(r, c) {
         const file = String.fromCharCode('a'.charCodeAt(0) + c);
         const rank = 8 - r;
         return file + rank;
     }
 
+    //Change from move in chess -> index matrix
+    function algToCoord(alg) {
+        // Lấy cột: 'e'.charCodeAt(0) - 'a'.charCodeAt(0) -> 4
+        const c = alg.charCodeAt(0) - 'a'.charCodeAt(0);
+        // Lấy hàng: 8 - 4 -> 4
+        const r = 8 - parseInt(alg.charAt(1), 10);
+        return { r, c };
+    }
+
+    //Update status of connection
     function updateConnectionStatus(connected) {
         if (connected) {
             connectionStatusEl.textContent = 'Đã kết nối';
@@ -253,6 +283,7 @@
         }
     }
 
+    //Reset when begin or out room
     function resetGameState() {
         gameActive = false;
         yourColor = null;
@@ -264,6 +295,7 @@
         render();
     }
 
+    //Reset board
     function resetBoard() {
         board = [
             ['r','n','b','q','k','b','n','r'],
@@ -280,6 +312,7 @@
         render();
     }
 
+    //Render for UI
     function render() {
         boardEl.innerHTML = '';
         for (let r = 0; r < 8; r++) {
@@ -288,8 +321,7 @@
                 const cc = flipped ? 7 - c : c;
 
                 const square = document.createElement('div');
-                square.className = 'square ' + (((rr + c) % 2 === 0) ? 'light' : 'dark');
-                square.dataset.r = rr;
+                square.className = 'square ' + (((r + c) % 2 === 0) ? 'light' : 'dark');                square.dataset.r = rr;
                 square.dataset.c = cc;
                 square.dataset.alg = coordToAlg(rr, cc);
                 square.addEventListener('click', onSquareClick);
@@ -359,7 +391,18 @@
             }
 
             // Try to make the move
-            makeMove(selected, { r, c }, true); // true = send to server
+            // makeMove(selected, { r, c }, true); // true = send to server
+            if(websocket && websocket.readyState === WebSocket.OPEN)
+            {
+                const moveRequestData = {
+                    type : 'move_request',
+                    from : coordToAlg(selected.r, selected.c),
+                    to : coordToAlg(r, c),
+                    roomId: roomId
+                }
+                console.log('Sending move Request: ', moveRequestData);
+                websocket.send(JSON.stringify(moveRequestData));
+            }
             selected = null;
         } else {
             // Select a piece only if it's our color
@@ -370,15 +413,23 @@
         }
     }
 
+    //Check is piece have same color with player
     function isPieceOurColor(piece) {
         if (!yourColor || !piece) return false;
         const isWhitePiece = piece === piece.toUpperCase();
         return (yourColor === 'white' && isWhitePiece) || (yourColor === 'black' && !isWhitePiece);
     }
 
-    function makeMove(from, to, sendToServer = false) {
+    function makeMove(fromAlg, toAlg) {
+        // BƯỚC 1: Chuyển đổi ký hiệu đại số sang tọa độ mảng
+        const from = algToCoord(fromAlg);
+        const to = algToCoord(toAlg);
+
+        // Lấy chỉ số hàng, cột để dễ sử dụng
         const { r: fr, c: fc } = from;
         const { r: tr, c: tc } = to;
+
+        // Các logic còn lại giữ nguyên
         const movingPiece = board[fr][fc];
         const capturedPiece = board[tr][tc];
 
@@ -386,25 +437,11 @@
 
         // Update board
         board[tr][tc] = movingPiece;
-        board[fr][fc] = '';
+        board[fr][fc] = ''; // '' đại diện cho ô trống
 
         lastMove = { from, to, piece: movingPiece, capture: capturedPiece };
 
         render();
-
-        // Send move to server
-        if (sendToServer && websocket && websocket.readyState === WebSocket.OPEN) {
-            const moveData = {
-                type: 'move',
-                roomId: roomId,
-                from: coordToAlg(fr, fc),
-                to: coordToAlg(tr, tc),
-                piece: movingPiece
-            };
-            console.log('Sending move:', moveData);
-            websocket.send(JSON.stringify(moveData));
-        }
-
         return true;
     }
 

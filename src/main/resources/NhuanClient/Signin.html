@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chess Game - Sign Up</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+    }
+
+    /* Khối trái: form đăng ký */
+    .left {
+      flex: 1;
+      background-color: rgb(215, 223, 236);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+    }
+
+    .title {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 40px;
+    }
+
+    .form {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .form input[type="text"],
+    .form input[type="password"],
+    .form input[type="email"] {
+      padding: 12px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    .btn {
+      padding: 12px;
+      border: none;
+      border-radius: 5px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      color: white;
+      transition: 0.2s;
+    }
+
+    .btn-signup {
+      background-color: #0789fb;
+    }
+    .btn-signup:hover {
+      background-color: #056cd6;
+    }
+
+    .btn-google {
+      background-color: #f44336;
+    }
+    .btn-google:hover {
+      background-color: #c62828;
+    }
+
+    .link {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #bbb;
+      cursor: pointer;
+      text-align: center;
+    }
+    .link:hover {
+      color: white;
+      text-decoration: underline;
+    }
+
+    /* Khối phải: ảnh nền */
+    .right {
+      flex: 1;
+      background: url("background.jpg") no-repeat center center;
+      background-size: cover;
+    }
+  </style>
+</head>
+<body>
+  <div class="left">
+    <div class="title">Sign Up</div>
+    <div class="form">
+      <input type="text" placeholder="Full Name">
+      <input type="email" placeholder="Email">
+      <input type="text" placeholder="Username">
+      <input type="password" placeholder="Password">
+      <input type="password" placeholder="Confirm Password">
+      <button class="btn btn-signup">Create Account</button>
+      <button class="btn btn-google">Sign Up With Google</button>
+    </div>
+    <div class="link">Already have an account? Log In</div>
+  </div>
+
+  <div class="right"></div>
+</body>
+</html>
