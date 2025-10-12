@@ -1,5 +1,5 @@
 :root {
-    --panel: rgba(4, 21, 40, 0.9);
+    --panel: opacity 1;
     --accent: #ef476f;
     --text-light: #dce9ff;
     --bg-dark: #011627;

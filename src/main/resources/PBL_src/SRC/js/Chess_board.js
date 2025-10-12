@@ -32,8 +32,6 @@ function renderBoard() {
         img.alt = piece;
         img.draggable = true; 
         square.appendChild(img);
-
-        img.addEventListener("click", () => handlePieceClick(row, col, piece, img));
       }
 
       boardElement.appendChild(square);
@@ -55,7 +53,7 @@ boardElement.addEventListener("click", (e) => {
     }
     return;
   }
-
+  else
   if (selectedPosition.row === row && selectedPosition.col === col) {
     square.classList.remove("highlight");
     selectedPosition = null;
@@ -91,12 +89,24 @@ boardElement.addEventListener("dragover", (e) => {
   e.preventDefault();
 });
 boardElement.addEventListener("drop", (e) => {
-  e.preventDefault();
-  if (e.target.classList.contains("square") && draggedPiece) {
-    if (e.target.children.length === 0 || e.target.children[0].tagName === "IMG") {
-      e.target.appendChild(draggedPiece);
-    }
-  }
+    e.preventDefault();
+    const square = e.target.closest(".square");
+    if (!square || !draggedPiece) return;
+
+    const fromRow = parseInt(draggedPiece.parentElement.dataset.row);
+    const fromCol = parseInt(draggedPiece.parentElement.dataset.col);
+    const toRow = parseInt(square.dataset.row);
+    const toCol = parseInt(square.dataset.col);
+
+    const movingPiece = initialBoard[fromRow][fromCol];
+    initialBoard[toRow][toCol] = movingPiece;
+    initialBoard[fromRow][fromCol] = null;
+
+    draggedPiece.style.display = "block";
+    draggedPiece = null;
+
+    renderBoard();
 });
+
 
 renderBoard();

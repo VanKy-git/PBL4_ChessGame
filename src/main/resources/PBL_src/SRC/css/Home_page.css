@@ -80,10 +80,13 @@ html,body{
         padding:10px;
         border-radius:8px;
         text-decoration:none;
-        color:inherit;
+          background: linear-gradient(135deg, rgba(230, 149, 51, 0.85), rgba(204, 102, 0, 0.85));
+          color: #fff;
+          backdrop-filter: blur(14px);
+
       }
       .menu a:hover{
-        background:rgba(255,255,255,0.02);
+          transform:translateX(4px)
       }
       .menu .icon{
         width:20px;
@@ -156,7 +159,7 @@ html,body{
     border-radius:12px;
     display:flex;
     flex-direction:column;
-    gap:14px;
+    gap:10px;
     align-items:center;
     flex : 0 0 220px;
   }
@@ -164,7 +167,7 @@ html,body{
     display:flex;
     flex-direction:column;
     gap:10px;
-    width:100%
+    width:100%;
   }
   
   .mode{display:flex;
@@ -173,7 +176,9 @@ html,body{
     justify-content:left;
     padding:12px;
     border-radius:10px;
-    background:rgba(255,255,255,0.02);
+      background: linear-gradient(135deg, rgba(230, 149, 51, 0.85), rgba(204, 102, 0, 0.85));
+      color: #fff;
+      backdrop-filter: blur(14px);
     cursor:pointer
   }
   .mode:hover{

@@ -1,7 +1,5 @@
 const boardEl = document.getElementById('chessBoard');
 
-const flipBtn = document.getElementById('flipBtn');
-const resetBtn = document.getElementById('resetBtn');
 
 let flipped = false;
 
@@ -99,5 +97,9 @@ friendsList.addEventListener('mouseleave', () => {
       hideFriendsList();
     }
   }, 100);
+});
+document.addEventListener(this, function(){
+    const accountlink = document.getElementById("account-link");
+    const center = document.querySelector(".center");
 });
 
