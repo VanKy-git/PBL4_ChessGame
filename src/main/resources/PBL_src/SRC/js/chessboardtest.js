@@ -1,3 +1,9 @@
+// CẤU HÌNH KẾT NỐI
+const WS_URL = "ws://localhost:8080"; // Thay đổi nếu máy chủ của bạn ở địa chỉ khác
+
+// ==========================
+// TRẠNG THÁI GAME CỤC BỘ
+// ==========================
 const initialBoard = [
     ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR"],
     ["bP", "bP", "bP", "bP", "bP", "bP", "bP", "bP"],
@@ -8,15 +14,40 @@ const initialBoard = [
     ["wP", "wP", "wP", "wP", "wP", "wP", "wP", "wP"],
     ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
 ];
+let boardState = initialBoard.map(row => [...row]); // Sao chép trạng thái ban đầu
 
-const boardElement = document.getElementById("chessBoard");
-
-// ==========================
-// THIẾT LẬP TRẠNG THÁI GAME
-// ==========================
+let websocket = null;
 let selected = null;
 let highlightedSquares = [];
-let currentTurn = 'w'; // Lượt đi hiện tại (Trắng bắt đầu)
+let currentTurn = 'w'; // Lượt đi hiện tại (Client chỉ hiển thị, Server kiểm soát)
+let yourColor = 'w'; // Màu quân của người chơi hiện tại (cần được Server gửi)
+let roomId = 'testroom'; // ID phòng (cần được Server gán)
+
+// ==========================
+// PHẦN TỬ GIAO DIỆN
+// ==========================
+const boardElement = document.getElementById("chessBoard");
+// Thêm một element để hiển thị trạng thái và nút kết nối nếu cần thiết
+// Ví dụ: const statusElement = document.getElementById("status");
+
+// ==========================
+// CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI TỌA ĐỘ
+// Server sử dụng ký hiệu Đại số (e2, e4), Client sử dụng chỉ mục (row, col)
+// ==========================
+
+function coordToAlg(r, c) {
+    const file = String.fromCharCode('a'.charCodeAt(0) + c);
+    const rank = 8 - r;
+    return file + rank;
+}
+
+function algToCoord(alg) {
+    if (alg.length !== 2) return null;
+    const c = alg.charCodeAt(0) - 'a'.charCodeAt(0);
+    const r = 8 - parseInt(alg.charAt(1), 10);
+    if (r < 0 || r > 7 || c < 0 || c > 7) return null;
+    return { r, c };
+}
 
 // ==========================
 // CÁC HÀM XỬ LÝ GIAO DIỆN (DOM)
@@ -33,9 +64,10 @@ function renderBoard() {
             if ((row + col) % 2 === 0) square.classList.add("white");
             else square.classList.add("black");
 
-            const piece = initialBoard[row][col];
+            const piece = boardState[row][col];
             if (piece) {
                 const img = document.createElement("img");
+                // Giả định đường dẫn hình ảnh của bạn vẫn hoạt động
                 img.src = `../../PBL4_imgs/image/${piece}.png`; 
                 img.alt = piece;
                 img.draggable = true;
@@ -53,167 +85,193 @@ function clearHighlights() {
     if (currentSelectedSquare) {
         currentSelectedSquare.classList.remove("highlight");
     }
-
     highlightedSquares = [];
 }
 
-function highlightValidMoves(row, col, piece) {
-    const moves = getValidMoves(row, col, piece); 
-    moves.forEach(([r, c, isCapture]) => {
-        const square = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
-        if (square) {
-            square.classList.add("valid-move");
-            if (isCapture) {
-                square.classList.add("capture-move"); 
-            }
-            highlightedSquares.push(square);
-        }
-    });
+// KHÔNG CẦN HÀM highlightValidMoves VÌ CHÚNG TA KHÔNG XÁC THỰC LUẬT CỤC BỘ
+// Tuy nhiên, để UX tốt hơn, ta sẽ giữ lại hàm highlight, nhưng chỉ dùng cho các ô đã được chọn
+function highlightSquare(r, c) {
+    const square = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+    if (square) {
+        square.classList.add("highlight");
+    }
 }
 
-function movePiece(fromRow, fromCol, toRow, toCol) {
-    const piece = initialBoard[fromRow][fromCol];
-    initialBoard[toRow][toCol] = piece;
-    initialBoard[fromRow][fromCol] = null;
-    currentTurn = currentTurn === 'w' ? 'b' : 'w';
+/**
+ * Thực hiện di chuyển trên UI (chỉ được gọi sau khi Server xác nhận hợp lệ)
+ * @param {string} fromAlg - Vị trí bắt đầu (e2)
+ * @param {string} toAlg - Vị trí kết thúc (e4)
+ */
+function applyMove(fromAlg, toAlg) {
+    const fromCoord = algToCoord(fromAlg);
+    const toCoord = algToCoord(toAlg);
+
+    if (!fromCoord || !toCoord) return false;
+
+    const piece = boardState[fromCoord.r][fromCoord.c];
+    if (!piece) return false;
+
+    // Cập nhật trạng thái bàn cờ cục bộ
+    boardState[toCoord.r][toCoord.c] = piece;
+    boardState[fromCoord.r][fromCoord.c] = null;
+    
+    // Vẽ lại giao diện
     renderBoard();
+    clearHighlights();
+    selected = null;
+    return true;
 }
 
+// ==========================
+// XỬ LÝ MẠNG VÀ TIN NHẮN TỪ SERVER
+// ==========================
+
+function connectWebSocket() {
+    if (websocket && websocket.readyState === WebSocket.OPEN) return;
+
+    websocket = new WebSocket(WS_URL);
+
+    websocket.onopen = () => {
+        console.log("Đã kết nối tới Server.");
+        // Gửi thông tin kết nối và yêu cầu tham gia phòng
+        websocket.send(JSON.stringify({
+            type: "connect",
+            playerName: "PlayerClient" // Bạn cần lấy tên người chơi thực tế
+        }));
+        // Tạm thời, giả định bạn luôn tham gia phòng 'testroom'
+        // websocket.send(JSON.stringify({ type: "join_room", roomId: "testroom" })); 
+        // statusElement.textContent = "Đã kết nối, đang chờ thông tin phòng...";
+    };
+
+    websocket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+    };
+
+    websocket.onclose = () => {
+        console.log("Mất kết nối với Server.");
+        // statusElement.textContent = "Mất kết nối.";
+    };
+
+    websocket.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+    };
+}
+
+function handleMessage(msg) {
+    switch (msg.type) {
+        case 'player_info':
+            // Nhận PlayerID, sẵn sàng tham gia phòng
+            console.log("Player ID:", msg.playerId);
+            // Gửi yêu cầu tham gia phòng ngay sau khi kết nối
+            websocket.send(JSON.stringify({ type: "join_room", roomId: "testroom" })); 
+            break;
+            
+        case 'color':
+            yourColor = (msg.color === 'white' ? 'w' : 'b'); // Chuyển đổi màu từ Java sang ký hiệu Client
+            console.log("Màu quân của bạn:", yourColor);
+            break;
+
+        case 'game_start':
+            // Nhận trạng thái bàn cờ mới (nếu cần), lượt đi
+            currentTurn = msg.currentTurn === 'white' ? 'w' : 'b'; // Đồng bộ lượt
+            console.log("Game bắt đầu! Lượt:", currentTurn);
+            break;
+
+        case 'turn_change':
+            currentTurn = msg.currentTurn === 'white' ? 'w' : 'b';
+            // statusElement.textContent = `Lượt: ${currentTurn === 'w' ? 'Trắng' : 'Đen'}`;
+            console.log("Đổi lượt. Lượt hiện tại:", currentTurn);
+            break;
+
+        case 'move_result':
+            // Phản hồi từ Server về nước đi của chính Client
+            if (msg.result === true) {
+                // Server đã xác nhận, thực hiện di chuyển
+                applyMove(msg.from, msg.to); 
+                // Server sẽ gửi tiếp tin nhắn 'player_move' cho đối thủ
+            } else {
+                alert(`Nước đi không hợp lệ: ${msg.message}`);
+                clearHighlights();
+                selected = null;
+                renderBoard(); // Đảm bảo UI khớp với trạng thái Server (nếu có lỗi)
+            }
+            break;
+
+        case 'player_move':
+            // Nhận nước đi của đối thủ (hoặc của chính mình)
+            applyMove(msg.from, msg.to);
+            break;
+
+        case 'end_game':
+            alert(`Trò chơi kết thúc! Người thắng: ${msg.winner}`);
+            // Xử lý logic kết thúc game
+            break;
+
+        case 'error':
+            alert('Lỗi từ Server: ' + msg.message);
+            break;
+            
+        default:
+            console.log('Tin nhắn không xác định:', msg);
+    }
+}
+
+// ==========================
+// LOGIC XỬ LÝ INPUT (Click & Drag/Drop)
+// KHÔNG CHỨA LUẬT CHƠI, CHỈ GỬI YÊU CẦU ĐẾN SERVER
+// ==========================
+
+// **XÓA BỎ HOÀN TOÀN HÀM getValidMoves() VÀ movePiece() CŨ**
+
+function sendMoveRequest(fromRow, fromCol, toRow, toCol) {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        const fromAlg = coordToAlg(fromRow, fromCol);
+        const toAlg = coordToAlg(toRow, toCol);
+
+        websocket.send(JSON.stringify({
+            type: 'move_request',
+            from: fromAlg,
+            to: toAlg,
+            roomId: roomId,
+            color: yourColor === 'w' ? 'white' : 'black' // Gửi màu cho Server xác thực
+        }));
+    } else {
+        alert("Chưa kết nối đến Server!");
+    }
+}
+
+// ------------------------------------
+// XỬ LÝ CLICK
+// ------------------------------------
 boardElement.addEventListener("click", (e) => {
     const square = e.target.closest(".square");
-    if (!square) return;
+    if (!square || currentTurn !== yourColor) return; // Không phải lượt mình thì không làm gì
 
     const row = parseInt(square.dataset.row);
     const col = parseInt(square.dataset.col);
-    const piece = initialBoard[row][col];
+    const piece = boardState[row][col];
 
-    if (selected && selected.row === row && selected.col === col) {
-        clearHighlights();
-        selected = null;
-        return;
-    }
-    if (piece && piece[0] === currentTurn) { 
+    // BƯỚC 1: Chọn quân
+    if (piece && piece[0] === yourColor) { 
         clearHighlights();
         selected = { row, col, piece };
-        highlightValidMoves(row, col, piece);
-        square.classList.add("highlight");
+        highlightSquare(row, col);
     } 
-    else if (selected && square.classList.contains("valid-move")) {
-        movePiece(selected.row, selected.col, row, col);
-        clearHighlights();
-        selected = null;
-    }
-    else {
-        clearHighlights();
-        selected = null;
+    // BƯỚC 2: Di chuyển/Ăn quân sau khi đã chọn
+    else if (selected) {
+        // Thay vì kiểm tra luật, ta GỬI YÊU CẦU
+        sendMoveRequest(selected.row, selected.col, row, col);
+        
+        // Tạm thời highlight ô đích để UX tốt hơn (Có thể xóa nếu muốn UX nghiêm ngặt hơn)
+        highlightSquare(row, col); 
+        // KHÔNG clearHighlights/selected ở đây. Chờ Server phản hồi!
     }
 });
 
-// ==========================
-// LOGIC DI CHUYỂN CƠ BẢN
-// ==========================
-function getValidMoves(row, col, piece) {
-    // moves: Mảng các [row, col, isCapture (boolean)]
-    const moves = []; 
-    const color = piece[0];
-    const type = piece[1];
-
-    const directions = {
-        N: [-1, 0], S: [1, 0], E: [0, 1], W: [0, -1],
-        NE: [-1, 1], NW: [-1, -1], SE: [1, 1], SW: [1, -1]
-    };
-
-    // Hàm tiện ích cho các quân đi đường dài (Xe, Tượng, Hậu)
-    function addDir(dr, dc, repeat = true) {
-        let r = row + dr, c = col + dc;
-        while (r >= 0 && r < 8 && c >= 0 && c < 8) {
-            const target = initialBoard[r][c];
-            if (target) {
-                // Gặp quân
-                if (target[0] !== color) moves.push([r, c, true]); // Ăn quân đối thủ
-                break; // Dừng lại khi gặp quân đầu tiên
-            }
-            moves.push([r, c, false]); // Ô trống
-            if (!repeat) break; // Chỉ đi 1 bước (cho Vua)
-            r += dr; c += dc;
-        }
-    }
-
-    switch (type) {
-        case "P": // Tốt 
-            const dir = color === "w" ? -1 : 1; 
-            const oneStepRow = row + dir;
-
-            // 1. Di chuyển 1 ô thẳng
-            if (oneStepRow >= 0 && oneStepRow < 8 && !initialBoard[oneStepRow][col]) {
-                moves.push([oneStepRow, col, false]);
-
-                // 2. Di chuyển 2 ô 
-                const twoStepRow = row + dir * 2;
-                const initialRow = color === "w" ? 6 : 1;
-                if (row === initialRow && twoStepRow >= 0 && twoStepRow < 8 && !initialBoard[twoStepRow][col]) {
-                    moves.push([twoStepRow, col, false]);
-                }
-            }
-
-            // 3. Ăn chéo
-            for (const dc of [-1, 1]) {
-                const targetRow = row + dir;
-                const targetCol = col + dc;
-                if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
-                    const target = initialBoard[targetRow][targetCol];
-                    if (target && target[0] !== color) moves.push([targetRow, targetCol, true]); 
-                }
-            }
-            break;
-
-        case "R": // Xe
-            addDir(directions.N[0], directions.N[1]); addDir(directions.S[0], directions.S[1]);
-            addDir(directions.E[0], directions.E[1]); addDir(directions.W[0], directions.W[1]);
-            break;
-            
-        case "B": // Tượng
-            addDir(directions.NE[0], directions.NE[1]); addDir(directions.NW[0], directions.NW[1]);
-            addDir(directions.SE[0], directions.SE[1]); addDir(directions.SW[0], directions.SW[1]);
-            break;
-            
-        case "Q": // Hậu
-            Object.values(directions).forEach(([dr, dc]) => addDir(dr, dc));
-            break;
-            
-        case "N": // Mã
-            const knightMoves = [
-                [-2, -1], [-2, 1], [2, -1], [2, 1],
-                [-1, -2], [-1, 2], [1, -2], [1, 2]
-            ];
-            knightMoves.forEach(([dr, dc]) => {
-                const r = row + dr, c = col + dc;
-                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-                    const target = initialBoard[r][c];
-                    const isCapture = target && target[0] !== color;
-                    if (!target || isCapture) moves.push([r, c, isCapture]);
-                }
-            });
-            break;
-            
-        case "K": // Vua
-            Object.values(directions).forEach(([dr, dc]) => {
-                const r = row + dr, c = col + dc;
-                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-                    const target = initialBoard[r][c];
-                    const isCapture = target && target[0] !== color;
-                    if (!target || isCapture) moves.push([r, c, isCapture]);
-                }
-            });
-            break;
-    }
-
-    return moves;
-}
-
-// ==========================
-// DRAG & DROP (Tùy chọn - Đã sửa lỗi và tích hợp logic lượt đi/highlight)
-// ==========================
+// ------------------------------------
+// XỬ LÝ DRAG & DROP
+// ------------------------------------
 let draggedPiece = null;
 let fromRow, fromCol;
 
@@ -221,8 +279,8 @@ boardElement.addEventListener("dragstart", (e) => {
     if (e.target.tagName === "IMG") {
         draggedPiece = e.target;
         
-        // Kiểm tra xem quân cờ có thuộc lượt đi hiện tại không
-        if (draggedPiece.alt[0] !== currentTurn) {
+        // Kiểm tra lượt đi và màu quân
+        if (draggedPiece.alt[0] !== yourColor || currentTurn !== yourColor) {
             draggedPiece = null;
             e.preventDefault();
             return;
@@ -232,23 +290,21 @@ boardElement.addEventListener("dragstart", (e) => {
         fromRow = parseInt(parentSquare.dataset.row);
         fromCol = parseInt(parentSquare.dataset.col);
         
-        // Highlight nước đi hợp lệ khi bắt đầu kéo
         clearHighlights();
         selected = { row: fromRow, col: fromCol, piece: draggedPiece.alt };
-        highlightValidMoves(fromRow, fromCol, draggedPiece.alt);
-        parentSquare.classList.add("highlight");
+        highlightSquare(fromRow, fromCol);
 
         setTimeout(() => { e.target.style.display = "none"; }, 0);
     }
 });
 
 boardElement.addEventListener("dragend", (e) => {
+    // Luôn reset trạng thái Drag & Drop
     if (draggedPiece) {
         draggedPiece.style.display = "block";
-        draggedPiece = null;
-        clearHighlights(); 
-        selected = null;
     }
+    draggedPiece = null;
+    // Lưu ý: KHÔNG clearHighlights/selected ở đây. Chờ Server phản hồi.
 });
 
 boardElement.addEventListener("dragover", (e) => e.preventDefault());
@@ -260,20 +316,18 @@ boardElement.addEventListener("drop", (e) => {
 
     const toRow = parseInt(square.dataset.row);
     const toCol = parseInt(square.dataset.col);
-
-    // Kiểm tra nước đi có hợp lệ (đã được highlight)
-    if (square.classList.contains("valid-move")) {
-        movePiece(fromRow, fromCol, toRow, toCol);
-    } 
     
-    // reset trạng thái
-    draggedPiece.style.display = "block";
-    draggedPiece = null;
-    clearHighlights();
-    selected = null;
+    // GỬI YÊU CẦU (Không kiểm tra luật cục bộ)
+    sendMoveRequest(fromRow, fromCol, toRow, toCol);
+    
+    // Tạm thời highlight ô đích
+    highlightSquare(toRow, toCol);
 });
 
 // ==========================
 // KHỞI TẠO GAME
 // ==========================
+// Gán sự kiện kết nối vào một nút
+// document.getElementById("connectBtn").addEventListener('click', connectWebSocket);
+connectWebSocket(); // Tự động kết nối khi tải trang
 renderBoard();

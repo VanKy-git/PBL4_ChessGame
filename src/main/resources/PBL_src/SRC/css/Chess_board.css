@@ -23,16 +23,17 @@
 
   
   .white {
-    background-color: #f0d9b5;
+    background-color: var(--white-square);
   }
   
   .black {
-    background-color: #b58863;
+    background-color: var(--black-square);
   }
   
   .square img {
     max-width: 90%;
     max-height: 90%;
+    transition: background-color 0.3s ease;
   }
   
   .highlight {

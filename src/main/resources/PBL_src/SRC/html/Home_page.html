@@ -6,7 +6,8 @@
   <link rel="stylesheet" href="../css/Home_page.css">
   <link rel="stylesheet" href="../css/Chess_board.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
-  <title>Trang chủ — Game Cờ Vua</title>
+  <link rel="icon" href="../../PBL4_imgs/icon/logo.jpg">  
+    <title>Trang chủ — Game Cờ Vua</title>
 </head>
 <body>
   <div class="layout">
@@ -22,7 +23,7 @@
       <nav class="menu">
         <a href="#"><i class="fa-solid fa-rectangle-history"></i> Lịch sử</a>
 
-        <a href="./Account_setting.html" id="account-link"><span class="icon">👤</span> Tài khoản</a>
+        <a href="#" id="account-link"><span class="icon">👤</span> Tài khoản</a>
 
         <div class="menu-banbe">
           <a href="#" id="menu_banbe"><span class="icon">👥</span> Bạn bè</a>
@@ -41,21 +42,19 @@
       </nav>
     </aside>
 
-    <!-- CENTER -->
-    <main class="center">
-      <div class="title">
-        <h2>Chơi ngay — thử bàn cờ</h2>
-        <div class="muted">Tùy chỉnh màu sắc bàn cờ bên dưới</div>
-      </div>
-      <div class="board-wrap">
-        <button class="arrow left" onclick="prevTheme()">◀</button> 
-        <button class="arrow right" onclick="nextTheme()">▶</button>
-        <div class="board" id="chessBoard"></div>
+<!-- CENTER -->
+<main class="center">
+  <div class="title">
+    <h2>Chơi ngay — thử bàn cờ</h2>
+    <div class="muted">Tùy chỉnh màu sắc bàn cờ bên dưới</div>
+  </div>
+  <div class="board-wrap">
+    <button class="arrow left" onclick="prevTheme()">◀</button> 
+    <button class="arrow right" onclick="nextTheme()">▶</button>
+    <div class="board" id="chessBoard"></div>
+  </div>
+</main>
 
-      </div>
-      
-    </main>
-`
     <!-- RIGHT -->
     <aside class="right">
       <div style="font-weight:500">Chế độ chơi</div>

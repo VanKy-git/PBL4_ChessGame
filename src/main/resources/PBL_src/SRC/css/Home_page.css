@@ -19,8 +19,10 @@ html,body{
   z-index:1000;}
 .menu-banbe:hover .friends-list{display:block;}
 
-.title h2{
-    align-content: center
+.title {
+    align-content: center;
+    align-items: center;
+    text-align: center;
   }
   /* Layout */
     .layout{
@@ -102,6 +104,7 @@ html,body{
       flex:1;
       flex-direction:column;
       align-items:center;
+      justify-content: center;
       gap:12px
       
     }
@@ -184,6 +187,20 @@ html,body{
   .mode:hover{
     transform:translateX(4px)
   }
+
+  /* Hỗ trợ hiển thị account view */
+.center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-view {
+  width: 100%;
+  padding: 20px;
+}
   
 
   
