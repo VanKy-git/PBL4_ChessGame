@@ -1,4 +1,4 @@
-package Test;
+package com.chatapp.server.Test;
 
 import Model.DAO.chat_paticipantDAO;
 import Model.DAO.chat_roomDAO;

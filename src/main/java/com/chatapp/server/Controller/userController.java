@@ -6,10 +6,20 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
+// Import Google OAuth Libraries
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -17,6 +27,7 @@ public class userController {
 
     private userDAO userDAO;
     private Gson gson;
+    private static final String GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com"; // Nhận ID token gg trả về chưa thông tin
 
     public userController(Connection conn) {
         this.userDAO = new userDAO(conn);
@@ -28,32 +39,31 @@ public class userController {
                         (com.google.gson.JsonDeserializer<LocalDateTime>) (json, typeOfT, context) ->
                                 LocalDateTime.parse(json.getAsString(), DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                 .create();
-        ;
     }
 
     // ========== ĐĂNG NHẬP/ĐĂNG KÝ THÔNG THƯỜNG ==========
 
-    //Đăng nhập username - password
+    //Đăng nhập username - password
     public JsonObject handleLogin(String username, String password) {
         JsonObject response = new JsonObject();
 
         try {
             user user = userDAO.login(username, password);
 
-            if (user != null) {
-                response.addProperty("status", "success");
+            if (user != null && user.getStatus() != "Online") {
                 response.addProperty("message", "Đăng nhập thành công");
                 response.addProperty("loginMethod", "normal");
                 response.add("user", gson.toJsonTree(user));
 
                 // Cập nhật status sang online nếu cần
                 userDAO.updateStatus(user.getUser_id(), "Online");
-            } else {
-                response.addProperty("status", "error");
-                response.addProperty("message", "Sai tên đăng nhập hoặc mật khẩu");
-            }
+            } else if (user != null && user.getStatus() == "Online") {
+                response.addProperty("message", "Lỗi!!! Tài khoản đã được đăng nhập trên thiết bị khác!");
+                }
+                else {
+                    response.addProperty("message", "Sai tên đăng nhập hoặc mật khẩu");
+                }
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -61,34 +71,24 @@ public class userController {
         return response;
     }
 
-    //Đăng kí tài khoản với username - password
+    //Đăng kí tài khoản với username - password
     public JsonObject handleRegister(String username, String password, String email) {
         JsonObject response = new JsonObject();
 
         try {
             // Kiểm tra username đã tồn tại
             if (userDAO.isUsernameExists(username)) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Tên đăng nhập đã tồn tại");
                 return response;
             }
 
-            // Kiểm tra email đã tồn tại (nếu có)
-//            if (email != null && !email.isEmpty() && userDAO.isEmailExists(email)) {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Email đã được sử dụng");
-//                return response;
-//            }
-
             // Validate
             if (!isValidUsername(username)) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Tên đăng nhập không hợp lệ (3-20 ký tự, chỉ chữ và số)");
                 return response;
             }
 
             if (!isValidPassword(password)) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Mật khẩu không hợp lệ (tối thiểu 6 ký tự)");
                 return response;
             }
@@ -97,16 +97,13 @@ public class userController {
             user newUser = userDAO.createUser(username, password);
 
             if (newUser != null) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Đăng ký thành công");
                 response.add("user", gson.toJsonTree(newUser));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể tạo tài khoản");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -114,22 +111,19 @@ public class userController {
         return response;
     }
 
-    //Đăng xuất
+    //Đăng xuất
     public JsonObject handleLogout(int userId) {
         JsonObject response = new JsonObject();
 
         try {
-            boolean success = userDAO.updateStatus(userId, "Oline");
+            boolean success = userDAO.updateStatus(userId, "Offline");
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Đăng xuất thành công");
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể đăng xuất");
             }
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -139,7 +133,7 @@ public class userController {
 
     // ========== GOOGLE OAUTH ==========
 
-    //Đăng nhập Google Oauth
+    //Đăng nhập Google Oauth
     public JsonObject handleGoogleLogin(String googleToken) {
         JsonObject response = new JsonObject();
 
@@ -147,7 +141,6 @@ public class userController {
             GoogleUserInfo googleInfo = verifyGoogleToken(googleToken);
 
             if (googleInfo == null) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Token Google không hợp lệ");
                 return response;
             }
@@ -155,12 +148,11 @@ public class userController {
             user existingUser = userDAO.getUserByGoogleId(googleInfo.googleId);
 
             if (existingUser != null) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Đăng nhập Google thành công");
                 response.addProperty("loginMethod", "google");
                 response.add("user", gson.toJsonTree(existingUser));
                 userDAO.updateStatus(existingUser.getUser_id(), "Online");
-                userDAO.updateProvider(existingUser.getUser_id(), "google account");//
+                userDAO.updateProvider(existingUser.getUser_id(), "google account");
             } else {
                 user newUser = userDAO.createUserWithGoogle(
                         googleInfo.name,
@@ -170,23 +162,19 @@ public class userController {
                 );
 
                 if (newUser != null) {
-                    response.addProperty("status", "success");
                     response.addProperty("message", "Đăng ký Google thành công");
                     response.addProperty("loginMethod", "google");
                     response.addProperty("isNewUser", true);
                     response.add("user", gson.toJsonTree(newUser));
                 } else {
-                    response.addProperty("status", "error");
                     response.addProperty("message", "Không thể tạo tài khoản từ Google");
                 }
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         } catch (Exception e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi xác thực Google: " + e.getMessage());
             e.printStackTrace();
         }
@@ -204,14 +192,12 @@ public class userController {
             GoogleUserInfo googleInfo = verifyGoogleToken(googleToken);
 
             if (googleInfo == null) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Token Google không hợp lệ");
                 return response;
             }
 
             user existingUser = userDAO.getUserByGoogleId(googleInfo.googleId);
             if (existingUser != null && existingUser.getUser_id() != userId) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Tài khoản Google đã được liên kết với tài khoản khác");
                 return response;
             }
@@ -219,19 +205,15 @@ public class userController {
             boolean success = userDAO.linkGoogleAccount(userId, googleInfo.googleId);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Liên kết tài khoản Google thành công");
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể liên kết tài khoản Google");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         } catch (Exception e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi xác thực Google: " + e.getMessage());
             e.printStackTrace();
         }
@@ -248,13 +230,11 @@ public class userController {
         try {
             user user = userDAO.getUser(userId);
             if (user == null) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không tìm thấy người dùng");
                 return response;
             }
 
             if (!userDAO.hasPassword(userId)) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể hủy liên kết. Vui lòng đặt mật khẩu trước");
                 return response;
             }
@@ -262,15 +242,12 @@ public class userController {
             boolean success = userDAO.unlinkGoogleAccount(userId);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Hủy liên kết tài khoản Google thành công");
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể hủy liên kết tài khoản Google");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -281,84 +258,6 @@ public class userController {
     // ========== CẬP NHẬT THÔNG TIN USER ==========
 
     /**
-     * Cập nhật username
-     */
-//    public JsonObject updateUsername(int userId, String newUsername) {
-//        JsonObject response = new JsonObject();
-//
-//        try {
-//            if (!isValidUsername(newUsername)) {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Tên đăng nhập không hợp lệ");
-//                return response;
-//            }
-//
-//            if (userDAO.isUsernameExists(newUsername)) {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Tên đăng nhập đã tồn tại");
-//                return response;
-//            }
-//
-//            boolean success = userDAO.updateUsername(userId, newUsername);
-//
-//            if (success) {
-//                response.addProperty("status", "success");
-//                response.addProperty("message", "Cập nhật username thành công");
-//                response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
-//            } else {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Không thể cập nhật username");
-//            }
-//
-//        } catch (SQLException e) {
-//            response.addProperty("status", "error");
-//            response.addProperty("message", "Lỗi database: " + e.getMessage());
-//            e.printStackTrace();
-//        }
-//
-//        return response;
-//    }
-
-    /**
-     * Cập nhật email
-     */
-//    public JsonObject updateEmail(int userId, String newEmail) {
-//        JsonObject response = new JsonObject();
-//
-//        try {
-//            if (newEmail == null || !isValidEmail(newEmail)) {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Email không hợp lệ");
-//                return response;
-//            }
-//
-//            if (userDAO.isEmailExists(newEmail)) {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Email đã được sử dụng");
-//                return response;
-//            }
-//
-//            boolean success = userDAO.updateEmail(userId, newEmail);
-//
-//            if (success) {
-//                response.addProperty("status", "success");
-//                response.addProperty("message", "Cập nhật email thành công");
-//                response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
-//            } else {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Không thể cập nhật email");
-//            }
-//
-//        } catch (SQLException e) {
-//            response.addProperty("status", "error");
-//            response.addProperty("message", "Lỗi database: " + e.getMessage());
-//            e.printStackTrace();
-//        }
-//
-//        return response;
-//    }
-
-    /**
      * Đổi mật khẩu
      */
     public JsonObject changePassword(int userId, String oldPassword, String newPassword) {
@@ -367,20 +266,17 @@ public class userController {
         try {
             user user = userDAO.getUser(userId);
             if (user == null) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không tìm thấy người dùng");
                 return response;
             }
 
             // Kiểm tra mật khẩu cũ
             if (user.getPassword() != null && !user.getPassword().equals(oldPassword)) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Mật khẩu cũ không đúng");
                 return response;
             }
 
             if (!isValidPassword(newPassword)) {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Mật khẩu mới không hợp lệ (tối thiểu 6 ký tự)");
                 return response;
             }
@@ -388,15 +284,12 @@ public class userController {
             boolean success = userDAO.updatePassword(userId, newPassword);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Đổi mật khẩu thành công");
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể đổi mật khẩu");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -414,16 +307,13 @@ public class userController {
             boolean success = userDAO.updateAvatar(userId, avatarUrl);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Cập nhật avatar thành công");
                 response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể cập nhật avatar");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -441,16 +331,13 @@ public class userController {
             boolean success = userDAO.updateUser(updatedUser);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Cập nhật thông tin thành công");
                 response.add("user", gson.toJsonTree(userDAO.getUser(updatedUser.getUser_id())));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể cập nhật thông tin");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -470,48 +357,18 @@ public class userController {
             boolean success = userDAO.deleteUser(userId);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Xóa tài khoản thành công");
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể xóa tài khoản");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
 
         return response;
     }
-
-    /**
-     * Khôi phục tài khoản đã xóa
-     */
-//    public JsonObject restoreAccount(int userId) {
-//        JsonObject response = new JsonObject();
-//
-//        try {
-//            boolean success = userDAO.restoreUser(userId);
-//
-//            if (success) {
-//                response.addProperty("status", "success");
-//                response.addProperty("message", "Khôi phục tài khoản thành công");
-//                response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
-//            } else {
-//                response.addProperty("status", "error");
-//                response.addProperty("message", "Không thể khôi phục tài khoản");
-//            }
-//
-//        } catch (SQLException e) {
-//            response.addProperty("status", "error");
-//            response.addProperty("message", "Lỗi database: " + e.getMessage());
-//            e.printStackTrace();
-//        }
-//
-//        return response;
-//    }
 
     // ========== TRẬN ĐẤU & ELO ==========
 
@@ -525,16 +382,13 @@ public class userController {
             boolean success = userDAO.updateMatchResultWin(userId, eloChange);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Cập nhật kết quả thắng thành công");
                 response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể cập nhật kết quả");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -552,16 +406,13 @@ public class userController {
             boolean success = userDAO.updateMatchResultLoss(userId, eloChange);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Cập nhật kết quả thua thành công");
                 response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể cập nhật kết quả");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -579,16 +430,13 @@ public class userController {
             boolean success = userDAO.updateEloRating(userId, newElo);
 
             if (success) {
-                response.addProperty("status", "success");
                 response.addProperty("message", "Cập nhật ELO thành công");
                 response.add("user", gson.toJsonTree(userDAO.getUser(userId)));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không thể cập nhật ELO");
             }
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi database: " + e.getMessage());
             e.printStackTrace();
         }
@@ -627,13 +475,11 @@ public class userController {
                 }
             }
 
-            response.addProperty("status", "success");
             response.addProperty("sortBy", sortBy);
             response.addProperty("count", leaderboard.size());
             response.add("data", gson.toJsonTree(leaderboard));
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi lấy bảng xếp hạng: " + e.getMessage());
             e.printStackTrace();
         }
@@ -650,13 +496,11 @@ public class userController {
         try {
             List<user> users = userDAO.searchUsersByName(keyword);
 
-            response.addProperty("status", "success");
             response.addProperty("keyword", keyword);
             response.addProperty("count", users.size());
             response.add("data", gson.toJsonTree(users));
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi tìm kiếm: " + e.getMessage());
             e.printStackTrace();
         }
@@ -673,14 +517,12 @@ public class userController {
         try {
             List<user> users = userDAO.getUsersByEloRange(minElo, maxElo);
 
-            response.addProperty("status", "success");
             response.addProperty("minElo", minElo);
             response.addProperty("maxElo", maxElo);
             response.addProperty("count", users.size());
             response.add("data", gson.toJsonTree(users));
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi lấy users: " + e.getMessage());
             e.printStackTrace();
         }
@@ -700,14 +542,11 @@ public class userController {
             user user = userDAO.getUser(userId);
 
             if (user != null) {
-                response.addProperty("status", "success");
                 response.add("data", gson.toJsonTree(user));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không tìm thấy user");
             }
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi lấy thông tin user: " + e.getMessage());
             e.printStackTrace();
         }
@@ -725,14 +564,11 @@ public class userController {
             userDAO.UserStatistics stats = userDAO.getUserStatistics(userId);
 
             if (stats != null) {
-                response.addProperty("status", "success");
                 response.add("data", gson.toJsonTree(stats));
             } else {
-                response.addProperty("status", "error");
                 response.addProperty("message", "Không tìm thấy user");
             }
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi lấy thống kê: " + e.getMessage());
             e.printStackTrace();
         }
@@ -749,12 +585,10 @@ public class userController {
         try {
             List<user> users = userDAO.getAllUsers();
 
-            response.addProperty("status", "success");
             response.addProperty("count", users.size());
             response.add("data", gson.toJsonTree(users));
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi lấy danh sách users: " + e.getMessage());
             e.printStackTrace();
         }
@@ -773,7 +607,6 @@ public class userController {
             int totalUsers = userDAO.getTotalUserCount();
             int totalPages = (int) Math.ceil((double) totalUsers / pageSize);
 
-            response.addProperty("status", "success");
             response.addProperty("page", page);
             response.addProperty("pageSize", pageSize);
             response.addProperty("totalUsers", totalUsers);
@@ -781,7 +614,6 @@ public class userController {
             response.add("data", gson.toJsonTree(users));
 
         } catch (SQLException e) {
-            response.addProperty("status", "error");
             response.addProperty("message", "Lỗi khi lấy danh sách users: " + e.getMessage());
             e.printStackTrace();
         }
@@ -791,32 +623,71 @@ public class userController {
 
     // ========== GOOGLE TOKEN VERIFICATION ==========
 
+    /**
+     * Xác thực Google ID Token và trả về thông tin user
+     * Phương thức này kết nối thực tế với Google để verify token
+     */
     private GoogleUserInfo verifyGoogleToken(String idTokenString) {
         try {
-            // TODO: Implement real Google Token verification
-            // Production code should use Google API Client Library
+            // Khởi tạo Google ID Token Verifier
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(),
+                    GsonFactory.getDefaultInstance())
+                    .setAudience(Collections.singletonList(GOOGLE_CLIENT_ID))
+                    .setIssuer("https://accounts.google.com")
+                    .build();
 
-            JsonObject tokenPayload = gson.fromJson(idTokenString, JsonObject.class);
+            // Verify token - Bước này kết nối với Google
+            GoogleIdToken idToken = verifier.verify(idTokenString);
 
-            GoogleUserInfo info = new GoogleUserInfo();
-            info.name = tokenPayload.get("name").getAsString();
-            info.email = tokenPayload.get("email").getAsString();
-            info.googleId = tokenPayload.get("sub").getAsString();
-            info.picture = tokenPayload.has("picture") ? tokenPayload.get("picture").getAsString() : null;
+            if (idToken != null) {
+                Payload payload = idToken.getPayload();
 
-            return info;
+                // Kiểm tra email đã verified chưa
+                boolean emailVerified = payload.getEmailVerified();
+                if (!emailVerified) {
+                    System.err.println("Email chưa được xác thực bởi Google");
+                    return null;
+                }
 
+                // Tạo GoogleUserInfo object
+                GoogleUserInfo info = new GoogleUserInfo();
+                info.googleId = payload.getSubject();
+                info.email = payload.getEmail();
+                info.name = (String) payload.get("name");
+                info.picture = (String) payload.get("picture");
+                info.emailVerified = emailVerified;
+
+                return info;
+            } else {
+                System.err.println("Token Google không hợp lệ hoặc đã hết hạn");
+                return null;
+            }
+
+        } catch (GeneralSecurityException e) {
+            System.err.println("Lỗi bảo mật khi verify Google token: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        } catch (IOException e) {
+            System.err.println("Lỗi kết nối với Google servers: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         } catch (Exception e) {
+            System.err.println("Lỗi không xác định khi verify token: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
     }
 
+    /**
+     * Class chứa thông tin user từ Google
+     */
     private static class GoogleUserInfo {
         String googleId;
         String email;
         String name;
         String picture;
+        boolean emailVerified;
     }
 
     // ========== VALIDATION ==========
@@ -849,7 +720,6 @@ public class userController {
             return gson.fromJson(message, JsonObject.class);
         } catch (Exception e) {
             JsonObject error = new JsonObject();
-            error.addProperty("status", "error");
             error.addProperty("message", "Invalid JSON format");
             return error;
         }
@@ -861,14 +731,12 @@ public class userController {
 
     public JsonObject createErrorResponse(String errorMessage) {
         JsonObject error = new JsonObject();
-        error.addProperty("status", "error");
         error.addProperty("message", errorMessage);
         return error;
     }
 
     public JsonObject createSuccessResponse(String message) {
         JsonObject success = new JsonObject();
-        success.addProperty("status", "success");
         success.addProperty("message", message);
         return success;
     }

@@ -1,4 +1,4 @@
-package Test;
+package com.chatapp.server.Test;
 
 import Model.Entity.DBConnection;
 
