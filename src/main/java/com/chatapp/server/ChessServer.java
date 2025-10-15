@@ -83,6 +83,9 @@ public class ChessServer extends WebSocketServer {
                 case "get_rooms":
                     handleGetRooms(webSocket);
                     break;
+                case "get_history":
+                    handleGetHistory(webSocket, data);
+                    break;
                 default:
                     System.out.println("Unknown message type: " + type);
             }
@@ -468,6 +471,34 @@ public class ChessServer extends WebSocketServer {
         }
 
         broadcastRoomsList();
+    }
+
+    private void handleGetHistory(WebSocket webSocket, Map<String, Object> data) {
+        // 1. TẠO HOẶC LẤY DANH SÁCH LỊCH SỬ THỰC TẾ
+        // Đây là ví dụ về dữ liệu giả định (placeholder):
+        List<Map<String, Object>> historyList = new ArrayList<>();
+        
+        // Ví dụ về một trận đấu (Giả sử bạn có một lớp MatchResult hoặc Map<String, Object> với các trường:
+        // playerX, playerO, winner, date)
+        Map<String, Object> match1 = new HashMap<>();
+        match1.put("playerX", "Alice");
+        match1.put("playerO", "Bob");
+        match1.put("winner", "Alice");
+        match1.put("date", new Date().getTime()); // Sử dụng timestamp
+        historyList.add(match1);
+    
+        Map<String, Object> match2 = new HashMap<>();
+        match2.put("playerX", "Charlie");
+        match2.put("playerO", "David");
+        match2.put("winner", "David");
+        match2.put("date", new Date().getTime() - 3600000); // 1 giờ trước
+        historyList.add(match2);
+        
+        // 2. CHUẨN BỊ PHẢN HỒI THEO ĐỊNH DẠNG CLIENT MONG MUỐN
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "history_list"); // <-- Đã sửa: Khớp với data.type === "history_list"
+        response.put("history", historyList); // <-- Đã sửa: Khớp với renderHistoryList(data.history)
+        webSocket.send(gson.toJson(response));
     }
 
     public void shutdown() {

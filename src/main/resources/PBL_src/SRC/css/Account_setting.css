@@ -31,14 +31,14 @@
   }
   
   .account-section {
-    background: var(--panel);
+    background: rgba(102, 57, 3, 0.15);;
     padding: 30px 40px;
     border-radius: 18px;
     width: 360px;
     display: flex;
     flex-direction: column;
     gap: 16px;
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
     backdrop-filter: blur(10px);
   }
   
