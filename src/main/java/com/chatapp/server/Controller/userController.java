@@ -47,7 +47,7 @@ public class userController {
                 response.add("user", gson.toJsonTree(user));
 
                 // Cập nhật status sang online nếu cần
-                userDAO.updateStatus(user.getUser_id(), "online");
+                userDAO.updateStatus(user.getUser_id(), "Online");
             } else {
                 response.addProperty("status", "error");
                 response.addProperty("message", "Sai tên đăng nhập hoặc mật khẩu");
@@ -119,7 +119,7 @@ public class userController {
         JsonObject response = new JsonObject();
 
         try {
-            boolean success = userDAO.updateStatus(userId, "offline");
+            boolean success = userDAO.updateStatus(userId, "Oline");
 
             if (success) {
                 response.addProperty("status", "success");
@@ -159,7 +159,7 @@ public class userController {
                 response.addProperty("message", "Đăng nhập Google thành công");
                 response.addProperty("loginMethod", "google");
                 response.add("user", gson.toJsonTree(existingUser));
-                userDAO.updateStatus(existingUser.getUser_id(), "online");
+                userDAO.updateStatus(existingUser.getUser_id(), "Online");
                 userDAO.updateProvider(existingUser.getUser_id(), "google account");//
             } else {
                 user newUser = userDAO.createUserWithGoogle(
