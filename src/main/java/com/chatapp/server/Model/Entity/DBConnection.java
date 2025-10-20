@@ -1,4 +1,4 @@
-package Model.Entity;
+package com.chatapp.server.Model.Entity;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -12,7 +12,7 @@ public class DBConnection {
 
     static {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:postgresql://localhost:5432/pbl4db");
+        config.setJdbcUrl("jdbc:postgresql://localhost:5432/DataBase_PBL4");
         config.setUsername("postgres");
         config.setPassword("300325");
 

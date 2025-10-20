@@ -1,6 +1,6 @@
 package com.chatapp.server.Test;
 
-import Model.Entity.DBConnection;
+import com.chatapp.server.Model.Entity.DBConnection;
 
 import java.sql.*;
 
