@@ -1,5 +1,4 @@
 .board{
-  width:var(--board-size);
   height:var(--board-size);
   display:grid;
   grid-template-columns:repeat(8,1fr);
@@ -14,7 +13,7 @@
   width: 90%;
 }
   
-square{display:flex;
+.square{display:flex;
   align-items:center;
   justify-content:center;
   font-size:22px;
@@ -34,5 +33,11 @@ square{display:flex;
   .square img {
     max-width: 90%;
     max-height: 90%;
+  }
+  
+  .highlight {
+    outline: 4px solid #00ffcc;
+    box-shadow: inset 0 0 15px rgba(0, 255, 200, 0.6);
+    transition: 0.2s;
   }
   
