@@ -1,9 +1,10 @@
 :root {
-    --panel: rgba(4, 21, 40, 0.9);
+    --panel: opacity 1;
     --accent: #ef476f;
     --text-light: #dce9ff;
     --bg-dark: #011627;
-    --btn-hover: #ff4c4c;
+    --btn-hover: #ff3b00;
+    --accent: #ff6b00;
   }
   
   body {
@@ -30,14 +31,14 @@
   }
   
   .account-section {
-    background: var(--panel);
+    background: rgba(102, 57, 3, 0.15);;
     padding: 30px 40px;
     border-radius: 18px;
     width: 360px;
     display: flex;
     flex-direction: column;
     gap: 16px;
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
     backdrop-filter: blur(10px);
   }
   
@@ -84,19 +85,21 @@
     display: flex;
     justify-content: space-between;
     margin-top: 20px;
+    gap: 10px;
   }
   
   .btn {
+    flex: 1;
+    padding: 10px 10px;
     background: var(--accent);
     border: none;
     border-radius: 10px;
-    color: white;
-    font-weight: 600;
-    padding: 10px 18px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.2s ease;
+    color: white;
+    transition: background-color 0.2s ease;
+    box-shadow: 0 4px 12px rgba(255, 107, 0, 0.4);
   }
-  
   .btn:hover {
     background: var(--btn-hover);
   }
