@@ -1,239 +1,171 @@
-// chess_board.js
-// Handles rendering board, theme, click & drag/drop interactions.
-// Works in BOTH offline mode and online mode (if a global sendMove(fromAlg, toAlg) exists).
+// File: chessboard_render.js
+// Nhiệm vụ: Chỉ hiển thị bàn cờ (rendering) và chuyển giao input (clicks/drops).
 
-const initialBoard = [
-  ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR"],
-  ["bP", "bP", "bP", "bP", "bP", "bP", "bP", "bP"],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  ["wP", "wP", "wP", "wP", "wP", "wP", "wP", "wP"],
-  ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
-];
+// ==========================
+// THIẾT LẬP & HẰNG SỐ
+// ==========================
 
 const boardElement = document.getElementById("chessBoard");
+let currentBoardState = null; // Lưu trữ mảng 8x8 cuối cùng được render
 
-// THEMES
-const themes = [
-  { white: "#f0d9b5", black: "#b58863" }, // mặc định
-  { white: "#e0f7fa", black: "#006064" },
-  { white: "#f3e5f5", black: "#6a1b9a" },
-  { white: "#eeeeee", black: "#424242" },
-  { white: "#fff3e0", black: "#e65100" },
-  { white: "#e3f2fd", black: "#1565c0" },
-  { white: "#f1f8e9", black: "#558b2f" },
-  { white: "#fafafa", black: "#37474f" },
-  { white: "#fff9c4", black: "#f57f17" },
-  { white: "#fce4ec", black: "#880e4f" },
-  { white: "#e0f2f1", black: "#00695c" },
-  { white: "#fff8e1", black: "#ff6f00" },
-  { white: "#ede7f6", black: "#4527a0" },
-  { white: "#efebe9", black: "#5d4037" },
-  { white: "#eceff1", black: "#263238" }
-];
+// Các themes ĐÃ ĐƯỢC ĐIỀN ĐẦY ĐỦ
+const themes = [ 
+    { white: "#f0d9b5", black: "#b58863" }, // Mặc định
+    { white: "#e0f7fa", black: "#006064" }, // Xanh nhạt/Xanh đậm
+    { white: "#f3e5f5", black: "#6a1b9a" }, // Tím nhạt/Tím đậm
+    { white: "#eeeeee", black: "#424242" }, // Xám sáng/Xám tối
+    { white: "#fff3e0", black: "#e65100" }, // Vàng nhạt/Cam
+    { white: "#e3f2fd", black: "#1565c0" }, // Xanh dương nhạt/Xanh đậm
+    { white: "#f1f8e9", black: "#558b2f" }, // Xanh lá nhạt/Xanh lá đậm
+    { white: "#fafafa", black: "#37474f" }, // Trắng/Đen than
+    { white: "#fff9c4", black: "#f57f17" }, // Vàng chanh/Cam vàng
+    { white: "#fce4ec", black: "#880e4f" }, // Hồng nhạt/Đỏ tía
+    { white: "#e0f2f1", black: "#00695c" }, // Xanh ngọc nhạt/Xanh ngọc đậm
+    { white: "#fff8e1", black: "#ff6f00" }, // Trắng kem/Cam gắt
+    { white: "#ede7f6", black: "#4527a0" }, // Tím Oải Hương/Tím đậm
+    { white: "#efebe9", black: "#5d4037" }, // Nâu kem/Nâu đậm
+    { white: "#eceff1", black: "#263238" }  // Bạc/Đen
+]; 
 
-let currentTheme = 0;
+// ===================== Helper functions (Exposed) =====================
 
-function applyTheme(index) {
-  const theme = themes[index];
-  document.documentElement.style.setProperty("--white-square", theme.white);
-  document.documentElement.style.setProperty("--black-square", theme.black);
-}
+/** Chuyển đổi tọa độ mảng (0-7) thành ký hiệu đại số (A1-H8) */
+window.coordToAlg = function(r, c) {
+    const file = String.fromCharCode('a'.charCodeAt(0) + c);
+    const rank = 8 - r;
+    return file + rank;
+};
 
-function prevTheme() {
-  currentTheme = (currentTheme - 1 + themes.length) % themes.length;
-  applyTheme(currentTheme);
-}
+/** Chuyển đổi ký hiệu đại số thành tọa độ mảng */
+window.algToCoord = function(alg) {
+    if (!alg || alg.length !== 2) return null;
+    const c = alg.charCodeAt(0) - 'a'.charCodeAt(0);
+    const r = 8 - parseInt(alg.charAt(1), 10);
+    return { r, c };
+};
 
-function nextTheme() {
-  currentTheme = (currentTheme + 1) % themes.length;
-  applyTheme(currentTheme);
-}
+// ===================== Hàm Render Chính (API) =====================
 
-applyTheme(currentTheme);
+window.renderChessBoard = function(boardArray, state) {
+    if (!boardElement || !boardArray || !state) return;
+    
+    currentBoardState = boardArray;
+    
+    boardElement.innerHTML = '';
+    const { selected, lastMove, flipped } = state;
+    
+    if (flipped) boardElement.classList.add('flipped');
+    else boardElement.classList.remove('flipped');
 
-// Helpers: convert between array coords (row 0..7, col 0..7) and algebraic "a1".."h8"
-function coordToAlg(r, c) {
-  const file = String.fromCharCode('a'.charCodeAt(0) + c);
-  const rank = 8 - r;
-  return file + rank; // e.g. {r:7,c:4} -> "e1"
-}
-function algToCoord(alg) {
-  if (!alg || alg.length !== 2) return null;
-  const c = alg.charCodeAt(0) - 'a'.charCodeAt(0);
-  const r = 8 - parseInt(alg.charAt(1), 10);
-  return { r, c };
-}
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const rr = flipped ? 7 - r : r;
+            const cc = flipped ? 7 - c : c;
 
-// Render board UI
-function renderBoard() {
-  boardElement.innerHTML = '';
+            const square = document.createElement("div");
+            square.classList.add("square");
+            
+            square.dataset.r = rr;
+            square.dataset.c = cc;
+            
+            if ((r + c) % 2 === 0) square.classList.add("white");
+            else square.classList.add("black");
 
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const square = document.createElement("div");
-      square.classList.add("square");
-      square.dataset.row = row;
-      square.dataset.col = col;
+            // HIGH LIGHTS
+            if (selected && selected.r === rr && selected.c === cc) {
+                square.classList.add('highlight');
+            }
+            if (lastMove && lastMove.from && lastMove.to &&
+                ((lastMove.from.r === rr && lastMove.from.c === cc) ||
+                 (lastMove.to.r === rr && lastMove.to.c === cc))) {
+                square.classList.add('last-move');
+            }
 
-      // color classes use CSS variables defined in Match.css/Chess_board.css
-      if ((row + col) % 2 === 0) square.classList.add("white");
-      else square.classList.add("black");
+            // TRONG chessboard_render.js, bên trong hàm window.renderChessBoard, thay thế logic tạo IMG:
 
-      const piece = initialBoard[row][col];
-      if (piece) {
-        const img = document.createElement("img");
-        img.src = `../../PBL4_imgs/image/${piece}.png`;
-        img.alt = piece;
-        img.draggable = true;
-        // Add small dataset to image for convenience
-        img.dataset.piece = piece;
-        square.appendChild(img);
-      }
+const piece = boardArray[rr][cc]; // Ví dụ: 'R' (Trắng) hoặc 'r' (Đen)
 
-      boardElement.appendChild(square);
+if (piece && piece !== '') {
+    let fileName = '';
+
+    if (piece === piece.toUpperCase()) {
+        fileName = piece; 
+        
+    } else {fileName = 'b' + piece.toUpperCase();
     }
-  }
+
+    const img = document.createElement("img");
+    
+    // Tạo đường dẫn cuối cùng: [R, K, bN, bR, bQ, etc.].png
+    img.src = `../../PBL4_imgs/image/${fileName}.png`; 
+    
+    img.alt = piece;
+    img.draggable = true;
+    img.dataset.piece = piece;
+    square.appendChild(img);
 }
 
-// selection & drag state
-let selectedPosition = null;
-let draggedPiece = null;
-
-// Click handler (supports selection -> move). For online: will call global sendMove(fromAlg,toAlg) if present.
-// If sendMove exists and we're in online mode (roomId set), do NOT apply locally until server confirms.
-boardElement.addEventListener("click", (e) => {
-  const square = e.target.closest(".square");
-  if (!square) return;
-  const row = parseInt(square.dataset.row);
-  const col = parseInt(square.dataset.col);
-  const piece = initialBoard[row][col];
-
-  if (!selectedPosition) {
-    if (piece) {
-      selectedPosition = { row, col };
-      square.classList.add("highlight");
+            // Gắn sự kiện click
+            square.addEventListener('click', handleInputClick);
+            
+            boardElement.appendChild(square);
+        }
     }
-    return;
-  }
+};
 
-  // if clicked same square - deselect
-  if (selectedPosition.row === row && selectedPosition.col === col) {
-    square.classList.remove("highlight");
-    selectedPosition = null;
-    return;
-  }
+// ===================== Xử lý Input (Chuyển giao cho Controller) =====================
 
-  // perform move: either send to server or move locally
-  const fromRow = selectedPosition.row;
-  const fromCol = selectedPosition.col;
-  const toRow = row;
-  const toCol = col;
-
-  const fromAlg = coordToAlg(fromRow, fromCol);
-  const toAlg = coordToAlg(toRow, toCol);
-
-  // Clean highlight immediately
-  clearHighlights();
-
-  if (typeof window.roomId !== "undefined" && window.roomId !== null) {
-    // online mode: send to server via global sendMove(fromAlg,toAlg)
-    if (typeof window.sendMove === "function") {
-      window.sendMove(fromAlg, toAlg);
-    } else {
-      console.warn("sendMove() not found — cannot send online move");
+function handleInputClick(e) {
+    const square = e.currentTarget;
+    const r = parseInt(square.dataset.r);
+    const c = parseInt(square.dataset.c);
+    
+    if (typeof window.handleBoardInput === "function") {
+        window.handleBoardInput(r, c); 
     }
-  } else {
-    // offline/local mode — update board immediately
-    const movingPiece = initialBoard[fromRow][fromCol];
-    initialBoard[toRow][toCol] = movingPiece;
-    initialBoard[fromRow][fromCol] = null;
-    renderBoard();
-  }
+}
 
-  selectedPosition = null;
-});
+let dragStartPos = null;
 
-// DRAG & DROP
 boardElement.addEventListener("dragstart", (e) => {
-  if (e.target.tagName === "IMG") {
-    draggedPiece = e.target;
-    // hide dragged image (visual)
-    setTimeout(() => { if (e.target) e.target.style.display = "none"; }, 0);
-  }
-});
-boardElement.addEventListener("dragend", (e) => {
-  if (draggedPiece) {
-    draggedPiece.style.display = "block";
-    draggedPiece = null;
-  }
-});
-boardElement.addEventListener("dragover", (e) => e.preventDefault());
-boardElement.addEventListener("drop", (e) => {
-  e.preventDefault();
-  const square = e.target.closest(".square");
-  if (!square || !draggedPiece) return;
+    const img = e.target.closest('img');
+    if (img) {
+        const parentSquare = img.parentElement;
+        dragStartPos = { r: parseInt(parentSquare.dataset.r), c: parseInt(parentSquare.dataset.c) };
 
-  const fromRow = parseInt(draggedPiece.parentElement.dataset.row);
-  const fromCol = parseInt(draggedPiece.parentElement.dataset.col);
-  const toRow = parseInt(square.dataset.row);
-  const toCol = parseInt(square.dataset.col);
-
-  const fromAlg = coordToAlg(fromRow, fromCol);
-  const toAlg = coordToAlg(toRow, toCol);
-
-  // restore image visibility
-  draggedPiece.style.display = "block";
-  draggedPiece = null;
-
-  // online: send move request and wait server; offline: apply immediately
-  if (typeof window.roomId !== "undefined" && window.roomId !== null) {
-    if (typeof window.sendMove === "function") {
-      window.sendMove(fromAlg, toAlg);
-    } else {
-      console.warn("sendMove() not found — cannot send online move");
+        setTimeout(() => { img.style.opacity = 0; }, 0);
+        
+        if (typeof window.handleBoardInput === "function") {
+             window.handleBoardInput(dragStartPos.r, dragStartPos.c); // Báo hiệu chọn quân
+        }
     }
-  } else {
-    const movingPiece = initialBoard[fromRow][fromCol];
-    initialBoard[toRow][toCol] = movingPiece;
-    initialBoard[fromRow][fromCol] = null;
-    renderBoard();
-  }
 });
 
-// helper to clear highlights
-function clearHighlights() {
-  boardElement.querySelectorAll(".highlight").forEach(el => el.classList.remove("highlight"));
-}
+boardElement.addEventListener("dragend", (e) => {
+    const img = e.target.closest('img');
+    if (img) img.style.opacity = 1;
+});
 
-// Utility: apply a move given algebraic strings (fromAlg, toAlg)
-// This will update initialBoard and re-render. Use when server confirms move.
-function applyMoveFromAlgebraic(fromAlg, toAlg, pieceOverride = null) {
-  const from = algToCoord(fromAlg);
-  const to = algToCoord(toAlg);
-  if (!from || !to) return;
-  const movingPiece = pieceOverride || initialBoard[from.r][from.c];
-  initialBoard[to.r][to.c] = movingPiece;
-  initialBoard[from.r][from.c] = null;
-  clearHighlights();
-  renderBoard();
-}
+boardElement.addEventListener("dragover", (e) => e.preventDefault());
 
-// algToCoord (already used)
-function algToCoord(alg) {
-  if (!alg || alg.length !== 2) return null;
-  const c = alg.charCodeAt(0) - 'a'.charCodeAt(0);
-  const r = 8 - parseInt(alg.charAt(1), 10);
-  return { r, c };
-}
+boardElement.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const square = e.target.closest(".square");
+    if (!square || !dragStartPos) return;
 
-// initial render
-renderBoard();
+    const toRow = parseInt(square.dataset.r);
+    const toCol = parseInt(square.dataset.c);
+    const fromRow = dragStartPos.r;
+    const fromCol = dragStartPos.c;
 
-// Expose some functions to global so match.js can call them if needed
-window.applyMoveFromAlgebraic = applyMoveFromAlgebraic;
-window.coordToAlg = coordToAlg;
-window.algToCoord = algToCoord;
-window.renderBoard = renderBoard;
+    if (typeof window.handleBoardInput === "function") {
+        window.handleBoardInput(fromRow, fromCol, toRow, toCol); 
+    }
+
+    dragStartPos = null;
+});
+
+
+// ===================== EXPOSE API =====================
+window.renderChessBoard = window.renderChessBoard;
+// Các hàm coordToAlg và algToCoord đã được expose dưới dạng window.function

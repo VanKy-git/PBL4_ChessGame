@@ -60,4 +60,11 @@
 .square.valid-move, .square.capture-move {
   cursor: pointer;
 }
+
+.id-player{
+  text-align:center;
+  font-size:20px;
+  font-weight:600;
+  margin:10px 0;
+}
   
