@@ -1,72 +1,141 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="../css/Home_page.css">
-  <link rel="stylesheet" href="../css/Chess_board.css">
-  <title>Trang chủ — Game Cờ Vua</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="../css/Home_page.css">
+    <link rel="stylesheet" href="../css/Chess_board.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
+    <link rel="icon" href="../../PBL4_imgs/icon/logo.jpg"> 
+    <title>Trang chủ — Game Cờ Vua</title>
 </head>
 <body>
-  <div class="layout">
-    <!-- LEFT -->
-    <aside class="left">
-      <div class="brand">
-        <div class="logo" aria-hidden>♟</div>
-        <div>
-          <h1>ChessHub</h1>
-          <div class="muted">Trang chủ trò chơi</div>
+    <div class="layout">
+        <aside class="left">
+            <div class="brand">
+                <div class="logo" aria-hidden>♟</div>
+                <div>
+                    <h1>ChessHub</h1>
+                    <div class="muted">Trang chủ trò chơi</div>
+                </div>
+            </div>
+            <nav class="menu">
+                <a href="#" id="historyLink"><i class="fa-solid fa-clock-rotate-left"></i> Lịch sử</a>
+                
+                <a href="#" id="account-link"><i class="fa-solid fa-user"></i> Tài khoản</a>
+                
+                <a href="#" id="friendsLink"><i class="fa-solid fa-user-group"></i> Bạn bè</a>
+                
+                <a href="#" id="leaderboardLink"><i class="fa-solid fa-ranking-star"></i> Bảng xếp hạng</a>
+                
+                <a href="#"><i class="fa-solid fa-gear"></i> Cài đặt</a>
+            </nav>
+        </aside>
+
+
+    <main>
+    <div class="center">
+        <div class="player-bar top-player">
+            <div class="player-info">
+                <img src="../../PBL4_imgs/icon/black_avatar.png" alt="Black Player" class="player-avatar">
+                <span class="player-name">Đối thủ</span>
+                <span class="id-player">#10235</span>
+            </div>
+            <div class="player-status">
+                <span class="player-side">♚</span>
+                <span class="player-time">10:00</span>
+            </div>
         </div>
-      </div>
-      <nav class="menu">
-        <a href="#"><i class="fa-solid fa-rectangle-history"></i> Lịch sử</a>
-        <a href="./Account_setting.html" ><span class="icon">👤</span> Tài khoản</a>
-        <div class="menu-banbe">
-          <a href="#" id="menu_banbe"><span class="icon">👥</span> Bạn bè</a>
-          <div class="friends-list" id="friendsList">
-            <p><strong>Danh sách bạn bè:</strong></p>
-            <ul>
-              <li>Nguyễn Văn A</li>
-              <li>Trần Thị B</li>
-              <li>Phạm Văn C</li>
-            </ul>
-          </div>
+
+            <div class="board-wrap">
+                <button class="arrow left" onclick="prevTheme()">◀</button> 
+                <button class="arrow right" onclick="nextTheme()">▶</button>
+                <div class="board" id="chessBoard"></div>
+            </div>
+  
+
+            <div class="player-bar bottom-player">
+                <div class="player-info">
+                    <img src="../../PBL4_imgs/icon/white_avatar.png" alt="You" class="player-avatar">
+                    <span class="player-name">Bạn</span>
+                    <span class="id-player">#20458</span>
+                </div>
+                <div class="player-status">
+                    <span class="player-side">♔</span>
+                    <span class="player-time">10:00</span>
+                </div>
+            </div>
+        </main>
+
+
+        <aside class="right-panel">
+            <div style="font-weight:500">Chế độ chơi</div>
+            <div class="modes">
+                <div class="mode" data-mode="local">
+                    <div><i class="fa-solid fa-user-group"></i></div>
+                    <div>
+                            <div style="font-weight:700">Chơi cùng bạn</div>
+                            <div class="muted">2 người trên cùng 1 máy</div>
+                    </div>
+                </div>
+                <div class="mode" data-mode="ai">
+                    <div><i class="fa-solid fa-robot"></i></div>
+                    <div>
+                        <div style="font-weight:700">Chơi với AI</div>
+                        <div class="muted">Nhiều mức độ</div>
+                    </div>
+                </div>
+                <div class="mode" data-mode="online">
+                    <div><i class="fa-solid fa-earth-americas"></i></div>
+                    <div>
+                        <div style="font-weight:700">Chơi trực tuyến</div>
+                        <div class="muted">Kết nối đối thủ</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <div id="historyPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content" style="max-height:80vh;overflow-y:auto;">
+            <h2>Lịch sử trận đấu</h2>
+            <div id="historyContainer">Đang tải...</div>
+            <button id="historyClose" class="close-btn">Đóng</button>
         </div>
-        
-        <a href="#"><span class="icon">🏆</span> Bảng xếp hạng</a>
-        <a href="#"><span class="icon">⚙️</span> Cài đặt</a>
-      </nav>
-    </aside>
+    </div>
 
-    <!-- CENTER -->
-    <main class="center">
-      <div class="title">
-        <h2>Chơi ngay — thử bàn cờ</h2>
-        <div class="muted">Tùy chỉnh màu sắc bàn cờ bên dưới</div>
-      </div>
-      <div class="board-wrap">
-        <button class="arrow left" onclick="prevTheme()">◀</button> 
-        <button class="arrow right" onclick="nextTheme()">▶</button>
-        <div class="board" id="chessBoard"></div>
+    <div id="friendsPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content" style="max-height:80vh;overflow-y:auto;">
+            <h2>Danh sách Bạn bè</h2>
+            <div id="friendsContainer">Đang tải...</div>
+            <button id="friendsClose" class="close-btn">Đóng</button>
+        </div>
+    </div>
 
-      </div>
-      
-    </main>
-`
-    <!-- RIGHT -->
-    <aside class="right">
-      <div style="font-weight:500">Chế độ chơi</div>
-      <div class="modes">
-        <div class="mode" data-mode="local"><div>🔁</div><div><div style="font-weight:700">Chơi cùng bạn</div><div class="muted">2 người trên cùng 1 máy</div></div></div>
-        <div class="mode" data-mode="ai"><div>🤖</div><div><div style="font-weight:700">Chơi với AI</div><div class="muted">Nhiều mức độ</div></div></div>
-        <div class="mode" data-mode="online"><div>🌐</div><div><div style="font-weight:700">Chơi trực tuyến</div><div class="muted">Kết nối đối thủ</div></div></div>
-        <div class="mode" data-mode="puzzles"><div>🧩</div><div><div style="font-weight:700">Bài tập cờ</div><div class="muted">Tập luyện chiến thuật</div></div></div>
-      </div>
-      <div style="margin-top:auto;font-size:13px;opacity:0.85">Chọn chế độ để bắt đầu</div>
-    </aside>
-  </div>
+    <div id="leaderboardPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content" style="max-height:80vh;overflow-y:auto;">
+            <h2>Bảng xếp hạng</h2>
+            <div id="leaderboardContainer">Đang tải...</div>
+            <button id="leaderboardClose" class="close-btn">Đóng</button>
+        </div>
+    </div>
 
-  <script src="../js/Chess_board.js"></script>
-  <script src="../js/Home_page.js"></script>
+    <div id="settingPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content">
+            <h2>Cài đặt tài khoản</h2>
+            <div id="settingContainer">Đang tải...</div>
+            <button id="settingClose" class="close-btn">Đóng</button>
+        </div>
+    
+    <script src="../js/Chess_board.js"></script>
+    <script src="../js/Home_page.js"></script>
+    <script src="../js/game_controller.js"></script>
+    <script src="../js/Account_setting.js"></script>
+    
+    <script type="module" src="../js/Connect_websocket.js"></script>
+    <script type="module" src="../js/History.js"></script>
+    <script type="module" src="../js/Friend_list.js"></script>
+    <script type="module" src="../js/Leader_board.js"></script>
+
 </body>
 </html>

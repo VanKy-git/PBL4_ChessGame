@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Chess Game</title>
     <style>
         :root{
             --size: 64px;
@@ -149,9 +150,58 @@
             border-radius:6px;
             margin-top:10px;
         }
+        .hidden {
+            display: none;
+        }
+
+        #promotion-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #promotion-modal {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .promotion-pieces {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .promotion-piece {
+            font-size: 50px; /* Làm cho quân cờ Unicode lớn */
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+
+        .promotion-piece:hover {
+            background-color: #eee;
+        }
     </style>
 </head>
 <body>
+<div id="promotion-overlay" class="hidden">
+    <div id="promotion-modal">
+        <h3>Chọn quân cờ để phong cấp</h3>
+        <div class="promotion-pieces">
+        </div>
+    </div>
+</div>
 <div class="wrapper">
     <div id="board" class="board" aria-label="Chess board"></div>
 </div>
@@ -409,10 +459,6 @@
                 resetBoard();
                 break;
 
-            case 'player_move':
-                handleOpponentMove(msg);
-                break;
-
             case 'turn_change':
                 currentTurn = msg.currentTurn;
                 updateStatus();
@@ -441,7 +487,6 @@
             case 'chat':
                 addChatMessage(msg.playerName || "Người chơi", msg.message);
                 break;
-
             case 'player_left':
             case 'player_disconnected':
                 alert('Đối thủ đã rời khỏi game!');
@@ -450,10 +495,10 @@
                 break;
 
             case 'move_result':
-                if(msg.result == false) {
+                if(msg.result === false) {
                     alert("Nước đi không hợp lệ");
                 } else {
-                    makeMove(msg.from, msg.to);
+                    renderFromFen(msg.fen);
                 }
                 break;
 
@@ -470,11 +515,39 @@
         }
     }
 
+    function getPromotionPiece(color) {
+        const overlay = document.getElementById('promotion-overlay');
+        const pieceContainer = overlay.querySelector('.promotion-pieces');
 
-    function handleOpponentMove(msg) {
-        const from = parseSquare(msg.from);
-        const to = parseSquare(msg.to);
-        if (from && to) makeMove(from, to, false);
+        // Tạo các quân cờ dựa trên màu
+        pieceContainer.innerHTML = ''; // Xóa các quân cờ cũ
+        const pieces = (color === 'white') ? ['Q', 'R', 'B', 'N'] : ['q', 'r', 'b', 'n'];
+
+        // Trả về một Promise, code sẽ "chờ" cho đến khi 'resolve' được gọi
+        return new Promise((resolve) => {
+            pieces.forEach(pieceChar => {
+                const pieceEl = document.createElement('div');
+                pieceEl.className = 'promotion-piece';
+                pieceEl.textContent = PIECES[pieceChar]; // Sử dụng đối tượng PIECES toàn cục của bạn
+                pieceEl.dataset.piece = pieceChar.toUpperCase(); // Luôn trả về Q, R, B, N
+
+                const clickHandler = () => {
+                    // Ẩn popup
+                    overlay.classList.add('hidden');
+
+                    // Trả về quân cờ đã chọn
+                    resolve(pieceEl.dataset.piece);
+                };
+
+                // Thêm trình xử lý sự kiện, chỉ chạy một lần
+                pieceEl.addEventListener('click', clickHandler, { once: true });
+
+                pieceContainer.appendChild(pieceEl);
+            });
+
+            // Hiển thị popup
+            overlay.classList.remove('hidden');
+        });
     }
 
     function parseSquare(algNotation) {
@@ -577,8 +650,68 @@
             }
         }
     }
+    /**
+     * Clears and renders the entire chessboard UI from a FEN string.
+     * This version does not handle any highlighting.
+     *
+     * @param {string} fen The FEN string representing the board state.
+     */
+    function renderFromFen(fen) {
+        // --- 1. Parse the FEN String to create a board layout ---
+        const fenBoard = Array(8).fill(null).map(() => Array(8).fill(null));
+        const [piecePlacement] = fen.split(" "); // Get the first part of the FEN
 
-    function onSquareClick(e) {
+        const rows = piecePlacement.split('/');
+        for (let r = 0; r < rows.length; r++) {
+            const row = rows[r];
+            let c = 0; // Column cursor for the current row
+            for (const char of row) {
+                if (isNaN(char)) {
+                    // It's a piece character (e.g., 'r', 'P')
+                    fenBoard[r][c] = char;
+                    c++;
+                } else {
+                    // It's a number, so we skip that many columns
+                    c += parseInt(char);
+                }
+            }
+        }
+
+        // --- 2. Render the board using the parsed layout ---
+        boardEl.innerHTML = ''; // Clear the board first
+
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const rr = flipped ? 7 - r : r;
+                const cc = flipped ? 7 - c : c;
+
+                const square = document.createElement('div');
+                square.className = 'square ' + (((r + c) % 2 === 0) ? 'light' : 'dark');
+                square.dataset.r = rr;
+                square.dataset.c = cc;
+                square.dataset.alg = coordToAlg(rr, cc);
+                square.addEventListener('click', onSquareClick);
+
+                // Get the piece from our newly created fenBoard
+                const piece = fenBoard[rr][cc];
+                if (piece) {
+                    const span = document.createElement('span');
+                    span.textContent = PIECES[piece] || '?';
+                    span.dataset.piece = piece;
+                    square.appendChild(span);
+                }
+
+                const coord = document.createElement('div');
+                coord.className = 'coords';
+                coord.textContent = square.dataset.alg;
+                square.appendChild(coord);
+
+                boardEl.appendChild(square);
+            }
+        }
+    }
+
+    async function onSquareClick(e) {
         if (!gameActive || !yourColor) return;
         const sq = e.currentTarget;
         const r = parseInt(sq.dataset.r);
@@ -587,23 +720,36 @@
         if (currentTurn !== yourColor) return;
 
         if (selected) {
-            if (selected.r === r && selected.c === c) {selected=null;render();return;}
+            if (selected.r === r && selected.c === c) {selected=null;return;}
             const selPiece = board[selected.r][selected.c];
-            if (!selPiece) {selected=null;render();return;}
-            if (piece && isPieceOurColor(piece)) {selected={r,c};render();return;}
+            if (!selPiece) {selected=null;return;}
+            if (piece && isPieceOurColor(piece) && selPiece.toLowerCase() !== 'k') {selected={r,c};return;}
+            const selectedPiece = clientBoard[selected.r][selected.c];
+            let promotionChar = null; // Mặc định là null
+
+            // Kiểm tra xem đây có phải là nước đi phong cấp không
+            const isPawn = selectedPiece.toLowerCase() === 'p';
+            const isLastRank = (selectedPiece === 'P' && r === 0) || (selectedPiece === 'p' && r === 7);
+
+            if (isPawn && isLastRank) {
+                // Hiển thị popup và CHỜ người dùng chọn
+                // Từ khóa 'await' sẽ tạm dừng hàm này cho đến khi Promise được resolve
+                promotionChar = await getPromotionPiece(yourColor);
+            }
             if(websocket && websocket.readyState === WebSocket.OPEN){
                 websocket.send(JSON.stringify({
                     type:'move_request',
                     from:coordToAlg(selected.r,selected.c),
                     to:coordToAlg(r,c),
-                    roomId:roomId
+                    roomId:roomId,
+                    promotion : promotionChar
                 }));
             }
             selected=null;
         } else {
             if (piece && isPieceOurColor(piece)) {
                 selected={r,c};
-                render();
+                // render();
             }
         }
     }

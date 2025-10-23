@@ -83,11 +83,14 @@ public class ChessServer extends WebSocketServer {
                 case "get_rooms":
                     handleGetRooms(webSocket);
                     break;
+                case "get_history":
+                    handleGetHistory(webSocket, data);
+                    break;
                 default:
                     System.out.println("Unknown message type: " + type);
             }
         } catch (Exception e) {
-            System.out.println("Error handleMessage!");
+            System.out.println("Error handleMessage!" + message);
             e.printStackTrace();
         }
     }
@@ -164,6 +167,7 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
+    //start game in room
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
@@ -311,24 +315,30 @@ public class ChessServer extends WebSocketServer {
         if (player == null) return;
 
         String roomId = (String) data.get("roomId");
-        GameRoom room = gameRooms.get(roomId);
-
+        try {
+            GameRoom room = gameRooms.get(roomId);
         if (room != null) {
             room.removePlayer(player);
-
-            // Notify remaining players
-            Map<String, Object> leftData = new HashMap<>();
-            leftData.put("leftPlayer", player.getPlayerName());
-            notifyRoomPlayers(room, "player_left", leftData);
-
-            // Remove room if empty
-            if (room.isEmpty()) {
+            if(room.isEmpty())
+            {
                 gameRooms.remove(roomId);
-            }
+            } else {
+                // Notify remaining players
+                Map<String, Object> leftData = new HashMap<>();
+                leftData.put("leftPlayer", player.getPlayerName());
+                notifyRoomPlayers(room, "player_left", leftData);
 
-            broadcastRoomsList();
+                // Remove room if empty
+                if (room.isEmpty()) {
+                    gameRooms.remove(roomId);
+                }
+
+                broadcastRoomsList();
+            }}}
+        catch (Exception e) {
+            System.err.println("Error leaving room: " + e.getMessage());
         }
-    }
+        }
 
     private void handleGameMove(WebSocket webSocket, Map<String, Object> data) {
         Player player = connectionPlayerMap.get(webSocket);
@@ -347,29 +357,32 @@ public class ChessServer extends WebSocketServer {
             return;
         }
 
-        Map<String, Object> moveData = new HashMap<>();
-        moveData.put("from", data.get("from"));
-        moveData.put("to", data.get("to"));
-        moveData.put("color", player.getColor());
-        moveData.put("piece", data.get("piece"));
-
-        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(moveData.get("from").toString(), moveData.get("to").toString(),
-                moveData.get("color").toString());
-        if(!moveResult.valid)
+        String from = data.get("from").toString();
+        String to = data.get("to").toString();
+        Character promo = data.get("promotion").toString().charAt(0);
+        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(from, to,
+                player.getColor(),  promo);
+        if(!moveResult.isValid)
         {
-            moveData.put("result", false);
-            webSocket.send(gson.toJson(moveData));
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "move_result");
+            response.put("result", false);
+            response.put("message", moveResult.message);
+            webSocket.send(gson.toJson(response));
         }
         else {
-            moveData.put("result", true);
-            notifyRoomPlayers(room, "move_result", moveData);
+            String fen = room.getValidator().toFen();
+            Map<String, Object> fenData = new HashMap<>();
+            fenData.put("result", true);
+            fenData.put("fen", fen);
+            notifyRoomPlayers(room, "move_result", fenData);
             if(moveResult.winner != null)
             {
                 Map<String, Object> response = new HashMap<>();
                 response.put("winner", moveResult.winner);
                 notifyRoomPlayers(room, "end_game", response);
             }
-            System.out.println(moveData.get("from").toString() + " " + moveData.get("to").toString());
+            System.out.println(data.get("from").toString() + " " + data.get("to").toString());
             // Change turn
             String nextTurn = player.getColor().equals("white") ? "black" : "white";
             room.setCurrentTurn(nextTurn);
@@ -470,6 +483,34 @@ public class ChessServer extends WebSocketServer {
         broadcastRoomsList();
     }
 
+    private void handleGetHistory(WebSocket webSocket, Map<String, Object> data) {
+        // 1. TẠO HOẶC LẤY DANH SÁCH LỊCH SỬ THỰC TẾ
+        // Đây là ví dụ về dữ liệu giả định (placeholder):
+        List<Map<String, Object>> historyList = new ArrayList<>();
+        
+        // Ví dụ về một trận đấu (Giả sử bạn có một lớp MatchResult hoặc Map<String, Object> với các trường:
+        // playerX, playerO, winner, date)
+        Map<String, Object> match1 = new HashMap<>();
+        match1.put("playerX", "Alice");
+        match1.put("playerO", "Bob");
+        match1.put("winner", "Alice");
+        match1.put("date", new Date().getTime()); // Sử dụng timestamp
+        historyList.add(match1);
+    
+        Map<String, Object> match2 = new HashMap<>();
+        match2.put("playerX", "Charlie");
+        match2.put("playerO", "David");
+        match2.put("winner", "David");
+        match2.put("date", new Date().getTime() - 3600000); // 1 giờ trước
+        historyList.add(match2);
+        
+        // 2. CHUẨN BỊ PHẢN HỒI THEO ĐỊNH DẠNG CLIENT MONG MUỐN
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "history_list"); // <-- Đã sửa: Khớp với data.type === "history_list"
+        response.put("history", historyList); // <-- Đã sửa: Khớp với renderHistoryList(data.history)
+        webSocket.send(gson.toJson(response));
+    }
+
     public void shutdown() {
         try {
             this.stop();
@@ -482,7 +523,7 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) {    
         int port = 8080;
         ChessServer server = new ChessServer(port);
 

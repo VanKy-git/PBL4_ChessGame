@@ -1,51 +1,4 @@
 const boardEl = document.getElementById('chessBoard');
-
-const flipBtn = document.getElementById('flipBtn');
-const resetBtn = document.getElementById('resetBtn');
-
-let flipped = false;
-
-function applyColors() {
-  const squares = boardEl.querySelectorAll('.square');
-  squares.forEach(sq => {
-    const r = +sq.dataset.row;
-    const c = +sq.dataset.col;
-    const isLight = (r + c) % 2 === 0;
-    sq.style.background = isLight ? lightPicker.value : darkPicker.value;
-  });
-}
-
-function flipBoard() {
-  flipped = !flipped;
-  boardEl.style.transform = flipped ? 'rotate(180deg)' : 'none';
-  const squares = boardEl.querySelectorAll('.square');
-  squares.forEach(sq => sq.style.transform = flipped ? 'rotate(180deg)' : 'none');
-}
-
-// gán sự kiện
-lightPicker.addEventListener('input', applyColors);
-darkPicker.addEventListener('input', applyColors);
-flipBtn.addEventListener('click', flipBoard);
-resetBtn.addEventListener('click', () => {
-  lightPicker.value = '#f0d9b5';
-  darkPicker.value = '#b58863';
-  applyColors();
-  if (flipped) flipBoard();
-});
-
-// chọn chế độ chơi
-document.querySelectorAll('.mode').forEach(node => node.addEventListener('click', () => {
-  const m = node.dataset.mode;
-  alert('Bạn chọn chế độ: ' + m);
-}));
-
-const themes = [
-  { white: "#f0d9b5", black: "#b58863" }, // mặc định
-  { white: "#e0f7fa", black: "#006064" }, // xanh ngọc
-  { white: "#f3e5f5", black: "#6a1b9a" }, // tím
-  { white: "#eeeeee", black: "#424242" }  // xám
-];
-
 let currentTheme = 0;
 
 function applyTheme(index) {
@@ -64,40 +17,39 @@ function nextTheme() {
   applyTheme(currentTheme);
 }
 
-// áp dụng theme đầu tiên khi load
 applyTheme(currentTheme);
 
-const btn = document.getElementById('menu_banbe');
- friendsList = document.getElementById('friendsList');
+document.addEventListener('DOMContentLoaded', function () {
+  const rightPanel = document.querySelector('.right-panel');
+  const onlineMode = document.querySelector('.mode[data-mode="online"]');
+  const originalHTML = rightPanel.innerHTML;
 
-function hideFriendsList() {
-  friendsList.style.display = 'none';
-}
+  onlineMode.addEventListener('click', function () {
+      // Thay toàn bộ phần bên phải
+      rightPanel.innerHTML = `
+      <div class="online-wrapper" style="position: relative; display: flex; flex-direction: column; gap: 12px; padding: 20px;">
+  <button id="backToModes">←</button>
+  <div style="font-weight:700; font-size:18px; text-align:center; margin-bottom:10px;">Chơi trực tuyến</div>
+  <div class="muted" style="text-align:center; margin-bottom:20px;">Kết nối với đối thủ khác</div>
+  <button id="createRoom" class="btnn">Tạo phòng</button>
+  <input id="roomCode" class="input" placeholder="Nhập mã phòng...">
+  <button id="joinRoom" class="btnn">Tham gia phòng</button>
+  <button id="matchmaking" class="btnn">Ghép trận ngẫu nhiên</button>
+  
+</div>
+      `;
 
-btn.addEventListener('click', function(e) {
-  e.preventDefault();
-  if (friendsList.style.display === 'block') {
-    friendsList.style.display = 'none';
-  } else {
-    friendsList.style.display = 'block';
-  }
+      // Khi nhấn nút ← thì quay lại giao diện cũ
+      const backBtn = document.getElementById('backToModes');
+      backBtn.addEventListener('click', function () {
+          rightPanel.innerHTML = originalHTML;
+      });
+  });
 });
 
-// Ẩn khi chuột rời khỏi cả nút và vùng danh sách bạn bè
-btn.addEventListener('mouseleave', () => {
-  // Đợi chút để kiểm tra xem chuột có đang ở trong friendsList không
-  setTimeout(() => {
-    if (!btn.matches(':hover') && !friendsList.matches(':hover')) {
-      hideFriendsList();
-    }
-  }, 100); // delay nhẹ cho thao tác chuột chuyển mượt hơn
-});
 
-friendsList.addEventListener('mouseleave', () => {
-  setTimeout(() => {
-    if (!btn.matches(':hover') && !friendsList.matches(':hover')) {
-      hideFriendsList();
-    }
-  }, 100);
-});
+
+
+
+
 

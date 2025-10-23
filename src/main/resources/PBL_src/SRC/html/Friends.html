@@ -1,0 +1,42 @@
+<style>
+    .friend-container {
+        width: 70%;
+        height: 100px;
+        border-bottom: 1px solid #ccc;
+        background: #f9f9f9;
+        /* Đảm bảo chúng là Flex container */
+        display: flex; 
+        align-items: center; /* Vẫn căn giữa theo chiều dọc */
+        padding: 0 15px;
+    }
+
+    #invite-btn {
+        height: 40px;
+        border-radius: 10px;
+        background-color: #44cf49;
+        /* Đẩy nút sang phải nhất có thể */
+        margin-left: auto; 
+    }
+    
+    /* CSS cho nội dung */
+    .user-id {
+        font-size: 14px;
+        color: #888;
+        /* Bỏ margin-top cũ */
+    }
+    
+    /* Sửa #name-user thành .name-user */
+    .name-user {
+        font-size: 20px;
+        font-weight: bold;
+        margin-top: 5px; 
+    }
+</style>
+<div class="friend-container">
+    <div class="info-group"> 
+        <div class="user-id">#1234</div>
+        <div class="name-user">Tên người chơi:Nguyễn Văn Kỳ</div> 
+        <div class="state-user"><span>Đang hoạt động</span></div>
+    </div>
+    <button id="invite-btn">+ Invite</button>
+</div>
