@@ -20,7 +20,7 @@ public class GameRoom {
         this.currentTurn = "white";
         this.gameState = getInitialChessState();
         this.createdAt = System.currentTimeMillis();
-        this.validator = new ChessValidator();
+        this.validator = new ChessValidator(10000);
     }
 
     private String getInitialChessState() {

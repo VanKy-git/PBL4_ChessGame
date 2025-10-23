@@ -87,7 +87,7 @@ public class ChessServer extends WebSocketServer {
                     System.out.println("Unknown message type: " + type);
             }
         } catch (Exception e) {
-            System.out.println("Error handleMessage!");
+            System.out.println("Error handleMessage!" + message);
             e.printStackTrace();
         }
     }
@@ -164,6 +164,7 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
+    //start game in room
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
@@ -311,24 +312,30 @@ public class ChessServer extends WebSocketServer {
         if (player == null) return;
 
         String roomId = (String) data.get("roomId");
-        GameRoom room = gameRooms.get(roomId);
-
+        try {
+            GameRoom room = gameRooms.get(roomId);
         if (room != null) {
             room.removePlayer(player);
-
-            // Notify remaining players
-            Map<String, Object> leftData = new HashMap<>();
-            leftData.put("leftPlayer", player.getPlayerName());
-            notifyRoomPlayers(room, "player_left", leftData);
-
-            // Remove room if empty
-            if (room.isEmpty()) {
+            if(room.isEmpty())
+            {
                 gameRooms.remove(roomId);
-            }
+            } else {
+                // Notify remaining players
+                Map<String, Object> leftData = new HashMap<>();
+                leftData.put("leftPlayer", player.getPlayerName());
+                notifyRoomPlayers(room, "player_left", leftData);
 
-            broadcastRoomsList();
+                // Remove room if empty
+                if (room.isEmpty()) {
+                    gameRooms.remove(roomId);
+                }
+
+                broadcastRoomsList();
+            }}}
+        catch (Exception e) {
+            System.err.println("Error leaving room: " + e.getMessage());
         }
-    }
+        }
 
     private void handleGameMove(WebSocket webSocket, Map<String, Object> data) {
         Player player = connectionPlayerMap.get(webSocket);
@@ -347,29 +354,32 @@ public class ChessServer extends WebSocketServer {
             return;
         }
 
-        Map<String, Object> moveData = new HashMap<>();
-        moveData.put("from", data.get("from"));
-        moveData.put("to", data.get("to"));
-        moveData.put("color", player.getColor());
-        moveData.put("piece", data.get("piece"));
-
-        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(moveData.get("from").toString(), moveData.get("to").toString(),
-                moveData.get("color").toString());
-        if(!moveResult.valid)
+        String from = data.get("from").toString();
+        String to = data.get("to").toString();
+        Character promo = data.get("promotion").toString().charAt(0);
+        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(from, to,
+                player.getColor(),  promo);
+        if(!moveResult.isValid)
         {
-            moveData.put("result", false);
-            webSocket.send(gson.toJson(moveData));
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "move_result");
+            response.put("result", false);
+            response.put("message", moveResult.message);
+            webSocket.send(gson.toJson(response));
         }
         else {
-            moveData.put("result", true);
-            notifyRoomPlayers(room, "move_result", moveData);
+            String fen = room.getValidator().toFen();
+            Map<String, Object> fenData = new HashMap<>();
+            fenData.put("result", true);
+            fenData.put("fen", fen);
+            notifyRoomPlayers(room, "move_result", fenData);
             if(moveResult.winner != null)
             {
                 Map<String, Object> response = new HashMap<>();
                 response.put("winner", moveResult.winner);
                 notifyRoomPlayers(room, "end_game", response);
             }
-            System.out.println(moveData.get("from").toString() + " " + moveData.get("to").toString());
+            System.out.println(data.get("from").toString() + " " + data.get("to").toString());
             // Change turn
             String nextTurn = player.getColor().equals("white") ? "black" : "white";
             room.setCurrentTurn(nextTurn);
