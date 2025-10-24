@@ -1,4 +1,4 @@
-package com.chatapp.server.Service;
+package com.chatapp.server.Model.Service;
 
 import com.chatapp.server.Model.DAO.chat_roomDAO;
 import com.chatapp.server.Model.DAO.chat_roomDAO.ChatRoomDetails;

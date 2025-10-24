@@ -1,4 +1,4 @@
-package com.chatapp.server.Service;
+package com.chatapp.server.Model.Service;
 
 import com.chatapp.server.Model.DAO.matchesDAO;
 import com.chatapp.server.Model.Entity.matches;

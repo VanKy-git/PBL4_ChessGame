@@ -2,10 +2,12 @@ package com.chatapp.server.Test;
 
 
 import com.chatapp.server.Controller.matchesController;
+import jakarta.persistence.EntityManagerFactory;
 
 public class matchesTest {
     public static void main(String[] args) {
-        matchesController controller = new matchesController();
+        EntityManagerFactory emf = null;
+        matchesController controller = new matchesController(emf);
 
         // JSON gồm 2 đối tượng user
         String createJson = """

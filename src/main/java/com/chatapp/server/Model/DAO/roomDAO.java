@@ -52,12 +52,15 @@ public class roomDAO {
         if (r == null) return null;
 
         user host = em.find(user.class, r.getHost_id());
-        user guest = r.getGuest_id() > 0 ? em.find(user.class, r.getGuest_id()) : null;
+        // SỬA: Kiểm tra null trước khi so sánh
+        user guest = (r.getGuest_id() != null && r.getGuest_id() > 0)
+                ? em.find(user.class, r.getGuest_id())
+                : null;
 
         return new RoomWithPlayer(
                 r.getRoom_id(),
                 r.getHost_id(),
-                r.getGuest_id() > 0 ? r.getGuest_id() : null,
+                r.getGuest_id(),
                 host != null ? host.getUserName() : null,
                 host != null ? host.getEloRating() : null,
                 guest != null ? guest.getUserName() : null,
@@ -112,7 +115,7 @@ public class roomDAO {
 
         room newRoom = new room();
         newRoom.setHost_id(hostId);
-        newRoom.setGuest_id(null); // chỉnh sửa cho guest_id null được
+        newRoom.setGuest_id(null); // guest_id có thể null
         newRoom.setRoom_status("Waiting");
         newRoom.setCreate_at(LocalDateTime.now());
 
@@ -122,7 +125,9 @@ public class roomDAO {
 
     public boolean joinRoom(int roomId, int guestId) {
         room r = em.find(room.class, roomId);
-        if (r == null || r.getGuest_id() > 0) return false;
+        // SỬA: Kiểm tra null trước khi so sánh
+        if (r == null || (r.getGuest_id() != null && r.getGuest_id() > 0))
+            return false;
 
         user guest = em.find(user.class, guestId);
         if (guest == null) return false;
@@ -137,15 +142,15 @@ public class roomDAO {
         room r = em.find(room.class, roomId);
         if (r == null) return false;
 
-        // Nếu là guest thì xóa guest
-        if (r.getGuest_id() == userId) {
-            r.setGuest_id(0);
-            r.setRoom_status("waiting");
+        // SỬA: Kiểm tra null trước khi so sánh
+        if (r.getGuest_id() != null && r.getGuest_id() == userId) {
+            r.setGuest_id(null); // SỬA: Set về null thay vì 0
+            r.setRoom_status("Waiting"); // SỬA: "Waiting" với chữ W hoa
             em.merge(r);
             return true;
         }
 
-        // Nếu là host thì xóa phòng (hoặc chuyển quyền host)
+        // Nếu là host thì xóa phòng
         if (r.getHost_id() == userId) {
             em.remove(r);
             return true;
@@ -242,9 +247,9 @@ public class roomDAO {
 
     public RoomStatistics getRoomStatistics() {
         int total = getTotalRoomCount();
-        int waiting = getRoomCountByStatus("waiting");
-        int active = getRoomCountByStatus("playing");
-        int closed = getRoomCountByStatus("closed");
+        int waiting = getRoomCountByStatus("Waiting");
+        int active = getRoomCountByStatus("Active");
+        int closed = getRoomCountByStatus("Closed");
 
         return new RoomStatistics(total, waiting, active, closed);
     }

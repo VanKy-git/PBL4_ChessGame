@@ -1,11 +1,13 @@
 package com.chatapp.server.Test;
 
 import com.chatapp.server.Controller.friendsController;
+import jakarta.persistence.EntityManagerFactory;
 
 public class friendsTest {
 
     public static void main(String[] args) {
-        friendsController controller = new friendsController();
+        EntityManagerFactory emf = null;
+        friendsController controller = new friendsController(emf);
 //
 //        // 1️⃣ Gửi lời mời kết bạn
 //        String sendRequestJson = """

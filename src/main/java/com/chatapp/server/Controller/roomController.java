@@ -2,7 +2,7 @@ package com.chatapp.server.Controller;
 
 import com.chatapp.server.Model.DAO.roomDAO.RoomWithPlayer;
 import com.chatapp.server.Model.DAO.roomDAO.RoomStatistics;
-import com.chatapp.server.Service.roomService;
+import com.chatapp.server.Model.Service.roomService;
 import com.chatapp.server.Utils.GsonUtils;
 import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
@@ -23,8 +23,8 @@ public class roomController {
     private final roomService roomService;
     private final Gson gson;
 
-    public roomController() {
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+    public roomController(EntityManagerFactory emf) {
+        emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         this.roomService = new roomService(emf);
         this.gson = GsonUtils.gson;
     }

@@ -23,11 +23,11 @@ public class chat_room {
     private LocalDateTime created_at = LocalDateTime.now();
 
     // Quan hệ 1-n với chat_message
-    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true,  fetch = FetchType.EAGER)
     private List<chat_message> messages;
 
     // Quan hệ 1-n với chat_participant
-    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<chat_participant> participants;
 
     public chat_room() {}

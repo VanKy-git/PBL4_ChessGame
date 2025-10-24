@@ -56,12 +56,30 @@ public class chat_messageDAO {
      * @param message Nội dung tin nhắn
      * @return chat_message vừa tạo
      */
-    public chat_message sendMessage(int chatroomId, int userId, String message) {
-        chat_message msg = new chat_message();
+//    public chat_message sendMessage(int chatroomId, int userId, String message) {
+//        chat_message msg = new chat_message();
+//
+//        chat_room room = em.find(chat_room.class, chatroomId);
+//        user sender = em.find(user.class, userId);
+//
+//        msg.setChatRoom(room);
+//        msg.setUser(sender);
+//        msg.setMessage(message);
+//        msg.setSend_at(LocalDateTime.now());
+//
+//        em.persist(msg);
+//        return msg;
+//    }
 
+    // 🔧 Gửi tin nhắn mới
+    public chat_message sendMessage(int chatroomId, int userId, String message) {
         chat_room room = em.find(chat_room.class, chatroomId);
         user sender = em.find(user.class, userId);
 
+        if (room == null || sender == null)
+            throw new IllegalArgumentException("Chat room hoặc user không tồn tại.");
+
+        chat_message msg = new chat_message();
         msg.setChatRoom(room);
         msg.setUser(sender);
         msg.setMessage(message);
@@ -70,7 +88,6 @@ public class chat_messageDAO {
         em.persist(msg);
         return msg;
     }
-
     // ========================= CRUD CƠ BẢN =========================
 
     /**

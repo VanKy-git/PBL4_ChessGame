@@ -1,4 +1,4 @@
-package com.chatapp.server.Service;
+package com.chatapp.server.Model.Service;
 
 import com.chatapp.server.Model.DAO.chat_messageDAO;
 import com.chatapp.server.Model.DAO.chat_messageDAO.MessageWithUser;
@@ -7,6 +7,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,7 +29,24 @@ public class chat_messageService {
     /**
      * Gửi tin nhắn mới
      */
-    public chat_message sendMessage(int chatroomId, int userId, String message) {
+//    public chat_message sendMessage(int chatroomId, int userId, String message) {
+//        EntityManager em = emf.createEntityManager();
+//        chat_messageDAO dao = new chat_messageDAO(em);
+//
+//        try {
+//            em.getTransaction().begin();
+//            chat_message msg = dao.sendMessage(chatroomId, userId, message);
+//            em.getTransaction().commit();
+//            return msg;
+//        } catch (Exception e) {
+//            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+//            throw e;
+//        } finally {
+//            em.close();
+//        }
+//    }
+    // ✅ Gửi tin nhắn (trả DTO tránh lỗi LazyInitializationException)
+    public chat_messageDAO.MessageWithUser sendMessage(int chatroomId, int userId, String message) {
         EntityManager em = emf.createEntityManager();
         chat_messageDAO dao = new chat_messageDAO(em);
 
@@ -36,7 +54,17 @@ public class chat_messageService {
             em.getTransaction().begin();
             chat_message msg = dao.sendMessage(chatroomId, userId, message);
             em.getTransaction().commit();
-            return msg;
+
+            // ✅ Chuyển sang DTO
+            return new chat_messageDAO.MessageWithUser(
+                    msg.getMessage_id(),
+                    msg.getChatRoom().getChatroom_id(),
+                    msg.getUser().getUserId(),
+                    msg.getUser().getUserName(),
+                    msg.getUser().getAvatarUrl(),
+                    msg.getMessage(),
+                    msg.getSend_at()
+            );
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
@@ -105,11 +133,36 @@ public class chat_messageService {
     /**
      * Lấy tất cả messages trong chat room
      */
-    public List<chat_message> getMessagesByRoom(int chatroomId) {
+//    public List<chat_message> getMessagesByRoom(int chatroomId) {
+//        EntityManager em = emf.createEntityManager();
+//        chat_messageDAO dao = new chat_messageDAO(em);
+//        try {
+//            return dao.getMessagesByRoom(chatroomId);
+//        } finally {
+//            em.close();
+//        }
+//    }
+    // ✅ Lấy danh sách tin nhắn trong phòng (cũng trả DTO)
+    public List<chat_messageDAO.MessageWithUser> getMessagesByRoom(int chatroomId) {
         EntityManager em = emf.createEntityManager();
         chat_messageDAO dao = new chat_messageDAO(em);
+
         try {
-            return dao.getMessagesByRoom(chatroomId);
+            List<chat_message> messages = dao.getMessagesByRoom(chatroomId);
+            List<chat_messageDAO.MessageWithUser> result = new ArrayList<>();
+
+            for (chat_message msg : messages) {
+                result.add(new chat_messageDAO.MessageWithUser(
+                        msg.getMessage_id(),
+                        msg.getChatRoom().getChatroom_id(),
+                        msg.getUser().getUserId(),
+                        msg.getUser().getUserName(),
+                        msg.getUser().getAvatarUrl(),
+                        msg.getMessage(),
+                        msg.getSend_at()
+                ));
+            }
+            return result;
         } finally {
             em.close();
         }

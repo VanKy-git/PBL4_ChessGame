@@ -5,6 +5,8 @@ import com.chatapp.server.Model.Entity.user;
 import com.chatapp.server.Controller.userController;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -13,6 +15,7 @@ import java.util.List;
 public class UserDAOTest {
 
     public static void main(String[] args) {
+        EntityManagerFactory emf = null;
         // Kiểm tra kết nối DB
         try (Connection conn = DBConnection.getConnection()) {
             System.out.println("✅ Kết nối database thành công: " + conn.getMetaData().getURL());
@@ -22,7 +25,7 @@ public class UserDAOTest {
         }
 
         // Tạo controller
-        userController controller = new userController();
+        userController controller = new userController(emf);
         Gson gson = new Gson();
 
         try {

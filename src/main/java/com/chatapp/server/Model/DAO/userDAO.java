@@ -7,7 +7,7 @@ import java.util.List;
 
 public class userDAO {
 
-    private final EntityManager em;
+   private final EntityManager em;
 
     public userDAO(EntityManager em) {
         this.em = em;

@@ -2,8 +2,7 @@ package com.chatapp.server.Controller;
 
 import com.chatapp.server.Model.DAO.friendsDAO;
 import com.chatapp.server.Model.Entity.friends;
-import com.chatapp.server.Model.Entity.user;
-import com.chatapp.server.Service.friendsService;
+import com.chatapp.server.Model.Service.friendsService;
 import com.chatapp.server.Utils.GsonUtils;
 import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
@@ -22,8 +21,8 @@ public class friendsController {
     private final friendsService service;
     private final Gson gson;
 
-    public friendsController() {
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+    public friendsController(EntityManagerFactory emf) {
+        emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         friendsDAO dao = new friendsDAO(emf.createEntityManager());
         this.service = new friendsService(dao);
         this.gson = GsonUtils.gson;

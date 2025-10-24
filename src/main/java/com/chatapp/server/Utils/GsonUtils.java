@@ -4,30 +4,23 @@ import com.google.gson.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * GsonUtils - Cấu hình Gson hoàn chỉnh:
- * ✅ Hỗ trợ LocalDateTime
- * ✅ Loại bỏ field Hibernate (proxy, handler)
- * ✅ Hỗ trợ @Expose annotation
- * ✅ Tùy chọn pretty JSON và serialize nulls
- */
 public class GsonUtils {
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public static final Gson gson = new GsonBuilder()
-            // Chỉ serialize các trường có @Expose (nếu có)
-            //.excludeFieldsWithoutExposeAnnotation()
-            // Serialize các giá trị null
             .serializeNulls()
-            // Hiển thị JSON đẹp
             .setPrettyPrinting()
-            // Bỏ qua các field do Hibernate tạo ra
             .setExclusionStrategies(new ExclusionStrategy() {
                 @Override
                 public boolean shouldSkipField(FieldAttributes f) {
-                    return f.getDeclaringClass().getName().contains("hibernate");
+                    // Bỏ qua các field Hibernate proxy, handler, và vòng lặp thường gặp
+                    String name = f.getName();
+                    return f.getDeclaringClass().getName().contains("hibernate")
+                            || name.equals("chatRoom")
+                            || name.equals("messages")
+                            || name.equals("participants");
                 }
 
                 @Override
@@ -35,20 +28,24 @@ public class GsonUtils {
                     return false;
                 }
             })
-            // Serialize LocalDateTime -> String
+            // ✅ Serialize LocalDateTime an toàn
             .registerTypeAdapter(LocalDateTime.class,
-                    (JsonSerializer<LocalDateTime>) (src, typeOfSrc, context) ->
-                            new JsonPrimitive(src.format(FORMATTER)))
-            // Deserialize String -> LocalDateTime
+                    (JsonSerializer<LocalDateTime>) (src, typeOfSrc, context) -> {
+                        if (src == null) return JsonNull.INSTANCE;
+                        try {
+                            return new JsonPrimitive(FORMATTER.format(src));
+                        } catch (Exception e) {
+                            return new JsonPrimitive(src.toString());
+                        }
+                    })
+            // ✅ Deserialize ngược lại
             .registerTypeAdapter(LocalDateTime.class,
-                    (JsonDeserializer<LocalDateTime>) (json, typeOfT, context) ->
-                            LocalDateTime.parse(json.getAsString(), FORMATTER))
+                    (JsonDeserializer<LocalDateTime>) (json, typeOfT, context) -> {
+                        try {
+                            return LocalDateTime.parse(json.getAsString(), FORMATTER);
+                        } catch (Exception e) {
+                            return LocalDateTime.parse(json.getAsString());
+                        }
+                    })
             .create();
-
-//    /**
-//     * Lấy Gson instance đã cấu hình sẵn
-//     */
-//    public static Gson getGson() {
-//        return gson;
-//    }
 }

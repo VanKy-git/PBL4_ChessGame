@@ -2,7 +2,8 @@ package com.chatapp.server.Controller;
 
 import com.chatapp.server.Model.DAO.chat_messageDAO.MessageWithUser;
 import com.chatapp.server.Model.Entity.chat_message;
-import com.chatapp.server.Service.chat_messageService;
+import com.chatapp.server.Model.Service.chat_messageService;
+import com.chatapp.server.Utils.GsonUtils;
 import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
@@ -23,10 +24,10 @@ public class chat_messageController {
     private final chat_messageService messageService;
     private final Gson gson;
 
-    public chat_messageController() {
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+    public chat_messageController(EntityManagerFactory emf ) {
+        emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         this.messageService = new chat_messageService(emf);
-        this.gson = new Gson();
+        this.gson = GsonUtils.gson;
     }
 
     // ========================= HELPER METHODS =========================
@@ -74,7 +75,7 @@ public class chat_messageController {
             int userId = ((Number) request.get("userId")).intValue();
             String message = (String) request.get("message");
 
-            chat_message msg = messageService.sendMessage(chatroomId, userId, message);
+            MessageWithUser msg = messageService.sendMessage(chatroomId, userId, message);
             return successResponse(msg);
         } catch (Exception e) {
             return errorResponse("Lỗi: " + e.getMessage());
@@ -155,7 +156,7 @@ public class chat_messageController {
             Map<String, Object> request = gson.fromJson(requestJson, Map.class);
             int chatroomId = ((Number) request.get("chatroomId")).intValue();
 
-            List<chat_message> messages = messageService.getMessagesByRoom(chatroomId);
+            List<MessageWithUser> messages = messageService.getMessagesByRoom(chatroomId);
             return successResponse(messages);
         } catch (Exception e) {
             return errorResponse("Lỗi: " + e.getMessage());

@@ -2,7 +2,8 @@
 package com.chatapp.server.Controller;
 
 import com.chatapp.server.Model.Entity.user;
-import com.chatapp.server.Service.userService;
+import com.chatapp.server.Model.Service.userService;
+import com.chatapp.server.Utils.GsonUtils;
 import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
@@ -21,10 +22,10 @@ public class userController {
     private final userService userService;
     private final Gson gson;
 
-    public userController() {
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+    public userController(EntityManagerFactory emf) {
+        emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         this.userService = new userService(emf);
-        this.gson = new Gson();
+        this.gson = GsonUtils.gson;
     }
 
     // ========================= HELPER METHODS =========================

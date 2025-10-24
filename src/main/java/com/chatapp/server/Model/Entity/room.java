@@ -24,7 +24,7 @@ public class room {
     @Column(name = "host_id", nullable = false)
     private int host_id;
 
-    /** ID người tham gia phòng (FK → users.user_id), có thể bằng 0 nếu chưa có ai tham gia */
+    /** ID người tham gia phòng (FK → users.user_id), có thể bằng null nếu chưa có ai tham gia */
     @Column (name = "guest_id", nullable = true)
     private Integer guest_id;
 
@@ -67,7 +67,7 @@ public class room {
 
     public int getRoom_id() { return room_id; }
     public int getHost_id() { return host_id; }
-    public int getGuest_id() { return guest_id; }
+    public Integer getGuest_id() { return guest_id; }
     public String getRoom_status() { return room_status; }
     public LocalDateTime getCreate_at() { return create_at; }
 

@@ -2,7 +2,7 @@ package com.chatapp.server.Controller;
 
 import com.chatapp.server.Model.Entity.matches;
 import com.chatapp.server.Model.DAO.matchesDAO;
-import com.chatapp.server.Service.matchesService;
+import com.chatapp.server.Model.Service.matchesService;
 import com.chatapp.server.Model.Entity.user;
 import com.chatapp.server.Utils.GsonUtils;
 import com.google.gson.Gson;
@@ -22,8 +22,8 @@ public class matchesController {
     private final matchesService matchService;
     private final Gson gson;
 
-    public matchesController() {
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+    public matchesController(EntityManagerFactory emf ) {
+        emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         this.matchService = new matchesService(emf);
         this.gson = GsonUtils.gson;
     }

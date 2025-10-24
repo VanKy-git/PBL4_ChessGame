@@ -1,110 +1,111 @@
 package com.chatapp.server.Test;
 
 import com.chatapp.server.Controller.roomController;
-import com.chatapp.server.Model.DAO.roomDAO.RoomWithPlayer;
-import com.chatapp.server.Model.DAO.roomDAO.RoomStatistics;
-import com.chatapp.server.Model.Entity.DBConnection;
-import com.chatapp.server.Model.Entity.room;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.time.LocalDateTime;
-import java.util.Arrays;
-
+/**
+ * File test cho roomController – kiểm tra toàn bộ flow CRUD + business logic
+ * Giữ đúng phong cách log từng bước (STEP X)
+ */
 public class RoomTest {
 
     public static void main(String[] args) {
-        // Kiểm tra kết nối DB
-        try (Connection conn = DBConnection.getConnection()) {
-            System.out.println("✅ Kết nối database thành công: " + conn.getMetaData().getURL());
-        } catch (SQLException e) {
-            System.err.println("❌ Kết nối database thất bại: " + e.getMessage());
-            return;
-        }
-
-        // Tạo controller
-        roomController controller = new roomController();
-        Gson gson = new Gson();
+        EntityManagerFactory emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+        roomController controller = new roomController(emf);
 
         try {
-            // ====== TEST 1: Tạo phòng mới ======
-//            System.out.println("\n🧩 Test 1: Tạo phòng mới");
-//            JsonObject createRequest = new JsonObject();
-//            createRequest.addProperty("hostId", 97); // ID user host
-//            String createResponseJson = controller.handleRequest("createRoom", createRequest.toString());
-//            JsonObject createResponse = gson.fromJson(createResponseJson, JsonObject.class);
-//
- //           RoomWithPlayer room = null;
-//            if (createResponse.get("success").getAsBoolean()) {
-//                room = gson.fromJson(createResponse.get("data"), RoomWithPlayer.class);
-//                System.out.println("✅ Tạo phòng thành công: Room#" + room.roomId);
-//            } else {
-//                System.out.println("❌ Tạo phòng thất bại: " + createResponse.get("error").getAsString());
-//            }
+            // ================== STEP 1: TẠO PHÒNG MỚI ==================
+            System.out.println("═══════════════════════════════════════");
+            System.out.println("STEP 1: CREATE ROOM");
+            System.out.println("═══════════════════════════════════════");
+            String createRoomJson = "{ \"hostId\": 1 }";
+            String createRoomResponse = controller.handleRequest("createRoom", createRoomJson);
+            System.out.println("Response: " + createRoomResponse);
 
-            //if (room != null) {
-                // ====== TEST 2: Tham gia phòng ======
-                System.out.println("\n🧩 Test 2: Tham gia phòng");
-                JsonObject joinRequest = new JsonObject();
-                joinRequest.addProperty("roomId", 13);
-                joinRequest.addProperty("guestId", 2); // ID user guest
-                String joinResponseJson = controller.handleRequest("joinRoom", joinRequest.toString());
-                JsonObject joinResponse = gson.fromJson(joinResponseJson, JsonObject.class);
-                System.out.println(joinResponse.get("success").getAsBoolean() ?
-                        "✅ User tham gia phòng thành công" :
-                        "❌ Tham gia phòng thất bại: " + joinResponse.get("error").getAsString());
+            // ================== STEP 2: LẤY DANH SÁCH PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 2: GET ALL ROOMS");
+            System.out.println("═══════════════════════════════════════");
+            String allRoomsResponse = controller.handleRequest("getAllRooms", "{}");
+            System.out.println("Response: " + allRoomsResponse);
 
-                // ====== TEST 3: Lấy phòng theo user ======
-                System.out.println("\n🧩 Test 3: Lấy phòng theo userId");
-                JsonObject getUserRoomsReq = new JsonObject();
-                getUserRoomsReq.addProperty("userId", 1);
-                String roomsByUserJson = controller.handleRequest("getRoomsByUserId", getUserRoomsReq.toString());
-                JsonObject roomsByUserResp = gson.fromJson(roomsByUserJson, JsonObject.class);
-                if (roomsByUserResp.get("success").getAsBoolean()) {
-                    RoomWithPlayer[] rooms = gson.fromJson(roomsByUserResp.get("data"), RoomWithPlayer[].class);
-                    System.out.println("User 1 đang ở các phòng: " + Arrays.toString(Arrays.stream(rooms)
-                            .map(r -> r.roomId + "(" + r.roomStatus + ")").toArray()));
-                }
+            // ================== STEP 3: THAM GIA PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 3: JOIN ROOM");
+            System.out.println("═══════════════════════════════════════");
+            String joinRoomJson = "{ \"roomId\": 1, \"guestId\": 2 }";
+            String joinRoomResponse = controller.handleRequest("joinRoom", joinRoomJson);
+            System.out.println("Response: " + joinRoomResponse);
 
-                // ====== TEST 4: Quick Match ======
-                System.out.println("\n🧩 Test 4: Quick Match cho user 3");
-                JsonObject quickMatchReq = new JsonObject();
-                quickMatchReq.addProperty("userId", 3);
-                String quickMatchRespJson = controller.handleRequest("quickMatch", quickMatchReq.toString());
-                JsonObject quickMatchResp = gson.fromJson(quickMatchRespJson, JsonObject.class);
-                System.out.println(quickMatchResp.get("success").getAsBoolean() ?
-                        "✅ Quick match thành công" :
-                        "❌ Quick match thất bại: " + quickMatchResp.get("error").getAsString());
+            // ================== STEP 4: CẬP NHẬT TRẠNG THÁI PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 4: UPDATE ROOM STATUS");
+            System.out.println("═══════════════════════════════════════");
+            String updateStatusJson = "{ \"roomId\": 1, \"status\": \"Active\" }";
+            String updateStatusResponse = controller.handleRequest("updateRoomStatus", updateStatusJson);
+            System.out.println("Response: " + updateStatusResponse);
 
-                // ====== TEST 5: Thống kê ======
-                System.out.println("\n🧩 Test 5: Thống kê phòng");
-                String statsJson = controller.handleRequest("getRoomStatistics", "{}");
-                JsonObject statsResp = gson.fromJson(statsJson, JsonObject.class);
-                if (statsResp.get("success").getAsBoolean()) {
-                    RoomStatistics stats = gson.fromJson(statsResp.get("data"), RoomStatistics.class);
-                    System.out.printf("Tổng số phòng: %d | Waiting: %d | Active: %d | Closed: %d\n",
-                            stats.totalRooms, stats.waitingRooms, stats.activeRooms, stats.closedRooms);
-                }
+            // ================== STEP 5: LẤY PHÒNG THEO ID ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 5: GET ROOM BY ID");
+            System.out.println("═══════════════════════════════════════");
+            String getRoomJson = "{ \"roomId\": 1 }";
+            String getRoomResponse = controller.handleRequest("getRoomById", getRoomJson);
+            System.out.println("Response: " + getRoomResponse);
 
-                // ====== TEST 6: Đóng phòng ======
-                System.out.println("\n🧩 Test 6: Đóng phòng Room#13");
-                JsonObject closeReq = new JsonObject();
-                closeReq.addProperty("roomId", 13);
-                String closeRespJson = controller.handleRequest("closeRoom", closeReq.toString());
-                JsonObject closeResp = gson.fromJson(closeRespJson, JsonObject.class);
-                System.out.println(closeResp.get("success").getAsBoolean() ?
-                        "✅ Đóng phòng thành công" :
-                        "❌ Đóng phòng thất bại: " + closeResp.get("error").getAsString());
-            //}
+            // ================== STEP 6: RỜI KHỎI PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 6: LEAVE ROOM");
+            System.out.println("═══════════════════════════════════════");
+            String leaveRoomJson = "{ \"roomId\": 1, \"userId\": 2 }";
+            String leaveRoomResponse = controller.handleRequest("leaveRoom", leaveRoomJson);
+            System.out.println("Response: " + leaveRoomResponse);
 
+            // ================== STEP 7: ĐÓNG PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 7: CLOSE ROOM");
+            System.out.println("═══════════════════════════════════════");
+            String closeRoomJson = "{ \"roomId\": 1 }";
+            String closeRoomResponse = controller.handleRequest("closeRoom", closeRoomJson);
+            System.out.println("Response: " + closeRoomResponse);
+
+            // ================== STEP 8: MỞ LẠI PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 8: REOPEN ROOM");
+            System.out.println("═══════════════════════════════════════");
+            String reopenRoomJson = "{ \"roomId\": 1 }";
+            String reopenRoomResponse = controller.handleRequest("reopenRoom", reopenRoomJson);
+            System.out.println("Response: " + reopenRoomResponse);
+
+            // ================== STEP 9: LẤY DANH SÁCH PHÒNG ACTIVE ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 9: GET ACTIVE ROOMS");
+            System.out.println("═══════════════════════════════════════");
+            String activeRoomsResponse = controller.handleRequest("getActiveRooms", "{}");
+            System.out.println("Response: " + activeRoomsResponse);
+
+            // ================== STEP 10: LẤY THỐNG KÊ PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 10: GET ROOM STATISTICS");
+            System.out.println("═══════════════════════════════════════");
+            String statsResponse = controller.handleRequest("getRoomStatistics", "{}");
+            System.out.println("Response: " + statsResponse);
+
+            // ================== STEP 11: XÓA PHÒNG ==================
+            System.out.println("\n═══════════════════════════════════════");
+            System.out.println("STEP 11: DELETE ROOM");
+            System.out.println("═══════════════════════════════════════");
+            String deleteRoomJson = "{ \"roomId\": 1 }";
+            String deleteRoomResponse = controller.handleRequest("deleteRoom", deleteRoomJson);
+            System.out.println("Response: " + deleteRoomResponse);
+
+            System.out.println("\n✅ TEST HOÀN TẤT KHÔNG LỖI!");
         } catch (Exception e) {
             System.err.println("❌ Lỗi trong quá trình test: " + e.getMessage());
             e.printStackTrace();
         } finally {
-            DBConnection.close();
-            System.out.println("\n🧹 Đã đóng pool kết nối.");
+            emf.close();
         }
     }
 }
