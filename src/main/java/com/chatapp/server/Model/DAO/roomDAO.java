@@ -22,23 +22,23 @@ public class roomDAO {
     public static class RoomWithPlayer {
         public int roomId;
         public int hostId;
-        public Integer guestId;
         public String hostName;
         public Integer hostEloRating;
+        public Integer guestId;
         public String guestName;
         public Integer guestEloRating;
         public String roomStatus;
         public LocalDateTime createAt;
 
-        public RoomWithPlayer(int roomId, int hostId, Integer guestId,
-                              String hostName, Integer hostEloRating,
+        public RoomWithPlayer(int roomId, int hostId, String hostName,
+                              Integer guestId, Integer hostEloRating,
                               String guestName, Integer guestEloRating,
                               String roomStatus, LocalDateTime createAt) {
             this.roomId = roomId;
             this.hostId = hostId;
-            this.guestId = guestId;
             this.hostName = hostName;
             this.hostEloRating = hostEloRating;
+            this.guestId = guestId;
             this.guestName = guestName;
             this.guestEloRating = guestEloRating;
             this.roomStatus = roomStatus;
@@ -60,9 +60,9 @@ public class roomDAO {
         return new RoomWithPlayer(
                 r.getRoom_id(),
                 r.getHost_id(),
-                r.getGuest_id(),
                 host != null ? host.getUserName() : null,
                 host != null ? host.getEloRating() : null,
+                r.getGuest_id(),
                 guest != null ? guest.getUserName() : null,
                 guest != null ? guest.getEloRating() : null,
                 r.getRoom_status(),
