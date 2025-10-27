@@ -74,6 +74,16 @@ public class user {
         this.email = email;
     }
 
+    public user(String email, String googleId, String username, String avatarUrl) {
+        this.email = email;
+        this.providerId = googleId;
+        this.userName = username;
+        this.avatarUrl = avatarUrl;
+        this.provider = "google";
+        this.createdAt = LocalDateTime.now();
+    }
+
+
     // ===== Getters & Setters =====
     public int getUserId() { return user_id; }
     public void setUserId(int id) { this.user_id = id; }
