@@ -1,4 +1,4 @@
-package com.chatapp.server;
+package com.chessgame.server;
 
 import org.java_websocket.WebSocket;
 
