@@ -14,7 +14,7 @@ The system ensures reliable data transmission, validates legal moves according t
 ## 🛠️ Technologies Used
 - Java (Socket Programming)
 - WebSocket Protocol
-- Client-Server com.chatapp.server.Model
+- Client-Server Model
 - HTML/CSS/JavaScript
  
 
