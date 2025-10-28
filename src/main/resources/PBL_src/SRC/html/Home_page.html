@@ -6,17 +6,28 @@
     <link rel="stylesheet" href="../css/Home_page.css">
     <link rel="stylesheet" href="../css/Chess_board.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
-    <link rel="icon" href="../../PBL4_imgs/icon/logo.jpg"> 
-    <title>Trang chủ — Game Cờ Vua</title>
+    <link rel="icon" href="../../PBL4_imgs/icon/logo.png">
+    <title>Trang chủ</title>
 </head>
 <body>
     <div class="layout">
         <aside class="left">
             <div class="brand">
-                <div class="logo" aria-hidden>♟</div>
+                <img src="../../PBL4_imgs/icon/logo.png" alt="Logo Mới" class="logo-image">                <div>
                 <div>
-                    <h1>ChessHub</h1>
-                    <div class="muted">Trang chủ trò chơi</div>
+                    <h1 class="ml1">
+                        <span class="letter">C</span>
+                        <span class="letter">H</span>
+                        <span class="letter">E</span>
+                        <span class="letter">S</span>
+                        <span class="letter">S</span>
+                        <span class="letter">W</span>
+                        <span class="letter">O</span>
+                        <span class="letter">R</span>
+                        <span class="letter">L</span>
+                        <span class="letter">D</span>
+                    </h1>
+                </div>
                 </div>
             </div>
             <nav class="menu">
@@ -35,9 +46,9 @@
 
     <main>
     <div class="center">
-        <div class="player-bar top-player">
+        <div class="player-bar top-player" id = "player1Bar">
             <div class="player-info">
-                <img src="../../PBL4_imgs/icon/black_avatar.png" alt="Black Player" class="player-avatar">
+                <img src="../../PBL4_imgs/icon/logo.jpg" alt="Black Player" class="player-avatar">
                 <span class="player-name">Đối thủ</span>
                 <span class="id-player">#10235</span>
             </div>
@@ -48,15 +59,13 @@
         </div>
 
             <div class="board-wrap">
-                <button class="arrow left" onclick="prevTheme()">◀</button> 
-                <button class="arrow right" onclick="nextTheme()">▶</button>
                 <div class="board" id="chessBoard"></div>
             </div>
   
 
-            <div class="player-bar bottom-player">
+            <div class="player-bar bottom-player" id = "player2Bar">
                 <div class="player-info">
-                    <img src="../../PBL4_imgs/icon/white_avatar.png" alt="You" class="player-avatar">
+                    <img src="../../PBL4_imgs/icon/logo.png" alt="You" class="player-avatar">
                     <span class="player-name">Bạn</span>
                     <span class="id-player">#20458</span>
                 </div>
@@ -65,6 +74,7 @@
                     <span class="player-time">10:00</span>
                 </div>
             </div>
+    </div>
         </main>
 
 
@@ -96,6 +106,40 @@
         </aside>
     </div>
 
+    <div id="draw-offer-popup" class="draw-popup hidden">
+        <p><strong>Đối thủ muốn cầu hòa!</strong></p>
+        <div>
+            <button id="acceptDrawBtn" class="draw-btn accept">Đồng ý</button>
+            <button id="declineDrawBtn" class="draw-btn decline">Từ chối</button>
+        </div>
+        <p class="draw-timer-text">
+            <small>Tự động từ chối sau <span id="draw-countdown">15</span> giây</small>
+        </p>
+    </div>
+
+    <div id="game-over-overlay" class="popup-overlay hidden">
+        <div class="popup-content game-over-popup">
+            <h2 id="gameOverTitle">Trận đấu kết thúc</h2>
+            <p id="gameOverReason"></p>
+            <div class="game-over-buttons">
+                <button id="gameOverFindNewBtn" class="btn-action">Tìm trận mới</button>
+                <button id="gameOverRematchBtn" class="btn-action">Tái đấu</button>
+                <button id="gameOverLeaveBtn" class="btn-action btn-danger">Thoát</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmation-overlay" class="popup-overlay hidden">
+        <div class="popup-content confirmation-popup">
+            <h3 id="confirmTitle">Xác nhận hành động</h3>
+            <p id="confirmMessage">Bạn có chắc chắn muốn thực hiện?</p>
+            <div class="confirmation-buttons">
+                <button id="confirmBtnYes" class="btn-action confirm">Đồng ý</button>
+                <button id="confirmBtnNo" class="btn-action cancel">Hủy bỏ</button>
+            </div>
+        </div>
+    </div>
+
     <div id="historyPopup" class="popup-overlay" style="display:none;">
         <div class="popup-content" style="max-height:80vh;overflow-y:auto;">
             <h2>Lịch sử trận đấu</h2>
@@ -120,22 +164,32 @@
         </div>
     </div>
 
+    <div id="matchmaking-overlay" class="popup-overlay hidden">
+        <div class="popup-content matchmaking-popup">
+            <h2>Đang tìm đối thủ...</h2>
+            <div class="spinner"></div>
+            <p><span id="matchmaking-timer">00:00</span></p>
+            <p>Trận đấu sắp diễn ra...</p>
+            <button id="cancelMatchmakingBtn" class="btn-action btn-danger">Hủy</button>
+        </div>
+    </div>
+
     <div id="settingPopup" class="popup-overlay" style="display:none;">
         <div class="popup-content">
             <h2>Cài đặt tài khoản</h2>
             <div id="settingContainer">Đang tải...</div>
             <button id="settingClose" class="close-btn">Đóng</button>
         </div>
-    
+
     <script src="../js/Chess_board.js"></script>
-    <script src="../js/Home_page.js"></script>
-    <script src="../js/game_controller.js"></script>
+    <script type = "module" src="../js/Home_page.js"></script>
+    <script type="module" src="../js/game_controller.js"></script>
     <script src="../js/Account_setting.js"></script>
-    
-    <script type="module" src="../js/Connect_websocket.js"></script>
+
     <script type="module" src="../js/History.js"></script>
     <script type="module" src="../js/Friend_list.js"></script>
     <script type="module" src="../js/Leader_board.js"></script>
-
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    </div>
 </body>
 </html>

@@ -195,13 +195,13 @@
     </style>
 </head>
 <body>
-<div id="promotion-overlay" class="hidden">
-    <div id="promotion-modal">
-        <h3>Chọn quân cờ để phong cấp</h3>
-        <div class="promotion-pieces">
-        </div>
-    </div>
-</div>
+<!--<div id="promotion-overlay" class="hidden">-->
+<!--    <div id="promotion-modal">-->
+<!--        <h3>Chọn quân cờ để phong cấp</h3>-->
+<!--        <div class="promotion-pieces">-->
+<!--        </div>-->
+<!--    </div>-->
+<!--</div>-->
 <div class="wrapper">
     <div id="board" class="board" aria-label="Chess board"></div>
 </div>
@@ -724,7 +724,7 @@
             const selPiece = board[selected.r][selected.c];
             if (!selPiece) {selected=null;return;}
             if (piece && isPieceOurColor(piece) && selPiece.toLowerCase() !== 'k') {selected={r,c};return;}
-            const selectedPiece = clientBoard[selected.r][selected.c];
+            const selectedPiece = board[selected.r][selected.c];
             let promotionChar = null; // Mặc định là null
 
             // Kiểm tra xem đây có phải là nước đi phong cấp không

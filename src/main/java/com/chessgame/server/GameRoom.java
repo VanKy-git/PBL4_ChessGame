@@ -1,4 +1,4 @@
-package com.chatapp.server;
+package com.chessgame.server;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +12,7 @@ public class GameRoom {
     private String gameState; // Chess board state (could be FEN notation or custom format)
     private long createdAt;
     private ChessValidator validator;
+    private String isDrawOffered;
 
     public GameRoom(String roomId) {
         this.roomId = roomId;
@@ -21,6 +22,7 @@ public class GameRoom {
         this.gameState = getInitialChessState();
         this.createdAt = System.currentTimeMillis();
         this.validator = new ChessValidator(10000);
+        this.isDrawOffered = null;
     }
 
     private String getInitialChessState() {
@@ -77,6 +79,16 @@ public class GameRoom {
     }
 
     // Getters and Setters
+
+
+    public String getIsDrawOffered() {
+        return isDrawOffered;
+    }
+
+    public void setIsDrawOffered(String isDrawOffered) {
+        this.isDrawOffered = isDrawOffered;
+    }
+
     public String getRoomId() {
         return roomId;
     }

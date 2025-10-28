@@ -1,4 +1,4 @@
-package com.chatapp.server;
+package com.chessgame.server;
 
 import com.google.gson.Gson;
 import org.java_websocket.WebSocket;
@@ -86,6 +86,15 @@ public class ChessServer extends WebSocketServer {
                 case "get_history":
                     handleGetHistory(webSocket, data);
                     break;
+                case "cancel_matchmaking":
+                    hanleCancelMatchMaking(webSocket, data);
+                    break;
+                case "draw_request":
+                        handleDrawRequest(webSocket, data);
+                        break;
+                case "draw_response":
+                    handleDrawResponse(webSocket,data);
+                    break;
                 default:
                     System.out.println("Unknown message type: " + type);
             }
@@ -112,18 +121,6 @@ public class ChessServer extends WebSocketServer {
     }
 
     private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
-//        String playerId = UUID.randomUUID().toString();
-//        String playerName = (String) data.get("playerName");
-//
-//        Player player = new Player(playerId, playerName, webSocket);
-//        connectionPlayerMap.put(webSocket, player);
-//
-//        // Gửi thông tin người chơi
-//        Map<String, Object> response = new HashMap<>();
-//        response.put("type", "player_info");
-//        response.put("playerId", playerId);
-//        response.put("playerName", playerName);
-//        webSocket.send(gson.toJson(response));
         Player player = connectionPlayerMap.get(webSocket);
         String playerId = player.getPlayerId();
 
@@ -167,11 +164,91 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
+    //Cancel find Game
+    private void hanleCancelMatchMaking(WebSocket webSocket, Map<String, Object> data) {
+        waitingQueue.poll();
+    }
+
+    private void handleDrawRequest(WebSocket webSocket, Map<String, Object> data) {
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+        if(room.getIsDrawOffered() != null)
+        {
+            sendError(webSocket, "Đã có lời cầu hòa trong phòng này!");
+        }
+        Player player = connectionPlayerMap.get(webSocket);
+        Player oponentPlayer = room.getOpponent(player);
+
+        room.setIsDrawOffered(player.getColor());
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "draw_offer");
+        oponentPlayer.getConnection().send(gson.toJson(response));
+    }
+
+    private void handleDrawResponse(WebSocket webSocket, Map<String, Object> data) {
+        Player respondingPlayer = connectionPlayerMap.get(webSocket);
+        if (respondingPlayer == null) return; // Không tìm thấy người chơi
+
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+        Object acceptedObj = data.get("accepted"); // Lấy giá trị accepted
+
+        // --- Thêm kiểm tra đầu vào ---
+        if (room == null || !room.getStatus().equals("playing") || !room.getPlayers().contains(respondingPlayer) || acceptedObj == null || !(acceptedObj instanceof Boolean)) {
+            sendError(webSocket, "Phản hồi cầu hòa không hợp lệ.");
+            return;
+        }
+
+        boolean accepted = (Boolean) acceptedObj; // Ép kiểu sang boolean
+
+        // --- Kiểm tra xem có lời đề nghị hòa đang chờ phản hồi từ người này không ---
+        String opponentColor = respondingPlayer.getColor().equals("white") ? "black" : "white";
+        if (!opponentColor.equals(room.getIsDrawOffered())) {
+            sendError(webSocket, "Không có lời cầu hòa nào đang chờ bạn phản hồi.");
+            return;
+        }
+
+        Player offeringPlayer = room.getPlayerByColor(opponentColor); // Lấy người đã đề nghị hòa
+
+        if (accepted) {
+            // --- Xử lý CHẤP NHẬN hòa ---
+            System.out.println("Draw accepted in room " + roomId + " by " + respondingPlayer.getPlayerName());
+
+            // Tạo tin nhắn kết thúc game
+            Map<String, Object> endData = new HashMap<>();
+            endData.put("winner", "draw"); // Kết quả là hòa
+            endData.put("reason", "agreement"); // Lý do: Thỏa thuận
+
+            // Gửi tin nhắn kết thúc cho CẢ HAI người chơi
+            notifyRoomPlayers(room, "end_game", endData);
+
+            // Dọn dẹp phòng (dừng timer, xóa khỏi map)
+//            cleanupRoom(roomId);
+
+        } else {
+            // --- Xử lý TỪ CHỐI hòa ---
+            System.out.println("Draw rejected in room " + roomId + " by " + respondingPlayer.getPlayerName());
+
+            // Reset trạng thái cầu hòa trong phòng
+            room.setIsDrawOffered(null);
+
+            // Gửi tin nhắn từ chối cho người đã đề nghị hòa (offeringPlayer)
+            if (offeringPlayer != null && offeringPlayer.getConnection().isOpen()) {
+                Map<String, Object> rejectData = new HashMap<>();
+                rejectData.put("type", "draw_rejected"); // Client sẽ hiển thị thông báo
+                offeringPlayer.getConnection().send(gson.toJson(rejectData));
+            } else {
+                System.err.println("Không thể gửi draw_rejected, người đề nghị không online?");
+            }
+            // Người từ chối không cần nhận thông báo gì thêm
+        }
+    }
+
+
     //start game in room
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
-
         Map<String, Object> gameStartData = new HashMap<>();
         gameStartData.put("gameState", room.getGameState());
         gameStartData.put("currentTurn", "white");
@@ -326,6 +403,8 @@ public class ChessServer extends WebSocketServer {
                 // Notify remaining players
                 Map<String, Object> leftData = new HashMap<>();
                 leftData.put("leftPlayer", player.getPlayerName());
+                leftData.put("reason", "Người chơi rời khỏi phòng!");
+                leftData.put("winner", room.getOpponent(player).getColor());
                 notifyRoomPlayers(room, "player_left", leftData);
 
                 // Remove room if empty
@@ -359,7 +438,7 @@ public class ChessServer extends WebSocketServer {
 
         String from = data.get("from").toString();
         String to = data.get("to").toString();
-        Character promo = data.get("promotion").toString().charAt(0);
+        Character promo = data.get("promotion") == null? null : (Character) data.get("promotion");
         ChessValidator.MoveResult moveResult = room.getValidator().validateMove(from, to,
                 player.getColor(),  promo);
         if(!moveResult.isValid)
@@ -375,6 +454,8 @@ public class ChessServer extends WebSocketServer {
             Map<String, Object> fenData = new HashMap<>();
             fenData.put("result", true);
             fenData.put("fen", fen);
+            fenData.put("LMfrom", from);
+            fenData.put("LMto", to);
             notifyRoomPlayers(room, "move_result", fenData);
             if(moveResult.winner != null)
             {
@@ -382,14 +463,9 @@ public class ChessServer extends WebSocketServer {
                 response.put("winner", moveResult.winner);
                 notifyRoomPlayers(room, "end_game", response);
             }
-            System.out.println(data.get("from").toString() + " " + data.get("to").toString());
             // Change turn
             String nextTurn = player.getColor().equals("white") ? "black" : "white";
             room.setCurrentTurn(nextTurn);
-
-            Map<String, Object> turnData = new HashMap<>();
-            turnData.put("currentTurn", nextTurn);
-            notifyRoomPlayers(room, "turn_change", turnData);
         }
     }
 
