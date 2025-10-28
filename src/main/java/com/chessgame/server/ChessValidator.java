@@ -1,6 +1,4 @@
-package com.chatapp.server;
-
-import java.util.Arrays;
+package com.chessgame.server;
 
 /**
  * Lớp ChessValidator quản lý toàn bộ logic của một ván cờ vua.
@@ -258,7 +256,7 @@ public class ChessValidator {
             message = "Ăn quân!";
         }
 
-        return new MoveResult(true, message, winner);
+        return new MoveResult(true, message, winner, from, to);
     }
 
     /**
@@ -347,6 +345,12 @@ public class ChessValidator {
 
     private boolean isValidMove(char piece, int fromRow, int fromCol, int toRow, int toCol,
                                 char[][] boardState, String enPassant) {
+
+        char targetPiece = boardState[toRow][toCol];
+        if (targetPiece != '.' && Character.isUpperCase(piece) == Character.isUpperCase(targetPiece)) {
+            return false; // Không được đi vào ô có quân cùng màu
+        }
+
         if (fromRow == toRow && fromCol == toCol) return false;
 
         char pieceType = Character.toLowerCase(piece);
@@ -391,15 +395,20 @@ public class ChessValidator {
 
     private boolean validateKing(char piece, int fromRow, int fromCol, int toRow, int toCol,
                                  char[][] boardState) {
-        // Di chuyển thông thường
+        String color = Character.isUpperCase(piece) ? "white" : "black";
+
+        // Di chuyển thông thường 1 ô
         if (Math.abs(toRow - fromRow) <= 1 && Math.abs(toCol - fromCol) <= 1) {
-            return true;
+            // ✅ THÊM KIỂM TRA: Ô ĐẾN có bị đối phương tấn công không?
+            if (isSquareUnderAttack(toRow, toCol, color, boardState)) {
+                return false; // Không được đi vào ô bị chiếu
+            }
+            return true; // Ô đến an toàn
         }
 
         // Nhập thành (chỉ kiểm tra khi di chuyển 2 ô ngang)
         if (fromRow == toRow && Math.abs(fromCol - toCol) == 2) {
-            // Không thể nhập thành khi đang bị chiếu
-            String color = Character.isUpperCase(piece) ? "white" : "black";
+            // Logic kiểm tra nhập thành (đã có vẻ đúng)
             if (isKingInCheck(color, boardState)) {
                 return false;
             }
@@ -439,19 +448,25 @@ public class ChessValidator {
 
     private boolean isSquareUnderAttack(int row, int col, String playerColor, char[][] boardState) {
         String opponentColor = playerColor.equals("white") ? "black" : "white";
-        char[][] tempBoard = cloneBoard(boardState);
-        tempBoard[row][col] = '.';
 
+        // Duyệt qua tất cả các ô trên bàn cờ được truyền vào (boardState)
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
-                char piece = tempBoard[r][c];
+                char piece = boardState[r][c]; // Lấy quân cờ từ boardState
+
+                // Nếu đây là quân của đối phương
                 if (piece != '.' && isCorrectTurn(piece, opponentColor)) {
-                    if (isValidMove(piece, r, c, row, col, tempBoard, "-")) {
-                        return true;
+
+                    // Kiểm tra xem quân đối phương này có thể đi đến ô (row, col) không?
+                    // Sử dụng chính boardState để kiểm tra, và "-" cho enPassant vì chỉ kiểm tra tấn công.
+                    if (isValidMove(piece, r, c, row, col, boardState, "-")) {
+                        return true; // Nếu có thể, ô đó đang bị tấn công
                     }
                 }
             }
         }
+
+        // Nếu không có quân đối phương nào tấn công được ô đó
         return false;
     }
 
@@ -727,14 +742,27 @@ public class ChessValidator {
         public final String message;
         public final String winner;
 
+        public final String from;
+        public final String to;
+
         public MoveResult(boolean isValid, String message) {
-            this(isValid, message, null);
+            this(isValid, message, null, null, null);
         }
 
         public MoveResult(boolean isValid, String message, String winner) {
             this.isValid = isValid;
             this.message = message;
             this.winner = winner;
+            this.from = null;
+            this.to = null;
+        }
+
+        public MoveResult(boolean isValid, String message, String winner, String from, String to) {
+            this.isValid = isValid;
+            this.message = message;
+            this.winner = winner;
+            this.from = from;
+            this.to = to;
         }
     }
 }

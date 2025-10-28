@@ -1,14 +1,18 @@
-/* .root{
-  --white-square:#f0d9b5;
-  --black-square:#b58863;
-} */
+:root {
+    --board-size: 512px; /* Hoặc kích thước bàn cờ bạn muốn, ví dụ: 64px * 8 */
+    --white-square: #f0d9b5; /* Màu ô trắng bạn muốn */
+    --black-square: #b58863; /* Màu ô đen bạn muốn */
+
+    /* Bạn cũng có thể định nghĩa --size ở đây nếu muốn */
+}
 
 .board{
-  height:var(--board-size);
-  display:grid;
-  grid-template-columns:repeat(8,1fr);
-  grid-template-rows:repeat(8,1fr);
-  width: 60%;
+    width: 80%; /* Hoặc đặt width: 60%; nếu muốn nó co giãn */
+    aspect-ratio: 1 / 1;     /* <-- THÊM DÒNG NÀY (Tự động tính chiều cao = chiều rộng) */
+    /* height: var(--board-size); */ /* Bỏ dòng này đi */
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
   border-radius:12px;
   overflow:hidden;
   box-shadow:0 12px 30px rgba(2,6,23,0.7)

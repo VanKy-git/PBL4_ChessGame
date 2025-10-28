@@ -6,7 +6,7 @@
 // ==========================
 
 const boardElement = document.getElementById("chessBoard");
-let currentBoardState = null; // Lưu trữ mảng 8x8 cuối cùng được render
+// let currentBoardState = null; // Lưu trữ mảng 8x8 cuối cùng được render
 
 // Các themes ĐÃ ĐƯỢC ĐIỀN ĐẦY ĐỦ
 const themes = [ 
@@ -48,8 +48,8 @@ window.algToCoord = function(alg) {
 
 window.renderChessBoard = function(boardArray, state) {
     if (!boardElement || !boardArray || !state) return;
-    
-    currentBoardState = boardArray;
+
+    window.renderChessBoard.currentBoardState = boardArray;
     
     boardElement.innerHTML = '';
     const { selected, lastMove, flipped } = state;
