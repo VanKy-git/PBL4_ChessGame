@@ -52,8 +52,8 @@ window.renderChessBoard = function(boardArray, state) {
     window.renderChessBoard.currentBoardState = boardArray;
     
     boardElement.innerHTML = '';
-    const { selected, lastMove, flipped } = state;
-    
+    const { selected, lastMove, flipped,currentTurn, isCheck } = state;
+    const currentValidMoves = window.validMoveSquares || [];
     if (flipped) boardElement.classList.add('flipped');
     else boardElement.classList.remove('flipped');
 
@@ -61,6 +61,8 @@ window.renderChessBoard = function(boardArray, state) {
         for (let c = 0; c < 8; c++) {
             const rr = flipped ? 7 - r : r;
             const cc = flipped ? 7 - c : c;
+            const squareAlg = window.coordToAlg(rr, cc);
+            const piece = boardArray[rr][cc];
 
             const square = document.createElement("div");
             square.classList.add("square");
@@ -80,10 +82,29 @@ window.renderChessBoard = function(boardArray, state) {
                  (lastMove.to.r === rr && lastMove.to.c === cc))) {
                 square.classList.add('last-move');
             }
+            if (currentValidMoves.includes(squareAlg)) {
+                // Phân biệt ăn quân và đi thường (tùy chọn)
+                const targetPiece = boardArray[rr][cc];
+                if (targetPiece && targetPiece !== '') {
+                    square.classList.add('capture-move'); // Ô ăn quân
+                } else {
+                    square.classList.add('valid-move'); // Ô di chuyển thường
+                }
+            }
+            // ✅ THÊM LOGIC HIGHLIGHT CHIẾU TƯỚNG
+            const isWhiteKing = piece === 'K';
+            const isBlackKing = piece === 'k';
+            // Kiểm tra xem có phải Vua đang đến lượt VÀ đang bị chiếu không
+            if (isCheck &&
+                ((currentTurn === 'white' && isWhiteKing) ||
+                    (currentTurn === 'black' && isBlackKing)))
+            {
+                square.classList.add('in-check'); // Thêm class cho ô Vua
+            }
 
             // TRONG chessboard_render.js, bên trong hàm window.renderChessBoard, thay thế logic tạo IMG:
 
-const piece = boardArray[rr][cc]; // Ví dụ: 'R' (Trắng) hoặc 'r' (Đen)
+// const piece = boardArray[rr][cc]; // Ví dụ: 'R' (Trắng) hoặc 'r' (Đen)
 
 if (piece && piece !== '') {
     let fileName = '';
@@ -128,33 +149,76 @@ function handleInputClick(e) {
 let dragStartPos = null;
 
 boardElement.addEventListener("dragstart", (e) => {
-    const img = e.target.closest('img');
+    console.log("--- DRAG START ---");
+    const img = e.target.closest('img'); // Lấy thẻ <img> gốc
+
     if (img) {
         const parentSquare = img.parentElement;
-        dragStartPos = { r: parseInt(parentSquare.dataset.r), c: parseInt(parentSquare.dataset.c) };
+        if (parentSquare && parentSquare.dataset.r !== undefined && parentSquare.dataset.c !== undefined) {
+            dragStartPos = { r: parseInt(parentSquare.dataset.r), c: parseInt(parentSquare.dataset.c) };
+            console.log("Drag started from:", dragStartPos);
 
-        setTimeout(() => { img.style.opacity = 0; }, 0);
-        
-        if (typeof window.handleBoardInput === "function") {
-             window.handleBoardInput(dragStartPos.r, dragStartPos.c); // Báo hiệu chọn quân
+            // --- SỬA LẠI PHẦN NÀY ---
+            // 1. Tạo bản sao
+            const clone = img.cloneNode(true);
+
+            // 2. Lấy kích thước thực tế của ảnh gốc (sau khi CSS áp dụng)
+            const computedStyle = window.getComputedStyle(img);
+            const originalWidth = computedStyle.width;
+            const originalHeight = computedStyle.height;
+            console.log(`Original img rendered size: ${originalWidth} x ${originalHeight}`); // DEBUG
+
+            // 3. Áp dụng kích thước thực tế cho bản sao
+            clone.style.width = originalWidth;
+            clone.style.height = originalHeight;
+            clone.style.position = "absolute";
+            clone.style.left = "-9999px"; // Vẫn ẩn đi
+            clone.style.opacity = 0.7;
+            document.body.appendChild(clone);
+
+            // 4. Đặt ghost image (giờ đã đúng kích thước)
+            e.dataTransfer.setDragImage(clone, img.offsetWidth / 2, img.offsetHeight / 2);
+
+            // 5. Xóa bản sao
+            setTimeout(() => {
+                if (clone.parentNode === document.body) { // Kiểm tra trước khi xóa
+                    document.body.removeChild(clone);
+                }
+            }, 0);
+            // --- KẾT THÚC SỬA ĐỔI ---
+
+            // Làm mờ ảnh gốc
+            setTimeout(() => { if(img) img.style.opacity = 0.5; }, 0);
+
+        } else {
+            console.error("Could not get start coordinates:", parentSquare);
+            dragStartPos = null;
+            e.preventDefault();
         }
+    } else {
+        dragStartPos = null;
+        e.preventDefault();
     }
 });
 
 boardElement.addEventListener("dragend", (e) => {
+    // Luôn cho ảnh gốc hiện lại rõ ràng khi kết thúc kéo
     const img = e.target.closest('img');
     if (img) img.style.opacity = 1;
+    // Không cần reset dragStartPos ở đây, drop sẽ làm
 });
 
 boardElement.addEventListener("dragover", (e) => e.preventDefault());
 
 boardElement.addEventListener("drop", (e) => {
     e.preventDefault();
+    console.log("--- drop ---");
     const square = e.target.closest(".square");
     if (!square || !dragStartPos) return;
 
     const toRow = parseInt(square.dataset.r);
     const toCol = parseInt(square.dataset.c);
+    console.log(toCol, "  ",toRow);
     const fromRow = dragStartPos.r;
     const fromCol = dragStartPos.c;
 

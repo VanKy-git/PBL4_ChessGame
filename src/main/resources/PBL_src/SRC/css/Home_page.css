@@ -98,7 +98,33 @@ html,body{
       min-height: 100vh;
       box-sizing: border-box;
   }
-  
+.square.last-move {
+    box-shadow: inset 0 0 0 4px rgba(255, 200, 0, 0.7); /* Viền vàng trong, hơi mờ */
+    transition: box-shadow 0.15s ease-out; /* Hiệu ứng xuất hiện nhanh */
+}
+.square.highlight {
+    position: relative; /* Cần cho pseudo-element */
+    /* background-color: rgba(40, 180, 99, 0.15); /* Nền mờ nhẹ (tùy chọn) */
+}
+
+.square.highlight::before {
+    content: '';
+    position: absolute;
+    top: 2px; /* Khoảng cách từ viền ngoài */
+    left: 2px;
+    right: 2px;
+    bottom: 2px;
+    border: 2px dashed rgba(0, 255, 150, 0.7); /* Viền đứt nét màu xanh ngọc */
+    border-radius: 4px; /* Bo góc nhẹ cho viền */
+    animation: pulse-border 1.5s infinite ease-in-out; /* Animation nhấp nháy */
+    pointer-events: none; /* Cho phép click xuyên qua */
+}
+
+@keyframes pulse-border {
+    0% { opacity: 0.8; }
+    50% { opacity: 0.3; }
+    100% { opacity: 0.8; }
+}
   
       /* left sidebar */
       .left{

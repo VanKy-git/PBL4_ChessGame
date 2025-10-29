@@ -17,6 +17,20 @@
   overflow:hidden;
   box-shadow:0 12px 30px rgba(2,6,23,0.7)
 }
+.square.valid-move::after { /* Chấm tròn cho nước đi thường */
+    content: '';
+    position: absolute;
+    width: 15px; height: 15px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+.square.capture-move { /* Viền cho nước ăn quân */
+    box-shadow: inset 0 0 0 4px rgba(255, 0, 0, 0.4);
+    /* Hoặc dùng pseudo-element vẽ viền */
+}
 
 .match_board{
   width: 70%;
@@ -50,19 +64,73 @@
     box-shadow: inset 0 0 14px rgba(0, 255, 200, 0.6);
     transition: 0.2s;
   }
-  .valid-move {
-    outline: 3px solid #00ffcc;
-    box-shadow: inset 0 0 14px rgba(0, 255, 150, 0.6);
-    transition: 0.2s;
-  }
-/* Highlight nước đi ĂN QUÂN (Capture Move) */
-.square.capture-move {
-  outline: 3px solid #ff5c33;
-  box-shadow: inset 0 0 14px rgba(255, 100, 50, 0.6);
-  transition: 0.2s;
+/* Nước đi thường: Chấm tròn mờ ở giữa */
+.square.valid-move {
+    position: relative; /* Cần thiết cho pseudo-element */
 }
-.square.valid-move, .square.capture-move {
-  cursor: pointer;
+.square.valid-move::after {
+    content: '';
+    position: absolute;
+    /* Kích thước chấm tròn */
+    width: 18px;
+    height: 18px;
+    /* Màu chấm tròn (đen mờ) */
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 50%; /* Làm tròn */
+    /* Căn giữa */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; /* Cho phép click xuyên qua */
+    /* Hiệu ứng xuất hiện (tùy chọn) */
+    opacity: 0;
+    animation: fadeIn 0.15s forwards;
+}
+
+/* Nước ăn quân: Nền đỏ mờ */
+.square.capture-move {
+    position: relative; /* Cần thiết cho pseudo-element */
+}
+.square.capture-move::before { /* Dùng ::before để không xung đột với ::after của valid-move nếu cần */
+    content: '';
+    position: absolute;
+    inset: 0; /* Phủ kín toàn bộ ô */
+    /* Màu nền đỏ mờ */
+    background-color: rgba(220, 50, 50, 0.25);
+    border-radius: inherit; /* Theo bo góc của ô (nếu có) */
+    pointer-events: none;
+    /* Hiệu ứng xuất hiện (tùy chọn) */
+    opacity: 0;
+    animation: fadeIn 0.15s forwards;
+}
+.square.in-check {
+    animation: check-background-pulse 1s infinite alternate ease-in-out; /* Áp dụng animation nền */
+}
+
+/* Định nghĩa animation nhấp nháy nền */
+@keyframes check-background-pulse {
+    from {
+        /* Giữ màu nền gốc HOẶC thêm màu đỏ rất nhạt */
+        background-color: rgba(255, 0, 0, 0.35); /* Chồng nhẹ lên màu ô gốc */
+    }
+    to {
+        /* Nền đỏ đậm hơn */
+        background-color: rgb(255, 0, 0); /* Chồng màu đỏ rõ hơn */
+    }
+}
+
+/* Tùy chọn: Làm quân cờ bị ăn trông rõ hơn trên nền đỏ */
+.square.capture-move img {
+    opacity: 0.9; /* Giảm độ mờ một chút */
+}
+.square.capture-move:hover img {
+    opacity: 0.7; /* Mờ hơn nữa khi hover */
+}
+
+
+/* Animation xuất hiện (dùng chung) */
+@keyframes fadeIn {
+    to { opacity: 1; }
 }
 
 .id-player{

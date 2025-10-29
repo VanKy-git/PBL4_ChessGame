@@ -1,5 +1,8 @@
 package com.chessgame.server;
 
+import java.util.ArrayList; // Thêm import
+import java.util.List;
+
 /**
  * Lớp ChessValidator quản lý toàn bộ logic của một ván cờ vua.
  * Nó xử lý việc xác thực nước đi, kiểm tra các luật lệ đặc biệt (nhập thành,
@@ -259,6 +262,58 @@ public class ChessValidator {
         return new MoveResult(true, message, winner, from, to);
     }
 
+    public List<String> getValidMovesForSquare(String algSquare) {
+        List<String> validMoves = new ArrayList<>();
+        if (algSquare == null || algSquare.length() != 2) {
+            return validMoves; // Trả về rỗng nếu ô không hợp lệ
+        }
+
+        // Chuyển đổi ký hiệu đại số sang tọa độ
+        int fromRow = 8 - Character.getNumericValue(algSquare.charAt(1));
+        int fromCol = algSquare.charAt(0) - 'a';
+
+        // Kiểm tra tọa độ hợp lệ
+        if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7) {
+            return validMoves;
+        }
+
+        char piece = board[fromRow][fromCol];
+        String pieceColor = isCorrectTurn(piece, "white") ? "white" : (isCorrectTurn(piece, "black") ? "black" : null);
+
+        // Chỉ tính nếu ô đó có quân cờ và đúng lượt đi hiện tại
+        if (piece == '.' || pieceColor == null || !pieceColor.equals(this.currentTurn)) {
+            return validMoves;
+        }
+
+        // Thử đi đến tất cả các ô khác
+        for (int tr = 0; tr < 8; tr++) {
+            for (int tc = 0; tc < 8; tc++) {
+                // 1. Kiểm tra sơ bộ (dùng hàm geometry hoặc isValidMove đầy đủ)
+                // Dùng isValidMove đầy đủ sẽ chính xác hơn, bao gồm cả nhập thành
+                if (isValidMove(piece, fromRow, fromCol, tr, tc, board, enPassantTarget)) {
+                    // 2. Tạo bàn cờ tạm và đi thử
+                    char[][] tempBoard = cloneBoard(board);
+                    char originalTargetPiece = tempBoard[tr][tc]; // Lưu quân bị ăn
+                    tempBoard[tr][tc] = piece;
+                    tempBoard[fromRow][fromCol] = '.';
+
+                    // Mô phỏng bắt tốt qua đường trên tempBoard (nếu cần, logic này đã có trong validateMove nên có thể bỏ qua?)
+                    // Logic mô phỏng nhập thành trên tempBoard (nếu cần)
+
+                    // 3. Kiểm tra Vua có an toàn không sau nước đi thử
+                    // Sử dụng hàm isKingInCheck hoặc isKingInCheckSimple
+                    if (!isKingInCheck(pieceColor, tempBoard)) {
+                        // Nếu Vua an toàn, thêm ô đích vào danh sách
+                        validMoves.add((char)('a' + tc) + "" + (8 - tr));
+                    }
+                    // Không cần rollback tempBoard
+                }
+            }
+        }
+
+        return validMoves;
+    }
+
     /**
      * Kiểm tra xem một màu quân có còn nước đi hợp lệ nào không.
      * @param color Màu quân cần kiểm tra ("white" hoặc "black").
@@ -303,7 +358,7 @@ public class ChessValidator {
      * @param currentBoard Bàn cờ để kiểm tra.
      * @return true nếu Vua đang bị chiếu.
      */
-    private boolean isKingInCheck(String kingColor, char[][] currentBoard) {
+    public boolean isKingInCheck(String kingColor, char[][] currentBoard) {
         int kingRow = -1, kingCol = -1;
         char kingPiece = kingColor.equals("white") ? 'K' : 'k';
         String opponentColor = kingColor.equals("white") ? "black" : "white";

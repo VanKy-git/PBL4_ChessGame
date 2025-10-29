@@ -277,6 +277,37 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error("Không tìm thấy '.right-panel'");
         return;
     }
+    const chessworldTitle = document.querySelector('.ml1'); // Chọn thẻ h1
+
+    if (chessworldTitle) {
+        chessworldTitle.addEventListener('mouseenter', () => {
+            // Animation khi chuột đi vào
+            anime.remove('.ml1 .letter'); // Xóa animation cũ (nếu có)
+            anime({
+                targets: '.ml1 .letter',
+                translateY: [0, -10, 0], // Nhảy lên 10px rồi về vị trí cũ
+                scale: [1, 1.1, 1], // Phóng to nhẹ rồi về kích thước cũ
+                // rotate: [-5, 5, 0], // Thêm xoay nhẹ (tùy chọn)
+                duration: 600,
+                delay: anime.stagger(50), // Hiệu ứng lượn sóng
+                easing: 'easeOutElastic(1, .6)' // Easing tạo độ nảy
+            });
+        });
+
+        // Tùy chọn: Animation khi chuột đi ra (quay về trạng thái tĩnh)
+        chessworldTitle.addEventListener('mouseleave', () => {
+            anime.remove('.ml1 .letter');
+            anime({
+                targets: '.ml1 .letter',
+                translateY: 0,
+                scale: 1,
+                rotate: 0,
+                duration: 300,
+                delay: anime.stagger(30),
+                easing: 'easeOutQuad'
+            });
+        });
+    }
     anime({
         targets: '.ml1 .letter', // Chọn tất cả các chữ cái
         opacity: [0, 1],         // Chuyển từ mờ (0) sang rõ (1)

@@ -95,6 +95,9 @@ public class ChessServer extends WebSocketServer {
                 case "draw_response":
                     handleDrawResponse(webSocket,data);
                     break;
+                case "get_valid_moves":
+                    handleGetValidMove(webSocket, data);
+                    break;
                 default:
                     System.out.println("Unknown message type: " + type);
             }
@@ -183,6 +186,38 @@ public class ChessServer extends WebSocketServer {
         Map<String, Object> response = new HashMap<>();
         response.put("type", "draw_offer");
         oponentPlayer.getConnection().send(gson.toJson(response));
+    }
+
+    private void handleGetValidMove(WebSocket webSocket, Map<String, Object> data) {
+        Player player = connectionPlayerMap.get(webSocket);
+        if (player == null) return;
+        String roomId = (String) data.get("roomId");
+        String square = (String) data.get("square"); // Ví dụ: "e2"
+        GameRoom room = gameRooms.get(roomId);
+
+        // Kiểm tra hợp lệ
+        if (room == null || !room.getStatus().equals("playing") || !room.getPlayers().contains(player) || square == null) {
+            // Không cần gửi lỗi, chỉ đơn giản là không gửi gì nếu yêu cầu không hợp lệ
+            System.out.println("Invalid get_valid_moves request from " + player.getPlayerName());
+            return;
+        }
+
+        // Chỉ tính nước đi nếu đúng lượt của người yêu cầu
+        if (!room.getCurrentTurn().equals(player.getColor())) {
+            // System.out.println("Not player's turn to get moves: " + player.getPlayerName());
+            return; // Không gửi gì nếu không phải lượt
+        }
+
+
+        // Gọi hàm trong ChessValidator
+        List<String> validMoves = room.getValidator().getValidMovesForSquare(square);
+
+        // Tạo và gửi phản hồi
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "valid_moves");
+        response.put("square", square); // Ô gốc
+        response.put("moves", validMoves); // Danh sách ô đích ["e3", "e4"]
+        player.getConnection().send(gson.toJson(response));
     }
 
     private void handleDrawResponse(WebSocket webSocket, Map<String, Object> data) {
@@ -450,12 +485,19 @@ public class ChessServer extends WebSocketServer {
             webSocket.send(gson.toJson(response));
         }
         else {
+            // Change turn
+            String nextTurn = player.getColor().equals("white") ? "black" : "white";
+            room.setCurrentTurn(nextTurn);
             String fen = room.getValidator().toFen();
+            boolean isNextPlayerInCheck = room.getValidator().isKingInCheck(nextTurn, room.getValidator().getBoard()); // Dùng board hiện tại
             Map<String, Object> fenData = new HashMap<>();
             fenData.put("result", true);
             fenData.put("fen", fen);
-            fenData.put("LMfrom", from);
-            fenData.put("LMto", to);
+            Map<String, String> lastMoveData = new HashMap<>();
+            lastMoveData.put("from", from); // Key là "from"
+            lastMoveData.put("to", to);   // Key là "to"
+            fenData.put("lastMove", lastMoveData);
+            fenData.put("isCheck", isNextPlayerInCheck);
             notifyRoomPlayers(room, "move_result", fenData);
             if(moveResult.winner != null)
             {
@@ -463,9 +505,7 @@ public class ChessServer extends WebSocketServer {
                 response.put("winner", moveResult.winner);
                 notifyRoomPlayers(room, "end_game", response);
             }
-            // Change turn
-            String nextTurn = player.getColor().equals("white") ? "black" : "white";
-            room.setCurrentTurn(nextTurn);
+
         }
     }
 
