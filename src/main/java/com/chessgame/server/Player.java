@@ -7,6 +7,7 @@ public class Player {
     private String playerName;
     private String color;
     private WebSocket connection;
+    private Long preferredTimeMs;
 
     public Player(String playerId, String playerName, WebSocket connection) {
         this.playerId = playerId;
@@ -46,6 +47,14 @@ public class Player {
 
     public void setConnection(WebSocket connection) {
         this.connection = connection;
+    }
+
+    public Long getPreferredTimeMs() {
+        return preferredTimeMs;
+    }
+
+    public void setPreferredTimeMs(Long preferredTimeMs) {
+        this.preferredTimeMs = preferredTimeMs;
     }
 
     @Override

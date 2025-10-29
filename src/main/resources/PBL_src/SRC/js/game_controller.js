@@ -17,6 +17,11 @@ let currentTurn = 'white';
 let isWhiteMove = true;
 let validMoveSquares = [];
 let isKingInCheckState = false;
+let whiteTimeMs;
+let blackTimeMs;
+let timerIntervalId = null;
+let rematchOfferedByOpponent = false; // Cờ báo đối thủ đã mời tái đấu
+let rematchRequestedByMe = false; // Cờ báo mình đã yêu cầu tái đấu
 window.validMoveSquares = validMoveSquares;
 
 // Nếu chưa có, hãy thêm vào đầu file này:
@@ -97,14 +102,6 @@ function showGameOverModal(title, message) {
     };
 }
 
-
-// ==========================
-// 3. QUẢN LÝ VIEW VÀ VIEW ACTIONS
-// ==========================
-
-// ❌ XÓA: Toàn bộ các hàm showModesView, showLobbyView, showGameControlsView
-// Sẽ được xử lý bởi Home_page.js
-
 // ==========================
 // 4. WEBSOCKET VÀ MESSAGE HANDLING
 // ==========================
@@ -149,12 +146,29 @@ function sendChat() {
 
 function leaveRoom() {
     sendMessage({ type: "leave_room", roomId: roomId });
+    resetGameLocalState();
 }
 
 function onPlayerLeft(msg)
 {
     onEndGame(msg);
 }
+
+function requestRematch() {
+    if (roomId && !gameActive) { // Chỉ gửi khi game đã kết thúc
+        sendMessage({ type: "rematch_request", roomId: roomId });
+        rematchRequestedByMe = true; // Đánh dấu mình đã yêu cầu
+        console.log("Da gui rematch");
+        // Cập nhật UI (ví dụ: đổi text nút Tái đấu thành "Đã yêu cầu...")
+        const rematchBtn = document.getElementById('gameOverRematchBtn');
+        if(rematchBtn) {
+            rematchBtn.disabled = true;
+            rematchBtn.textContent = "Đang chờ đối thủ...";
+        }
+        // Nếu đối thủ cũng đã yêu cầu thì game sẽ tự bắt đầu lại
+    }
+}
+window.requestRematch = requestRematch;
 
 function enableLobbyButtons() {
     const createBtn = document.getElementById('createRoomBtn');
@@ -193,6 +207,116 @@ function onRoomCreatedOrJoined(msg) {
     if (window.hideMatchmakingPopup) window.hideMatchmakingPopup();
     // ✅ GỌI HÀM NÀY TỪ Home_page.js (sẽ tạo ở bước 3)
     window.showGameControlsView();
+    updateStatus()
+    renderGame();
+}
+
+function resetGameLocalState() {
+    console.log("Resetting local game state..."); // DEBUG
+    gameActive = false;
+    currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Đặt lại FEN ban đầu
+    yourColor = null; // KHÔNG reset màu nếu muốn giữ lại cho rematch
+    roomId = null; // KHÔNG reset ID phòng nếu muốn giữ lại cho rematch
+    currentTurn = 'white'; // Reset lượt đi
+    selectedSquare = null; // Xóa ô đang chọn
+    lastMove = null; // Xóa nước đi cuối
+    player1Info = null; // Xóa thông tin đối thủ
+    stopTimer(); // Dừng đồng hồ client-side (quan trọng)
+    // Có thể reset thời gian hiển thị về giá trị ban đầu (tùy chọn)
+    whiteTimeMs = 60000; // Cần lấy thời gian ban đầu của phòng
+    blackTimeMs = 60000;
+    player1Info = null; // Reset đối thủ
+    const capturedAreas = document.querySelectorAll('.captured-pieces'); // ✅ Xóa quân ăn được cũ
+    capturedAreas.forEach(area => area.innerHTML = '');
+    updateTimerDisplay();
+    const p1Bar = document.getElementById('player1Bar');
+    const p2Bar = document.getElementById('player2Bar');
+    if (p1Bar) p1Bar.classList.add('hidden');
+    if (p2Bar) p2Bar.classList.add('hidden');
+    isKingInCheckState = false; // Reset trạng thái chiếu
+    validMoveSquares = []; // Xóa danh sách nước đi hợp lệ
+    window.validMoveSquares = []; // Cập nhật cả window
+    rematchOfferedByOpponent = false; // Reset cờ
+    rematchRequestedByMe = false;
+
+    // Xóa lịch sử nước đi trên UI
+    const moveListEl = document.getElementById('moveList');
+    if (moveListEl) moveListEl.innerHTML = '';
+
+    // Reset hiển thị trạng thái (tùy chọn, có thể để onEndGame làm)
+    updateStatus();
+    renderGame(); // Render lại bàn cờ ban đầu
+    updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+    // Lấy element mỗi lần để đảm bảo không bị null
+    const p1TimeEl = document.querySelector('#player1Bar .player-time');
+    const p2TimeEl = document.querySelector('#player2Bar .player-time');
+    const p1Bar = document.getElementById('player1Bar');
+    const p2Bar = document.getElementById('player2Bar');
+
+    if (!p1TimeEl || !p2TimeEl || !p1Bar || !p2Bar) return;
+
+    const formatTime = (ms) => {
+        if (ms < 0) ms = 0;
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${minutes}:${seconds}`;
+    };
+
+    // Hiển thị thời gian
+    if (yourColor === 'white') {
+        p2TimeEl.textContent = formatTime(whiteTimeMs);
+        p1TimeEl.textContent = formatTime(blackTimeMs);
+        // Thêm/Xóa class low-time
+        p2Bar.classList.toggle('low-time', whiteTimeMs < 30000 && whiteTimeMs > 0);
+        p1Bar.classList.toggle('low-time', blackTimeMs < 30000 && blackTimeMs > 0);
+        // Thêm/Xóa class active-turn
+        p2Bar.classList.toggle('active-turn', currentTurn === 'white');
+        p1Bar.classList.toggle('active-turn', currentTurn === 'black');
+    } else { // yourColor là 'black' hoặc null
+        p2TimeEl.textContent = formatTime(blackTimeMs);
+        p1TimeEl.textContent = formatTime(whiteTimeMs);
+        // Thêm/Xóa class low-time
+        p2Bar.classList.toggle('low-time', blackTimeMs < 30000 && blackTimeMs > 0);
+        p1Bar.classList.toggle('low-time', whiteTimeMs < 30000 && whiteTimeMs > 0);
+        // Thêm/Xóa class active-turn
+        p2Bar.classList.toggle('active-turn', currentTurn === 'black');
+        p1Bar.classList.toggle('active-turn', currentTurn === 'white');
+    }
+}
+
+function updateCapturedPieces(capturingColor, capturedPieceChar) {
+    if (!capturedPieceChar || capturedPieceChar === '.') return; // Bỏ qua nếu không có quân bị ăn
+
+    const capturedIcon = PIECES[capturedPieceChar]; // Lấy icon Unicode
+    if (!capturedIcon) return;
+
+    let targetArea;
+    // Nếu Trắng ăn -> thêm vào khu vực của Trắng (player 2)
+    if (capturingColor === 'white' && yourColor === 'white') {
+        targetArea = document.querySelector('#player2Bar .captured-pieces');
+    }
+    // Nếu Đen ăn -> thêm vào khu vực của Đen (player 1)
+    else if (capturingColor === 'black' && yourColor === 'white') {
+        targetArea = document.querySelector('#player1Bar .captured-pieces');
+    }
+    // Nếu bạn là Đen:
+    else if (capturingColor === 'white' && yourColor === 'black') {
+        targetArea = document.querySelector('#player1Bar .captured-pieces');
+    }
+    else if (capturingColor === 'black' && yourColor === 'black') {
+        targetArea = document.querySelector('#player2Bar .captured-pieces');
+    }
+
+    if (targetArea) {
+        const span = document.createElement('span');
+        span.textContent = capturedIcon;
+        targetArea.appendChild(span);
+        // Có thể sắp xếp lại các quân cờ bị ăn theo thứ tự giá trị nếu muốn
+    }
 }
 
 function onGameStart(msg) {
@@ -213,14 +337,114 @@ function onGameStart(msg) {
         // Fallback phòng trường hợp server không gửi FEN
         currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     }
-
+    if (msg.initialTimeMs) {
+        whiteTimeMs = msg.initialTimeMs;
+        blackTimeMs = msg.initialTimeMs;
+    }
     if (msg.currentTurn) {
         currentTurn = msg.currentTurn;
     }
     if (window.hideMatchmakingPopup) window.hideMatchmakingPopup();
+    const gameOverOverlay = document.getElementById('game-over-overlay');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     // Gọi renderGame() trực tiếp
-    updateStatus();
-    renderGame();
+    startTimer(); // Bắt đầu timer client
+    const p1Bar = document.getElementById('player1Bar');
+    const p2Bar = document.getElementById('player2Bar');
+    if (p1Bar) p1Bar.classList.remove('hidden');
+    if (p2Bar) p2Bar.classList.remove('hidden');
+    renderGame();   // Vẽ bàn cờ
+    updatePlayerBars(); // ✅ Cập nhật tên người chơi sau khi có info
+    updateStatus();   // Cập nhật lượt đi
+    updateTimerDisplay(); // ✅ Hiển thị thời gian ban đầu
+}
+
+function startTimer() {
+    stopTimer(); // Dừng interval cũ trước khi bắt đầu cái mới
+    if (!gameActive) return; // Không chạy nếu game chưa active
+
+    console.log("Starting client-side timer..."); // DEBUG
+
+    timerIntervalId = setInterval(() => {
+        // Chỉ giảm thời gian nếu game đang active
+        if (!gameActive) {
+            stopTimer();
+            return;
+        }
+
+        // Giảm thời gian của người đang đến lượt
+        if (currentTurn === 'white') {
+            whiteTimeMs -= 1000;
+        } else if (currentTurn === 'black') { // Thêm else if cho chắc
+            blackTimeMs -= 1000;
+        }
+
+        // Đảm bảo thời gian không âm
+        if (whiteTimeMs < 0) whiteTimeMs = 0;
+        if (blackTimeMs < 0) blackTimeMs = 0;
+
+        // Cập nhật hiển thị
+        updateTimerDisplay();
+
+        // (Không cần kiểm tra hết giờ ở đây, server sẽ lo việc đó)
+        // if (whiteTimeMs <= 0 || blackTimeMs <= 0) {
+        //     stopTimer();
+        // }
+    }, 1000); // Chạy mỗi giây
+}
+
+// Xử lý khi nhận màu mới (QUAN TRỌNG CHO TÁI ĐẤU)
+function onColorAssigned(msg) {
+    if (msg.color) {
+        yourColor = msg.color; // Cập nhật màu của mình
+        console.log("Color assigned/updated:", yourColor);
+        if(colorInfoEl) colorInfoEl.textContent = yourColor === 'white' ? 'Trắng' : 'Đen';
+        // Render lại bàn cờ để flip nếu cần
+        renderGame();
+    }
+}
+
+
+// ✅ Handler khi đối thủ mời tái đấu
+function onRematchOffer(msg) {
+    console.log("Rematch offer received from:", msg.offeringPlayer);
+    rematchOfferedByOpponent = true; // Đánh dấu đối thủ đã mời
+
+    // Hiển thị thông báo trên popup Game Over (nếu đang hiển thị)
+    // Hoặc tạo một popup mời tái đấu riêng (nếu muốn)
+    const rematchBtn = document.getElementById('gameOverRematchBtn');
+    if (rematchBtn && !rematchBtn.disabled) { // Chỉ cập nhật nếu mình chưa yêu cầu
+        rematchBtn.textContent = "Chấp nhận Tái đấu!"; // Đổi text nút
+        // Có thể thêm hiệu ứng nhấp nháy cho nút
+        rematchBtn.classList.add('rematch-offer-pulse'); // Thêm class CSS (cần định nghĩa)
+    }
+    // TÙY CHỌN: Hiển thị popup mời tái đấu riêng biệt
+    // if (window.showRematchOfferPopup) {
+    //     window.showRematchOfferPopup(msg.offeringPlayer);
+    // } else {
+    //     alert(`${msg.offeringPlayer} muốn tái đấu! Nhấn nút "Tái đấu" để chấp nhận.`);
+    // }
+}
+
+function onRematchUnavailable(msg) {
+    console.log("Rematch unavailable:", msg.reason);
+    rematchOfferedByOpponent = false; // Reset cờ
+    // Vô hiệu hóa và cập nhật nút Tái đấu trên popup Game Over
+    const rematchBtn = document.getElementById('gameOverRematchBtn');
+    if (rematchBtn) {
+        rematchBtn.disabled = true;
+        rematchBtn.textContent = "Đối thủ đã rời";
+        rematchBtn.classList.remove('rematch-offer-pulse');
+    }
+    alert(msg.reason || "Đối thủ đã rời, không thể tái đấu.");
+}
+
+function stopTimer() {
+    if (timerIntervalId) {
+        clearInterval(timerIntervalId);
+        timerIntervalId = null;
+        console.log("Client-side timer stopped."); // DEBUG
+    }
 }
 
 function onMoveResult(msg) {
@@ -243,6 +467,19 @@ function onMoveResult(msg) {
             console.warn("Cannot get moved piece char from 'from' coord:", fromCoord);
         }
 
+        // ✅ KIỂM TRA ĂN QUÂN
+        let capturedPieceChar = null;
+        if (toCoord && oldBoardArray[toCoord.r]?.[toCoord.c]) {
+            capturedPieceChar = oldBoardArray[toCoord.r][toCoord.c];
+        }
+        // Xử lý ăn Tốt qua đường (nếu có)
+        const movedPieceLower = movedPieceChar.toLowerCase();
+        if (movedPieceLower === 'p' && fromCoord.c !== toCoord.c && capturedPieceChar === '') {
+            // Đây có thể là en passant, quân bị ăn là tốt đối phương ở cùng cột đích, khác hàng
+            const capturedPawnRow = turnBeforeMove === 'white' ? toCoord.r + 1 : toCoord.r - 1;
+            capturedPieceChar = turnBeforeMove === 'white' ? 'p' : 'P'; // Xác định màu tốt bị ăn
+        }
+
         // Cập nhật trạng thái mới
         currentFEN = msg.fen;
         isKingInCheckState = msg.isCheck || false;
@@ -254,6 +491,9 @@ function onMoveResult(msg) {
         // Gọi addMoveToHistory với dữ liệu từ msg.lastMove
         addMoveToHistory(msg.lastMove.from, msg.lastMove.to, turnBeforeMove, movedPieceChar);
 
+        if (capturedPieceChar) {
+            updateCapturedPieces(turnBeforeMove, capturedPieceChar);
+        }
         // Render và cập nhật status
         renderGame();
         updateStatus();
@@ -279,7 +519,7 @@ function onChat(msg) {
 
 function onEndGame(msg) {
     gameActive = false; // Dừng game
-    // stopTimer(); // Dừng đồng hồ
+    stopTimer(); // Dừng đồng hồ
 
     const winner = msg.winner; // "white", "black", "draw"
     const reason = msg.reason || null; // Lý do từ server
@@ -294,46 +534,63 @@ function onEndGame(msg) {
     // Gọi hàm hiển thị popup từ Home_page.js
     if (window.showGameOverPopup) {
         window.showGameOverPopup(result, reason);
+        const rematchBtn = document.getElementById('gameOverRematchBtn');
+        if(rematchBtn) {
+            rematchBtn.disabled = false;
+            rematchBtn.textContent = "Tái đấu";
+            rematchBtn.classList.remove('rematch-offer-pulse');
+        }
     } else {
         // Fallback nếu hàm chưa sẵn sàng
         alert(`Kết quả: ${result} - Lý do: ${reason || 'Kết thúc trận'}`);
     }
-}
-
-function requestRematch() {
-    if (roomId) {
-        sendMessage({ type: "rematch_request", roomId: roomId });
-        // Client có thể hiển thị "Đang chờ đối thủ chấp nhận..."
-    }
+    if (statusEl) statusEl.textContent = "Trận đấu đã kết thúc.";
+    // resetGameLocalState();
 }
 
 function addMoveToHistory(fromAlg, toAlg, movedColor, pieceChar) {
     const moveListEl = document.getElementById('moveList');
     if (!moveListEl) return;
 
-    const pieceIcon = PIECES[pieceChar] || ''; // Lấy icon, nếu không có thì để trống
-
-    // Tạo text (Icon + Nước đi)
+    const pieceIcon = PIECES[pieceChar] || '';
     const moveText = `${pieceIcon}${toAlg}`;
 
     let listItem;
 
-    if (isWhiteMove) {
-        // Bắt đầu một hàng mới cho nước đi của Trắng
+    if (movedColor === 'white') {
+        // Trắng vừa đi -> Bắt đầu dòng mới
         listItem = document.createElement('li');
-        listItem.textContent = `${moveText}`;
+
+        // Tạo span cho nước đi của Trắng
+        const whiteMoveSpan = document.createElement('span');
+        whiteMoveSpan.className = 'move white-move'; // Thêm class
+        whiteMoveSpan.textContent = moveText;
+
+        listItem.appendChild(whiteMoveSpan); // Nối span vào
+
         moveListEl.appendChild(listItem);
+
     } else {
-        // Thêm nước đi của Đen vào hàng hiện tại
-        listItem = moveListEl.lastElementChild; // Lấy <li> cuối cùng
+        // Đen vừa đi -> Tìm dòng cuối cùng và nối vào
+        listItem = moveListEl.lastElementChild;
         if (listItem) {
-            listItem.textContent += `     ${moveText}`; // Thêm vào sau nước đi của Trắng
+            // Tạo span cho nước đi của Đen
+            const blackMoveSpan = document.createElement('span');
+            blackMoveSpan.className = 'move black-move'; // Thêm class
+            blackMoveSpan.textContent = moveText;
+
+            // Thêm khoảng trắng trước khi nối span của Đen
+            listItem.appendChild(document.createTextNode(' ')); // Thêm space node
+            listItem.appendChild(blackMoveSpan); // Nối span vào
+        } else {
+            // ... (Xử lý lỗi như cũ) ...
+            console.error("Lỗi lịch sử: Nước đi của Đen không có dòng để nối vào!");
+            listItem = document.createElement('li');
+            listItem.textContent = `?. ... ${moveText}`;
+            moveListEl.appendChild(listItem);
         }
     }
 
-    isWhiteMove = !isWhiteMove; // Đảo lượt cho lần thêm tiếp theo
-
-    // Tự động cuộn xuống dưới
     moveListEl.scrollTop = moveListEl.scrollHeight;
 }
 
@@ -343,9 +600,17 @@ function onError(msg) {
 
 function updateStatus() {
     // Tìm element nếu chưa có (làm 1 lần)
-    if (!statusEl) statusEl = document.getElementById('gameStatus');
-    if (!roomInfoEl) roomInfoEl = document.getElementById('roomInfoEl');
-    if (!colorInfoEl) colorInfoEl = document.getElementById('colorInfoEl');
+// ✅ LUÔN TÌM LẠI ELEMENT MỖI LẦN CHẠY
+    statusEl = document.getElementById('gameStatus');
+    roomInfoEl = document.getElementById('roomInfoEl');
+    colorInfoEl = document.getElementById('colorInfoEl');
+
+    // Kiểm tra xem các element có tồn tại không (quan trọng sau khi đổi view)
+    if (!statusEl || !roomInfoEl || !colorInfoEl) {
+        // Có thể không cần báo lỗi, vì có lúc view không phải là game controls
+        // console.warn("updateStatus: Không tìm thấy các element status/room/color (có thể đang ở lobby/modes)");
+        return;
+    }
 
     // ✅ SỬA LỖI 2 & 3: Kiểm tra tất cả element cần thiết
     if (!statusEl || !roomInfoEl || !colorInfoEl) {
@@ -469,38 +734,44 @@ registerHandler('move_result', onMoveResult);
 registerHandler('chat', onChat);
 registerHandler('end_game', onEndGame);
 registerHandler('error', onError);
-registerHandler('color', onRoomCreatedOrJoined);
+// registerHandler('color', onRoomCreatedOrJoined);
 registerHandler('draw_offer', onDrawOfferReceived);
 registerHandler('draw_rejected', onDrawRejected);
 registerHandler('player_left', onPlayerLeft);
 registerHandler('valid_moves',onValidMovesReceived)
+registerHandler('color', onColorAssigned); // Quan trọng cho rematch
+registerHandler('rematch_offer', onRematchOffer);
+registerHandler('rematch_unavailable', onRematchUnavailable);
 
 // ==========================
 // 6. LOGIC RENDER VÀ INPUT
 // ==========================
 
 function updatePlayerBars() {
-    // const p1Bar = document.getElementById('player1Bar');
-    // const p2Bar = document.getElementById('player2Bar');
-    // if (!p1Bar || !p2Bar) return;
-    //
-    // // --- Cập nhật Player 2 (Mình) ---
-    // if (player2Info) {
-    //     p2Bar.querySelector('.player-name').textContent = player2Info.name;
-    //     p2Bar.querySelector('.player-elo').textContent = player2Info.elo || '1200';
-    //     p2Bar.classList.remove('hidden-player');
-    // } else {
-    //     p2Bar.classList.add('hidden-player');
-    // }
-    //
-    // // --- Cập nhật Player 1 (Đối thủ) ---
-    // if (player1Info) {
-    //     p1Bar.querySelector('.player-name').textContent = player1Info.name;
-    //     p1Bar.querySelector('.player-elo').textContent = player1Info.elo || '1200';
-    //     p1Bar.classList.remove('hidden-player');
-    // } else {
-    //     p1Bar.classList.add('hidden-player');
-    // }
+    const p1Bar = document.getElementById('player1Bar');
+    const p2Bar = document.getElementById('player2Bar');
+    if (!p1Bar || !p2Bar) return;
+
+    const p1NameEl = p1Bar.querySelector('.player-name');
+    const p2NameEl = p2Bar.querySelector('.player-name');
+
+    // Cập nhật tên Player 2 (Mình)
+    if (player2Info && p2NameEl) {
+        p2NameEl.textContent = playerName; // Luôn hiển thị tên đã nhập/lưu
+    } else if (p2NameEl) {
+        p2NameEl.textContent = "Bạn"; // Mặc định
+    }
+
+    // Cập nhật tên Player 1 (Đối thủ)
+    if (player1Info && p1NameEl) {
+        p1NameEl.textContent = player1Info.name || "Đối thủ";
+    } else if (p1NameEl) {
+        p1NameEl.textContent = "Đối thủ"; // Mặc định
+    }
+
+    // Xóa quân cờ bị ăn cũ khi cập nhật (sẽ được thêm lại bởi updateCapturedPieces)
+    const capturedAreas = document.querySelectorAll('.captured-pieces');
+    capturedAreas.forEach(area => area.innerHTML = '');
 }
 function addChatMessage(sender, text) {
     // TÌM ELEMENT TRỰC TIẾP Ở ĐÂY

@@ -3,33 +3,113 @@ package com.chessgame.server;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.Map; // Thêm import
+import java.util.HashMap; // Thêm import
+import java.util.concurrent.*;
 
 public class GameRoom {
     private String roomId;
     private List<Player> players;
     private String status; // "waiting", "playing", "finished"
     private String currentTurn; // "white" or "black"
-    private String gameState; // Chess board state (could be FEN notation or custom format)
     private long createdAt;
     private ChessValidator validator;
     private String isDrawOffered;
+    private long initialTimeMs;
+    private long whiteTimeMs;
+    private long blackTimeMs;
+    // ✅ THÊM CÁC THUỘC TÍNH TIMER
+    private final ChessServer serverRef; // Tham chiếu đến ChessServer để gửi tin nhắn
+    private transient ScheduledExecutorService timerService; // transient vì không cần serialize
+    private transient ScheduledFuture<?> timerTask;
+    private String rematchRequestedByColor = null;
 
-    public GameRoom(String roomId) {
+    public GameRoom(String roomId, long initialTimeMs, ChessServer serverRef) {
         this.roomId = roomId;
         this.players = new CopyOnWriteArrayList<>(); // Thread-safe list
         this.status = "waiting";
         this.currentTurn = "white";
-        this.gameState = getInitialChessState();
         this.createdAt = System.currentTimeMillis();
-        this.validator = new ChessValidator(10000);
+        this.validator = new ChessValidator();
         this.isDrawOffered = null;
+        this.initialTimeMs = initialTimeMs;
+        this.whiteTimeMs = initialTimeMs;
+        this.blackTimeMs = initialTimeMs;
+        this.serverRef = serverRef;
     }
 
-    private String getInitialChessState() {
-        // Return initial chess board state
-        // This could be FEN notation: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        // Or a custom JSON representation of the board
-        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    // ✅ HÀM BẮT ĐẦU TIMER (trong GameRoom)
+    public synchronized void startTimer() {
+        stopTimer(); // Dừng timer cũ (nếu có) trước khi bắt đầu mới
+        if (!"playing".equals(status)) return; // Chỉ chạy khi đang chơi
+
+        // Khởi tạo service nếu chưa có
+        if (timerService == null || timerService.isShutdown()) {
+            timerService = Executors.newSingleThreadScheduledExecutor();
+        }
+
+        System.out.println("Starting timer for room " + roomId); // DEBUG
+
+        timerTask = timerService.scheduleAtFixedRate(() -> {
+            try {
+                // Kiểm tra lại trạng thái phòng trong task
+                if (!"playing".equals(status) || serverRef == null) {
+                    stopTimer();
+                    return;
+                }
+
+                long timeDecrement = 1000;
+                long newTime;
+                String playerWithTurn = getCurrentTurn(); // Dùng getter
+
+                if ("white".equals(playerWithTurn)) {
+                    newTime = getWhiteTimeMs() - timeDecrement;
+                    setWhiteTimeMs(newTime);
+                } else {
+                    newTime = getBlackTimeMs() - timeDecrement;
+                    setBlackTimeMs(newTime);
+                }
+
+                // Kiểm tra hết giờ
+                if (newTime <= 0) {
+                    System.out.println("Time out detected in GameRoom task for " + playerWithTurn);
+                    stopTimer(); // Dừng timer ngay
+
+                    String winnerColor = "white".equals(playerWithTurn) ? "black" : "white";
+
+                    // Gọi hàm xử lý hết giờ trên ChessServer
+                    serverRef.handleTimeout(this, winnerColor);
+                }
+            } catch (Exception e) {
+                System.err.println("Lỗi trong timer task (GameRoom) phòng " + roomId + ": " + e.getMessage());
+                e.printStackTrace();
+                stopTimer(); // Dừng timer nếu có lỗi nghiêm trọng
+            }
+        }, 1000, 1000, TimeUnit.MILLISECONDS);
+    }
+
+    // ✅ HÀM DỪNG TIMER (trong GameRoom)
+    public synchronized void stopTimer() {
+        if (timerTask != null && !timerTask.isDone()) {
+            timerTask.cancel(false); // false để task hiện tại chạy xong nếu đang chạy
+            System.out.println("Timer stopped for room " + roomId); // DEBUG
+        }
+        timerTask = null; // Reset task
+        // Không shutdown service ngay nếu muốn dùng lại
+        // if (timerService != null && !timerService.isShutdown()) {
+        //     timerService.shutdown();
+        // }
+    }
+
+    // ✅ HÀM DỌN DẸP HOÀN TOÀN TIMER SERVICE KHI PHÒNG BỊ HỦY
+    public void shutdownTimerService() {
+        stopTimer(); // Đảm bảo task đã dừng
+        if (timerService != null && !timerService.isShutdown()) {
+            timerService.shutdown();
+            System.out.println("Timer service shut down for room " + roomId); // DEBUG
+        }
     }
 
     public void addPlayer(Player player) {
@@ -44,6 +124,26 @@ public class GameRoom {
             }
         }
     }
+    public void resetForRematch() {
+        stopTimer(); // Dừng timer cũ trước khi reset
+        validator.resetBoard();
+        this.currentTurn = "white";
+        this.status = "playing";
+        this.isDrawOffered = null;
+        this.whiteTimeMs = initialTimeMs;
+        this.blackTimeMs = initialTimeMs;
+        // Timer sẽ được start lại bởi ChessServer sau khi gửi game_start
+    }
+
+    public synchronized void swapPlayerColors() {
+        if (players.size() == 2) {
+            Player p1 = players.get(0);
+            Player p2 = players.get(1);
+            String p1OldColor = p1.getColor();
+            p1.setColor(p2.getColor());
+            p2.setColor(p1OldColor);
+        }
+    }
 
     public ChessValidator getValidator() {
         return validator;
@@ -54,6 +154,13 @@ public class GameRoom {
         if (isEmpty()) {
             this.status = "finished";
         }
+    }
+    public String getRematchRequestedByColor() {
+        return rematchRequestedByColor;
+    }
+
+    public void setRematchRequestedByColor(String color) {
+        this.rematchRequestedByColor = color;
     }
 
     public boolean isFull() {
@@ -80,6 +187,7 @@ public class GameRoom {
 
     // Getters and Setters
 
+    public long getInitialTimeMs() { return initialTimeMs; }
 
     public String getIsDrawOffered() {
         return isDrawOffered;
@@ -117,14 +225,6 @@ public class GameRoom {
         this.currentTurn = currentTurn;
     }
 
-    public String getGameState() {
-        return gameState;
-    }
-
-    public void setGameState(String gameState) {
-        this.gameState = gameState;
-    }
-
     public long getCreatedAt() {
         return createdAt;
     }
@@ -133,6 +233,10 @@ public class GameRoom {
         this.createdAt = createdAt;
     }
 
+    public long getWhiteTimeMs() { return whiteTimeMs; }
+    public void setWhiteTimeMs(long whiteTimeMs) { this.whiteTimeMs = whiteTimeMs; }
+    public long getBlackTimeMs() { return blackTimeMs; }
+    public void setBlackTimeMs(long blackTimeMs) { this.blackTimeMs = blackTimeMs; }
     @Override
     public String toString() {
         return "GameRoom{" +

@@ -34,11 +34,6 @@ public class ChessValidator {
     /** Đếm số nước đi đầy đủ. Tăng lên 1 sau mỗi nước đi của quân Đen. */
     private int fullmoveNumber;
 
-    /** Thời gian còn lại của người chơi Trắng (tính bằng mili giây). */
-    private long whiteTimeMillis;
-
-    /** Thời gian còn lại của người chơi Đen (tính bằng mili giây). */
-    private long blackTimeMillis;
 
     // =================================================================================
     // Constructor and Initialization - Khởi tạo
@@ -46,12 +41,9 @@ public class ChessValidator {
 
     /**
      * Khởi tạo một ván cờ mới với thời gian cho mỗi người chơi.
-     * @param initialTimeMillis Thời gian ban đầu cho mỗi người chơi (tính bằng mili giây).
      */
-    public ChessValidator(long initialTimeMillis) {
+    public ChessValidator() {
         this.board = new char[8][8];
-        this.whiteTimeMillis = initialTimeMillis;
-        this.blackTimeMillis = initialTimeMillis;
         resetBoard();
     }
 
@@ -631,17 +623,6 @@ public class ChessValidator {
         return currentTurn;
     }
 
-    public long getWhiteTimeMillis() {
-        return whiteTimeMillis;
-    }
-
-    public long getBlackTimeMillis() {
-        return blackTimeMillis;
-    }
-
-    public void setBlackTimeMillis(long time) {
-        this.blackTimeMillis = time;
-    }
 
     public String getCastlingRights() {
         return castlingRights;

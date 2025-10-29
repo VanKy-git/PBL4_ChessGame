@@ -98,6 +98,12 @@ public class ChessServer extends WebSocketServer {
                 case "get_valid_moves":
                     handleGetValidMove(webSocket, data);
                     break;
+                case "resign":
+                    handleResign(webSocket, data);
+                    break;
+                case "rematch_request":
+                    handleRematchRequest(webSocket, data);
+                    break;
                 default:
                     System.out.println("Unknown message type: " + type);
             }
@@ -126,29 +132,84 @@ public class ChessServer extends WebSocketServer {
     private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
         Player player = connectionPlayerMap.get(webSocket);
         String playerId = player.getPlayerId();
+        Object timeControlObj = data.get("timeControl");
+        Long preferredTime = null;
+        if (timeControlObj instanceof Number) {
+            preferredTime = ((Number) timeControlObj).longValue();
+        } else {
+            // Gửi lỗi hoặc dùng thời gian mặc định nếu client không gửi
+            sendError(player.getConnection(), "Thiếu hoặc sai định dạng timeControl.");
+            // return; // Hoặc dùng mặc định: preferredTime = 600000L; // 10 phút
+        }
+
+        // Lưu lại vào Player
+        player.setPreferredTimeMs(preferredTime);
 
         // Thêm vào queue tìm trận
         waitingQueue.offer(player);
-        System.out.println("Player " + playerId + " is matching");
-        tryMatchmaking();
+        System.out.println("Player " + player.getPlayerName() + " joined queue with time: " + preferredTime + "ms");        tryMatchmaking();
     }
 
     private void tryMatchmaking() {
-        // Match two waiting players
-        if (waitingQueue.size() >= 2) {
-            Player player1 = waitingQueue.poll();
-            Player player2 = waitingQueue.poll();
+        Map<Long, List<Player>> playersByTime = new HashMap<>();
 
-            if (player1 != null && player2 != null) {
+        // Phân loại người chơi theo thời gian chờ
+        Iterator<Player> iterator = waitingQueue.iterator();
+        while (iterator.hasNext()) {
+            Player player = iterator.next();
+            // Kiểm tra kết nối trước khi xử lý
+            if (player == null || !player.getConnection().isOpen()) {
+                iterator.remove(); // Xóa người chơi đã offline khỏi hàng đợi
+                continue;
+            }
+            Long timePref = player.getPreferredTimeMs();
+            if (timePref != null) {
+                playersByTime.computeIfAbsent(timePref, k -> new ArrayList<>()).add(player);
+            } else {
+                // Xử lý người chơi không có preferredTime (có thể xóa hoặc cho vào nhóm mặc định)
+                System.out.println("Player " + player.getPlayerName() + " in queue without preferred time.");
+                iterator.remove();
+            }
+        }
+
+        // Tìm các nhóm thời gian có đủ 2 người trở lên
+        for (Map.Entry<Long, List<Player>> entry : playersByTime.entrySet()) {
+            Long timeControlMs = entry.getKey();
+            List<Player> waitingPlayers = entry.getValue();
+
+            while (waitingPlayers.size() >= 2) {
+                // Lấy 2 người chơi đầu tiên trong nhóm thời gian này
+                Player player1 = waitingPlayers.remove(0);
+                Player player2 = waitingPlayers.remove(0);
+
+                // Xóa họ khỏi hàng đợi gốc (quan trọng!)
+                waitingQueue.remove(player1);
+                waitingQueue.remove(player2);
+
+                System.out.println("Matching players for " + (timeControlMs / 60000) + " min: "
+                        + player1.getPlayerName() + " vs " + player2.getPlayerName());
+
+                // --- Tạo phòng và bắt đầu game (giống code cũ nhưng truyền thời gian) ---
                 String roomId = generateUniqueRoomId();
+                // ✅ Truyền thời gian vào GameRoom (sửa Constructor hoặc thêm setter)
+                GameRoom room = new GameRoom(roomId, timeControlMs, this);
 
-                GameRoom room = new GameRoom(roomId);
-                player1.setColor("white");
+                // Ngẫu nhiên màu cờ
+                if (Math.random() < 0.5) {
+                    player1.setColor("white");
                 player2.setColor("black");
+                }
+                else {
+                    player1.setColor("black");
+                    player2.setColor("white");
+                }
+
                 room.addPlayer(player1);
                 room.addPlayer(player2);
                 gameRooms.put(roomId, room);
 
+                // Gửi thông tin phòng, màu cờ
+                // ... (gửi room_info, color cho cả 2 player) ...
                 for (Player player : room.getPlayers()) {
                     Map<String, Object> roomInfo = new HashMap<>();
                     roomInfo.put("type", "room_info");
@@ -161,9 +222,90 @@ public class ChessServer extends WebSocketServer {
                     player.getConnection().send(gson.toJson(response));
                 }
 
+                // Bắt đầu game VỚI THỜI GIAN ĐÚNG
                 startGame(room);
-                broadcastRoomsList();
             }
+        }
+    }
+
+    private void handleResign(WebSocket webSocket, Map<String, Object> data) {
+        Player player = connectionPlayerMap.get(webSocket);
+        if (player == null) {
+            System.err.println("handleResign called with null player.");
+            return;
+        }
+
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+
+        // --- Kiểm tra tính hợp lệ ---
+        if (room == null) {
+            sendError(player.getConnection(), "Không tìm thấy phòng.");
+            System.out.println("Resign failed: Room not found - " + roomId);
+            return;
+        }
+        // Chỉ cho phép đầu hàng khi đang chơi
+        if (!"playing".equals(room.getStatus())) {
+            sendError(player.getConnection(), "Không thể đầu hàng khi ván đấu chưa bắt đầu hoặc đã kết thúc.");
+            System.out.println("Resign failed: Game not playing in room " + roomId);
+            return;
+        }
+        if (!room.getPlayers().contains(player)) {
+            sendError(player.getConnection(), "Bạn không ở trong phòng này.");
+            System.out.println("Resign failed: Player not in room " + roomId);
+            return;
+        }
+
+        System.out.println("Player " + player.getPlayerName() + " resigned in room " + roomId);
+
+        // --- Xác định người thắng ---
+        String winnerColor = player.getColor().equals("white") ? "black" : "white";
+        Player winnerPlayer = room.getPlayerByColor(winnerColor); // Lấy đối tượng người thắng (nếu cần ID)
+
+        // --- Tạo tin nhắn kết thúc game ---
+        Map<String, Object> endData = new HashMap<>();
+        endData.put("winner", winnerColor); // Gửi màu của người thắng
+        endData.put("reason", "resignation"); // Gửi lý do là đầu hàng
+        if (winnerPlayer != null) {
+            endData.put("winnerId", winnerPlayer.getPlayerId()); // Gửi ID người thắng (Client có thể dùng)
+            endData.put("winnerName", winnerPlayer.getPlayerName()); // Gửi tên người thắng (Client có thể dùng)
+        }
+
+        // --- Gửi tin nhắn cho cả hai người chơi ---
+        notifyRoomPlayers(room,"end_game" ,endData); // Sử dụng hàm nhận Map
+
+        // --- Cập nhật trạng thái phòng và dừng timer (KHÔNG XÓA PHÒNG) ---
+        room.setStatus("finished"); // Đổi trạng thái phòng thành đã kết thúc
+        room.stopTimer();         // Dừng đồng hồ của phòng này
+    }
+
+    // ✅ THÊM HÀM XỬ LÝ TIMEOUT (được gọi bởi GameRoom)
+    public void handleTimeout(GameRoom room, String winnerColor) {
+        if (room == null) return;
+        String roomId = room.getRoomId();
+        System.out.println("Handling timeout for room " + roomId + ". Winner: " + winnerColor);
+
+        // Tạo tin nhắn kết thúc game
+        Map<String, Object> endData = new HashMap<>();
+        endData.put("winner", winnerColor);
+        endData.put("reason", "timeout");
+
+        // Gửi tin nhắn và dọn dẹp phòng
+        notifyRoomPlayers(room, "end_game" ,endData);
+        room.setStatus("finished");
+        room.stopTimer();
+    }
+
+    // ✅ SỬA LẠI cleanupRoom để gọi stopTimer VÀ shutdown service
+    private void cleanupRoom(String roomId) {
+        GameRoom removedRoom = gameRooms.remove(roomId); // Xóa phòng khỏi map
+        if (removedRoom != null) {
+            System.out.println("Cleaning up room " + roomId);
+            removedRoom.stopTimer(); // Dừng task timer (nếu đang chạy)
+            removedRoom.shutdownTimerService(); // Giải phóng executor service của phòng
+            // ... (Logic khác nếu cần) ...
+        } else {
+            System.out.println("Cleanup called for non-existent room: " + roomId);
         }
     }
 
@@ -256,10 +398,8 @@ public class ChessServer extends WebSocketServer {
 
             // Gửi tin nhắn kết thúc cho CẢ HAI người chơi
             notifyRoomPlayers(room, "end_game", endData);
-
-            // Dọn dẹp phòng (dừng timer, xóa khỏi map)
-//            cleanupRoom(roomId);
-
+            room.setStatus("finished");
+            room.stopTimer();
         } else {
             // --- Xử lý TỪ CHỐI hòa ---
             System.out.println("Draw rejected in room " + roomId + " by " + respondingPlayer.getPlayerName());
@@ -284,15 +424,17 @@ public class ChessServer extends WebSocketServer {
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
+        room.getValidator().resetBoard();
         Map<String, Object> gameStartData = new HashMap<>();
-        gameStartData.put("gameState", room.getGameState());
+        gameStartData.put("gameState", room.getValidator().toFen());
         gameStartData.put("currentTurn", "white");
-
+        gameStartData.put("initialTimeMs", room.getInitialTimeMs());
+        room.startTimer();
         notifyRoomPlayers(room, "game_start", gameStartData);
     }
 
     //Send message to two players in Gameroom
-    private void notifyRoomPlayers(GameRoom room, String messagesType, Map<String, Object> data) {
+    public void notifyRoomPlayers(GameRoom room, String messagesType, Map<String, Object> data) {
         Map<String, Object> message = new HashMap<>();
         message.put("type", messagesType);
         message.putAll(data);
@@ -363,7 +505,7 @@ public class ChessServer extends WebSocketServer {
 
         String roomId = generateUniqueRoomId();
 
-        GameRoom room = new GameRoom(roomId);
+        GameRoom room = new GameRoom(roomId, 60000, this);
         player.setColor("white"); // Room creator is white
         room.addPlayer(player);
         gameRooms.put(roomId, room);
@@ -397,6 +539,7 @@ public class ChessServer extends WebSocketServer {
             return;
         }
 
+        long initialTimeMs = room.getInitialTimeMs();
         player.setColor("black"); // Joiner is black
         room.addPlayer(player);
 
@@ -405,7 +548,7 @@ public class ChessServer extends WebSocketServer {
         joinResponse.put("type", "room_joined");
         joinResponse.put("roomId", roomId);
         joinResponse.put("color", player.getColor());
-        joinResponse.put("gameState", room.getGameState());
+        joinResponse.put("gameState", room.getValidator().toFen());
         webSocket.send(gson.toJson(joinResponse));
 
         // Notify other players about new player
@@ -504,8 +647,101 @@ public class ChessServer extends WebSocketServer {
                 Map<String, Object> response = new HashMap<>();
                 response.put("winner", moveResult.winner);
                 notifyRoomPlayers(room, "end_game", response);
+                room.setStatus("finished");
+                room.stopTimer();
             }
 
+        }
+    }
+
+    private void handleRematchRequest(WebSocket webSocket, Map<String, Object> data) {
+        Player player = connectionPlayerMap.get(webSocket);
+        if (player == null) return;
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+
+        // Kiểm tra phòng và trạng thái
+        if (room == null || !"finished".equals(room.getStatus()) || !room.getPlayers().contains(player)) {
+            sendError(player.getConnection(), "Không thể yêu cầu tái đấu lúc này.");
+            return;
+        }
+
+        Player opponent = room.getOpponent(player);
+        // Kiểm tra đối thủ còn online không
+        if (opponent == null || !opponent.getConnection().isOpen()) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "rematch_unavailable");
+            response.put("reason", "Đối thủ đã offline.");
+            player.getConnection().send(gson.toJson(response));
+            // Có thể cân nhắc xóa phòng luôn ở đây nếu đối thủ offline
+            // cleanupRoom(roomId);
+            return;
+        }
+
+        String playerColor = player.getColor(); // Màu của người yêu cầu
+        String opponentColor = opponent.getColor();
+
+        System.out.println("Rematch request from " + player.getPlayerName() + " (" + playerColor + ") in room " + roomId);
+
+        // Kiểm tra xem đối thủ đã yêu cầu chưa
+        if (playerColor.equals(room.getRematchRequestedByColor())) {
+            System.out.println("Player already requested rematch."); // Đã yêu cầu rồi, không làm gì thêm
+            return;
+        }
+
+        if (opponentColor.equals(room.getRematchRequestedByColor())) {
+            // --- Cả hai đã yêu cầu -> Bắt đầu tái đấu ---
+            System.out.println("Both players requested rematch. Starting rematch in room " + roomId);
+
+            // 1. Đổi màu cờ
+            room.swapPlayerColors();
+
+            // 2. Reset trạng thái phòng (bàn cờ, thời gian, status, ...)
+            room.resetForRematch(); // Hàm này đã dừng timer cũ
+
+            // 3. Lấy thông tin player mới (sau khi đổi màu)
+            Player newWhitePlayer = room.getPlayerByColor("white");
+            Player newBlackPlayer = room.getPlayerByColor("black");
+
+            // 4. Gửi game_start cho cả hai với thông tin mới
+            Map<String, Object> gameStartData = new HashMap<>();
+            gameStartData.put("gameState", room.getValidator().toFen()); // FEN mới
+            gameStartData.put("currentTurn", "white"); // Luôn bắt đầu bằng trắng
+            gameStartData.put("initialTimeMs", room.getInitialTimeMs()); // Thời gian ban đầu
+            if (newWhitePlayer != null && newBlackPlayer != null) { // Gửi lại thông tin player
+                gameStartData.put("playerWhite", Map.of("id", newWhitePlayer.getPlayerId(), "name", newWhitePlayer.getPlayerName()));
+                gameStartData.put("playerBlack", Map.of("id", newBlackPlayer.getPlayerId(), "name", newBlackPlayer.getPlayerName()));
+            }
+            // Gửi màu mới cho từng người (QUAN TRỌNG)
+            Map<String, Object> colorP1 = new HashMap<>();
+            colorP1.put("type", "color");
+            colorP1.put("color", newWhitePlayer.getColor());
+            newWhitePlayer.getConnection().send(gson.toJson(colorP1));
+
+            Map<String, Object> colorP2 = new HashMap<>();
+            colorP2.put("type", "color");
+            colorP2.put("color", newBlackPlayer.getColor());
+            newBlackPlayer.getConnection().send(gson.toJson(colorP2));
+
+            notifyRoomPlayers(room,"game_start" ,gameStartData); // Gửi game_start chung
+
+            // 5. Bắt đầu timer mới
+            room.startTimer();
+
+        } else {
+            // --- Chỉ người này yêu cầu -> Gửi lời mời cho đối thủ ---
+            System.out.println("Sending rematch offer to " + opponent.getPlayerName());
+            room.setRematchRequestedByColor(playerColor); // Đánh dấu người đã yêu cầu
+
+            Map<String, Object> offerData = new HashMap<>();
+            offerData.put("type", "rematch_offer");
+            offerData.put("offeringPlayer", player.getPlayerName());
+            opponent.getConnection().send(gson.toJson(offerData));
+
+            // Thông báo cho người gửi là đã gửi lời mời (tùy chọn)
+            Map<String, Object> ackData = new HashMap<>();
+            ackData.put("type", "rematch_offer_sent");
+            player.getConnection().send(gson.toJson(ackData));
         }
     }
 
@@ -569,34 +805,64 @@ public class ChessServer extends WebSocketServer {
         System.setProperty("java.awt.headless", "true");
     }
 
-    private void handlePlayerDisconnect(Player player) {
-        // Remove from waiting queue
-        waitingQueue.remove(player);
+    private GameRoom findRoomByPlayer(Player player) {
+        // Kiểm tra đầu vào cơ bản
+        if (player == null) {
+            return null;
+        }
 
-        // Find and handle room disconnection
-        String roomToRemove = null;
-        for (Map.Entry<String, GameRoom> entry : gameRooms.entrySet()) {
-            GameRoom room = entry.getValue();
+        // Duyệt qua tất cả các giá trị (GameRoom instances) trong Map gameRooms
+        for (GameRoom room : gameRooms.values()) {
+            // Sử dụng phương thức contains() của danh sách người chơi trong phòng
+            // Điều này yêu cầu lớp Player phải override equals() và hashCode() đúng cách (dựa trên playerId),
+            // code Player.java của bạn đã làm điều này.
             if (room.getPlayers().contains(player)) {
-                room.removePlayer(player);
-
-                if (room.isEmpty()) {
-                    roomToRemove = entry.getKey();
-                } else {
-                    // Notify other players
-                    Map<String, Object> disconnectData = new HashMap<>();
-                    disconnectData.put("disconnectedPlayer", player.getPlayerName());
-                    notifyRoomPlayers(room, "player_disconnected", disconnectData);
-                }
-                break;
+                return room; // Trả về phòng ngay khi tìm thấy người chơi
             }
         }
 
-        if (roomToRemove != null) {
-            gameRooms.remove(roomToRemove);
-        }
+        // Nếu duyệt qua tất cả các phòng mà không tìm thấy người chơi
+        return null;
+    }
 
-        broadcastRoomsList();
+    private void handlePlayerDisconnect(Player player) {
+        System.out.println("Player disconnected: " + player.getPlayerName());
+        waitingQueue.remove(player);
+        GameRoom room = findRoomByPlayer(player);
+        if (room != null) {
+            String roomId = room.getRoomId();
+            room.removePlayer(player);
+            System.out.println("Player " + player.getPlayerName() + " removed from room " + roomId + " due to disconnect.");
+
+            if (room.isEmpty()) {
+                System.out.println("Room " + roomId + " is empty after disconnect, cleaning up.");
+                cleanupRoom(roomId);
+            } else {
+                Player remainingPlayer = room.getPlayers().get(0);
+                if ("playing".equals(room.getStatus())) { // Xử lý thua nếu đang chơi
+                    String winnerColor = remainingPlayer.getColor();
+                    Map<String, Object> endData = new HashMap<>();
+                    endData.put("type", "end_game");
+                    endData.put("winner", winnerColor);
+                    endData.put("reason", "opponent_disconnected");
+                    if(remainingPlayer.getConnection().isOpen()) {
+                        remainingPlayer.getConnection().send(gson.toJson(endData));
+                    }
+                    cleanupRoom(roomId);
+                } else { // Phòng chờ hoặc kết thúc, chỉ thông báo
+                    Map<String, Object> disconnectData = new HashMap<>();
+                    disconnectData.put("type", "player_disconnected"); // Type riêng
+                    disconnectData.put("disconnectedPlayerName", player.getPlayerName());
+                    if(remainingPlayer.getConnection().isOpen()) {
+                        remainingPlayer.getConnection().send(gson.toJson(disconnectData));
+                    }
+                    // Nếu phòng 'waiting', xóa luôn
+                    if ("waiting".equals(room.getStatus())) {
+                        cleanupRoom(roomId);
+                    }
+                }
+            }
+        }
     }
 
     private void handleGetHistory(WebSocket webSocket, Map<String, Object> data) {
