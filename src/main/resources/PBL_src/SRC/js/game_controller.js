@@ -15,6 +15,10 @@ let roomId = null;
 let gameActive = false;
 let currentTurn = 'white';
 let isWhiteMove = true;
+let validMoveSquares = [];
+let isKingInCheckState = false;
+window.validMoveSquares = validMoveSquares;
+
 // Nếu chưa có, hãy thêm vào đầu file này:
 const PIECES = {
     'r':'\u265C','n':'\u265E','b':'\u265D','q':'\u265B','k':'\u265A','p':'\u265F', // black
@@ -192,6 +196,7 @@ function onRoomCreatedOrJoined(msg) {
 }
 
 function onGameStart(msg) {
+    isKingInCheckState = false;
     gameActive = true;
     if (msg.playerWhite && msg.playerBlack) {
         const whitePlayer = msg.playerWhite;
@@ -219,45 +224,51 @@ function onGameStart(msg) {
 }
 
 function onMoveResult(msg) {
-    console.log("Move Result message received.");
-    if (msg.fen && msg.LMfrom && window.algToCoord) { // Kiểm tra cả lastMove
+    // ✅ SỬA LẠI: Kiểm tra msg.lastMove là object và có from/to
+    if (msg.fen && msg.lastMove && typeof msg.lastMove === 'object' && msg.lastMove.from && msg.lastMove.to && window.algToCoord) {
 
-        // 1. Lấy tọa độ nước đi cuối
-        const fromCoord = window.algToCoord(msg.LMfrom);
-        const toCoord = window.algToCoord(msg.LMto);
+        const fromCoord = window.algToCoord(msg.lastMove.from); // Đọc từ object lastMove
+        const toCoord = window.algToCoord(msg.lastMove.to);     // Đọc từ object lastMove
 
-        // 2. Lấy bàn cờ TRƯỚC KHI cập nhật FEN
+        // Lấy bàn cờ TRƯỚC KHI cập nhật FEN
         const oldGameData = decodeFEN(currentFEN);
         const oldBoardArray = oldGameData.board;
-        const turnBeforeMove = oldGameData.turn; // Lượt đi trước đó (chính là màu quân vừa đi)
+        const turnBeforeMove = oldGameData.turn; // Lượt đi trước đó
 
-        // 3. Lấy ký tự quân cờ TỪ BÀN CỜ CŨ
+        // Lấy ký tự quân cờ TỪ BÀN CỜ CŨ
         let movedPieceChar = '';
-        if (fromCoord && oldBoardArray[fromCoord.r] && oldBoardArray[fromCoord.r][fromCoord.c]) {
+        if (fromCoord && oldBoardArray[fromCoord.r] !== undefined && oldBoardArray[fromCoord.r][fromCoord.c] !== undefined) {
             movedPieceChar = oldBoardArray[fromCoord.r][fromCoord.c];
         } else {
-            console.warn("Không thể lấy ký tự quân cờ từ tọa độ 'from'");
+            console.warn("Cannot get moved piece char from 'from' coord:", fromCoord);
         }
 
-        // 4. Cập nhật trạng thái mới
+        // Cập nhật trạng thái mới
         currentFEN = msg.fen;
+        isKingInCheckState = msg.isCheck || false;
         const newGameData = decodeFEN(currentFEN);
         currentTurn = newGameData.turn; // Cập nhật lượt đi MỚI
+        lastMove = { from: fromCoord, to: toCoord }; // Lưu dạng {r, c} cho renderGame
+        console.log('Updated lastMove variable:', lastMove);
 
-        lastMove = { from: fromCoord, to: toCoord }; // Cập nhật lastMove (dạng {r, c})
+        // Gọi addMoveToHistory với dữ liệu từ msg.lastMove
+        addMoveToHistory(msg.lastMove.from, msg.lastMove.to, turnBeforeMove, movedPieceChar);
 
-        // 5. ✅ GỌI HÀM VỚI ĐỦ THÔNG TIN (bao gồm pieceChar)
-        addMoveToHistory(msg.LMfrom, msg.LMto, turnBeforeMove, movedPieceChar);
-
-        // 6. Render và cập nhật status
+        // Render và cập nhật status
         renderGame();
         updateStatus();
 
     } else {
-        console.warn("Received move_result without FEN or lastMove:", msg);
-        // Xử lý nước đi không hợp lệ (nếu cần)
+        // Log chi tiết hơn nếu thiếu dữ liệu
+        console.warn("Received move_result with missing/invalid data (fen, lastMove.from, lastMove.to):", msg);
         if (msg.result === false) {
             alert("Nước đi không hợp lệ: " + (msg.message || ''));
+        }
+        // Thêm dòng này để render lại trạng thái cũ nếu nước đi không hợp lệ nhưng có fen (hiếm gặp)
+        else if (msg.fen) {
+            currentFEN = msg.fen; // Cập nhật FEN nếu có, dù lastMove thiếu
+            renderGame();
+            updateStatus();
         }
     }
 }
@@ -303,20 +314,20 @@ function addMoveToHistory(fromAlg, toAlg, movedColor, pieceChar) {
     const pieceIcon = PIECES[pieceChar] || ''; // Lấy icon, nếu không có thì để trống
 
     // Tạo text (Icon + Nước đi)
-    const moveText = `${pieceIcon}${fromAlg}->${toAlg}`;
+    const moveText = `${pieceIcon}${toAlg}`;
 
     let listItem;
 
     if (isWhiteMove) {
         // Bắt đầu một hàng mới cho nước đi của Trắng
         listItem = document.createElement('li');
-        listItem.textContent = `${moveText}   `;
+        listItem.textContent = `${moveText}`;
         moveListEl.appendChild(listItem);
     } else {
         // Thêm nước đi của Đen vào hàng hiện tại
         listItem = moveListEl.lastElementChild; // Lấy <li> cuối cùng
         if (listItem) {
-            listItem.textContent += ` ${moveText}`; // Thêm vào sau nước đi của Trắng
+            listItem.textContent += `     ${moveText}`; // Thêm vào sau nước đi của Trắng
         }
     }
 
@@ -462,7 +473,7 @@ registerHandler('color', onRoomCreatedOrJoined);
 registerHandler('draw_offer', onDrawOfferReceived);
 registerHandler('draw_rejected', onDrawRejected);
 registerHandler('player_left', onPlayerLeft);
-
+registerHandler('valid_moves',onValidMovesReceived)
 
 // ==========================
 // 6. LOGIC RENDER VÀ INPUT
@@ -528,7 +539,7 @@ function renderGame() {
     if (roomInfoEl) roomInfoEl.textContent = roomId;
     if (colorInfoEl) colorInfoEl.textContent = yourColor;
 
-    const state = { selected: selectedSquare, lastMove: lastMove, flipped: yourColor === 'black', currentTurn: currentTurn };
+    const state = { selected: selectedSquare, lastMove: lastMove, flipped: yourColor === 'black', currentTurn: currentTurn, isCheck: isKingInCheckState };
 
     if (window.renderChessBoard) {
         window.renderChessBoard(boardArray, state);
@@ -548,9 +559,18 @@ window.handleBoardInput = function(fromR, fromC, toR, toC) {
         const piece = window.renderChessBoard.currentBoardState[fromR][fromC];
         if (selectedSquare && selectedSquare.r === fromR && selectedSquare.c === fromC) {
             selectedSquare = null; // Bỏ chọn
+            window.validMoveSquares = [];
         } else if (piece && isPieceOurColor(piece)) {
             selectedSquare = { r: fromR, c: fromC }; // Chọn quân mới
+            window.validMoveSquares = [];
+            sendMessage({
+                type: "get_valid_moves", // Loại tin nhắn mới
+                square: window.coordToAlg(fromR, fromC), // Gửi ô cờ dạng "e2"
+                roomId: roomId
+            });
+            renderGame();
         } else if (selectedSquare) {
+            window.validMoveSquares = [];
             // Click vào ô đích khi đã có quân chọn -> MOVE
             const fromAlg = window.coordToAlg(selectedSquare.r, selectedSquare.c);
             const toAlg = window.coordToAlg(fromR, fromC);
@@ -558,10 +578,12 @@ window.handleBoardInput = function(fromR, fromC, toR, toC) {
             selectedSquare = null;
         } else {
             selectedSquare = null;
+            window.validMoveSquares = [];
         }
     }
     // Xử lý Move (Drag/Drop hoặc Click-Click)
     else {
+        window.validMoveSquares = [];
         const fromAlg = window.coordToAlg(fromR, fromC);
         const toAlg = window.coordToAlg(toR, toC);
         window.sendMove(fromAlg, toAlg);
@@ -570,6 +592,13 @@ window.handleBoardInput = function(fromR, fromC, toR, toC) {
 
     renderGame();
 };
+
+function onValidMovesReceived(msg) {
+    // Lưu lại danh sách ô đích hợp lệ
+    window.validMoveSquares = msg.moves || [];
+    // Gọi renderGame() để vẽ lại highlight cho các ô này
+    renderGame();
+}
 
 // NHƯNG SỬA sendMove ĐỂ DÙNG sendMessage
 window.sendMove = function(fromAlg, toAlg) {
