@@ -83,6 +83,65 @@ html,body{
   z-index:1000;}
 /* .menu-banbe:hover .friends-list{display:block;} */
 
+/* CSS cho Popup Chọn Thời gian */
+.time-control-popup h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #ffd27f;
+}
+
+.time-options {
+    display: flex;
+    flex-direction: column; /* Hoặc 'row' nếu muốn nút nằm ngang */
+    gap: 10px;
+    margin-bottom: 20px;
+}
+#moveList li {
+    /* Style cho mỗi dòng lịch sử (nếu cần) */
+    margin-bottom: 4px; /* Khoảng cách giữa các dòng */
+    line-height: 1.4; /* Chiều cao dòng */
+    color: #fff6e5; /* Màu chữ lịch sử */
+}
+
+#moveList .move {
+    display: inline-block; /* Cho phép đặt margin */
+}
+:root {
+    --button-radius: 8px; /* Hoặc giá trị bo góc bạn muốn */
+    /* ... các biến CSS khác ... */
+    --white-square: #f0d9b5;
+    --black-square: #b58863;
+    --text-primary: #e6eef8;
+    /* ... */
+}
+#moveList .black-move {
+    margin-left: 50px; /* ✅ TẠO KHOẢNG CÁCH: Thêm lề trái cho nước đi của Đen */
+    /* Bạn có thể tăng/giảm giá trị 15px này */
+}
+.time-btn {
+    padding: 10px 15px;
+    border: none;
+    border-radius: var(--button-radius, 8px);
+    background: linear-gradient(135deg, rgba(255, 165, 0, 0.85), rgba(255, 140, 0, 0.85));
+    color: white;
+    font-size: 1em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.time-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 180, 40, 0.9), rgba(255, 160, 20, 0.9));
+    transform: translateY(-2px);
+}
+
+#cancelTimeSelectionBtn {
+    background: linear-gradient(135deg, #6c757d, #5a6268); /* Màu xám */
+}
+#cancelTimeSelectionBtn:hover {
+    background: linear-gradient(135deg, #868e96, #6c757d);
+}
+
 .title {
     align-content: center;
     align-items: center;
@@ -536,65 +595,81 @@ border: 1px solid rgba(255, 165, 0, 0.3);
 }
 
 .player-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 60%;
-  margin: 10px auto;
-  padding: 8px 16px;
-  border-radius: 16px;
-  background: rgba(240, 217, 181, 0.7); /* màu trắng ngà nhạt từ ô sáng */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  backdrop-filter: blur(6px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  color: #333;
-  display: none;
+    display: flex;
+    justify-content: space-between; /* Đẩy tên/quân ăn sang trái, thời gian sang phải */
+    align-items: center; /* Căn giữa theo chiều dọc */
+    width: 60%; /* Hoặc kích thước phù hợp */
+    margin: 8px auto; /* Giảm margin một chút */
+    padding: 10px 15px;
+    border-radius: 10px; /* Giảm bo góc */
+    background: rgba(0, 0, 0, 0.2); /* Nền tối mờ chung */
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    color: var(--text-primary, #e6eef8); /* Dùng biến màu chữ chính */
 }
 
-.player-bar:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-}
-
+/* Thanh trên (thường là đối thủ) */
 .top-player {
-  background: rgba(181, 136, 99, 0.7); /* màu nâu ô đậm */
-  color: #333;
+    background: rgba(0, 0, 0, 0.3); /* Nền tối hơn chút */
+}
+.player-bar.hidden {
+    display: none;
 }
 
+/* Thanh dưới (thường là bạn) */
 .bottom-player {
-  background: rgba(240, 217, 181, 0.85);
-  color: #333;
+    background: rgba(50, 50, 50, 0.3); /* Nền sáng hơn chút */
 }
 
-.player-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.player-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(255,255,255,0.6);
+/* Phần chi tiết (Tên + Quân ăn được) */
+.player-details {
+    display: flex;
+    flex-direction: column; /* Xếp tên trên, quân ăn được dưới */
+    gap: 4px; /* Khoảng cách nhỏ giữa tên và quân */
 }
 
 .player-name {
-  font-weight: 600;
-  font-size: 1.1em;
+    font-weight: 600;
+    font-size: 1.1em;
 }
 
-.player-status {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 1.2em;
-  font-weight: bold;
+/* Khu vực chứa quân cờ ăn được */
+.captured-pieces {
+    display: flex; /* Xếp các quân cờ ăn được nằm ngang */
+    gap: 2px;     /* Khoảng cách nhỏ giữa các quân */
+    height: 18px; /* Giới hạn chiều cao */
+    align-items: center;
 }
 
-.player-side {
-  font-size: 1.5em;
+/* Style cho từng quân cờ bị ăn (dùng span) */
+.captured-pieces span {
+    font-size: 14px; /* Kích thước nhỏ */
+    opacity: 0.8; /* Hơi mờ đi */
+}
+
+/* Đồng hồ thời gian */
+.player-time {
+    font-size: 1.6em; /* To, rõ ràng */
+    font-weight: bold;
+    font-variant-numeric: tabular-nums; /* Giữ chiều rộng số ổn định */
+    color: #ffffff; /* Màu trắng cho nổi bật */
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5); /* Đổ bóng nhẹ */
+}
+
+/* (Tùy chọn) Style khi đến lượt (có thể giữ lại từ trước) */
+.player-bar.active-turn {
+    background: rgba(255, 165, 0, 0.3);
+    box-shadow: 0 0 15px rgba(255, 165, 0, 0.5);
+}
+/* Style khi gần hết giờ (ví dụ < 30 giây) */
+.player-bar.low-time .player-time {
+    color: #ff4d4d; /* Chuyển sang màu đỏ */
+    animation: pulse-time 1s infinite alternate; /* Hiệu ứng nhấp nháy */
+}
+@keyframes pulse-time {
+    from { opacity: 1; }
+    to { opacity: 0.7; }
 }
 
 .game-controls-wrapper {

@@ -23,6 +23,10 @@ const confirmTitleEl = document.getElementById('confirmTitle');
 const confirmMessageEl = document.getElementById('confirmMessage');
 const confirmBtnYes = document.getElementById('confirmBtnYes');
 const confirmBtnNo = document.getElementById('confirmBtnNo');
+// === THÊM ELEMENT CHO POPUP CHỌN THỜI GIAN ===
+const timeControlOverlay = document.getElementById('time-control-overlay');
+const timeOptionsContainer = timeControlOverlay?.querySelector('.time-options');
+const cancelTimeSelectionBtn = document.getElementById('cancelTimeSelectionBtn');
 
 let matchmakingIntervalId = null; // ID để dừng setInterval
 let matchmakingStartTime = 0;   // Thời điểm bắt đầu tìm trận
@@ -156,14 +160,58 @@ function showConfirmationPopup(title, message) {
     });
 }
 
-function showLobbyView() {
+function selectTimeControl() {
+    return new Promise((resolve) => {
+        if (!timeControlOverlay || !timeOptionsContainer || !cancelTimeSelectionBtn) {
+            console.error("Không tìm thấy element của popup chọn thời gian!");
+            resolve(null); // Trả về null nếu không có popup
+            return;
+        }
+
+        // Xóa listener cũ (nếu có) và gán listener mới cho các nút thời gian
+        timeOptionsContainer.querySelectorAll('.time-btn').forEach(button => {
+            const timeMs = parseInt(button.dataset.time);
+            // Tạo listener mới mỗi lần mở popup để tránh lỗi closure
+            const clickHandler = () => {
+                timeControlOverlay.classList.add('hidden');
+                resolve(timeMs); // Trả về thời gian đã chọn (ms)
+            };
+            // Gỡ listener cũ trước khi gắn mới (quan trọng!)
+            button.replaceWith(button.cloneNode(true)); // Cách đơn giản để xóa mọi listener
+            timeControlOverlay.querySelector(`[data-time="${timeMs}"]`).addEventListener('click', clickHandler);
+        });
+
+        // Gán listener cho nút Hủy
+        const cancelHandler = () => {
+            timeControlOverlay.classList.add('hidden');
+            resolve(null); // Trả về null khi hủy
+        };
+        cancelTimeSelectionBtn.replaceWith(cancelTimeSelectionBtn.cloneNode(true));
+        document.getElementById('cancelTimeSelectionBtn').addEventListener('click', cancelHandler);
+
+
+        // Hiển thị popup
+        timeControlOverlay.classList.remove('hidden');
+    });
+}
+
+function showLobbyView(selectedTimeMs = null) {
     if (rightPanel) rightPanel.innerHTML = getLobbyHTML();
     // Kích hoạt kết nối
-    sendMessage({
-        type: "connect",
-        playerName: playerName,
-        playerId: localStorage.getItem("playerId") // Gửi cả ID (nếu có)
-    });
+    if(selectedTimeMs !== null) {
+        sendMessage({
+            type: "connect",
+            playerName: playerName,
+            playerId: localStorage.getItem("playerId"), // Gửi cả ID (nếu có)
+            timeControl: selectedTimeMs
+        });
+        const lobbyStatusEl = document.getElementById('lobbyStatus');
+        if (lobbyStatusEl) lobbyStatusEl.textContent = 'Đã kết nối, đang tìm trận...';
+    }
+    else {
+        const lobbyStatusEl = document.getElementById('lobbyStatus');
+        if (lobbyStatusEl) lobbyStatusEl.textContent = 'Chọn cách tìm trận.';
+    }
 }
 
 window.showGameOverPopup = function(result, reason) {
@@ -208,14 +256,13 @@ window.showGameOverPopup = function(result, reason) {
 
     // Nút Tái đấu: Gửi yêu cầu lên server
     rematchBtn.onclick = () => {
-        gameOverOverlay.classList.add('hidden'); // Ẩn popup
         if (window.requestRematch) {
-            window.requestRematch(); // Gọi hàm gửi yêu cầu tái đấu
-            // Có thể hiển thị thông báo "Đã gửi yêu cầu tái đấu"
-            alert("Đã gửi yêu cầu tái đấu!");
+            console.log(window.requestRematch);
+            window.requestRematch(); // Gọi hàm gửi yêu cầu
         } else {
             console.error("Chưa có hàm window.requestRematch!");
-            // Tạm thời chỉ quay lại lobby
+            // Ẩn popup và quay lại lobby nếu không có hàm
+            gameOverOverlay.classList.add('hidden');
             showLobbyView();
         }
     };
@@ -326,7 +373,15 @@ document.addEventListener('DOMContentLoaded', function () {
         // 1. Click "Chơi trực tuyến"
         const onlineModeBtn = event.target.closest('.mode[data-mode="online"]');
         if (onlineModeBtn) {
-            showLobbyView();
+            const selectedTime = await selectTimeControl();
+
+            if (selectedTime !== null) {
+                // Nếu người dùng đã chọn thời gian -> vào lobby và gửi yêu cầu tìm trận
+                showLobbyView(selectedTime);
+            } else {
+                // Nếu người dùng hủy -> không làm gì cả hoặc chỉ vào lobby
+                // showLobbyView(); // Chỉ vào lobby, không tìm trận
+            }
             return;
         }
 
@@ -354,16 +409,20 @@ document.addEventListener('DOMContentLoaded', function () {
         // 5. Click "Ghép trận"
         const matchmakingBtn = event.target.closest('#matchmakingBtn');
         if (matchmakingBtn && window.findNewGame) {
-
-            // ✅ HIỂN THỊ POPUP TRƯỚC KHI GỬI YÊU CẦU
-            showMatchmakingPopup();
-
-            // Vô hiệu hóa nút và đổi text (có thể làm trong showMatchmakingPopup)
-            matchmakingBtn.disabled = true;
-
-            matchmakingBtn.textContent = "Đang tìm...";
-
-            window.findNewGame(); // Gọi hàm gửi yêu cầu ghép trận
+            // ✅ HIỂN THỊ LẠI POPUP CHỌN THỜI GIAN
+            const selectedTime = await selectTimeControl();
+            if (selectedTime !== null) {
+                showMatchmakingPopup(); // Hiện popup chờ
+                matchmakingBtn.disabled = true;
+                matchmakingBtn.textContent = "Đang tìm...";
+                // Gửi yêu cầu tìm trận KÈM thời gian
+                sendMessage({
+                    type: "join", // Hoặc type khác tùy server
+                    playerName: playerName,
+                    playerId: localStorage.getItem("playerId"),
+                    timeControl: selectedTime
+                });
+            }
             return;
         }
         // 6. Click "Cầu hòa" (#drawRequestBtn trong Game View)
