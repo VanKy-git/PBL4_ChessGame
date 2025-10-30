@@ -1,13 +1,324 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Chess Game</title>
-  <link rel="stylesheet" href="../css/Chess_board.css">
-</head>
-<body>
-  <div class="board" id="chessBoard"></div>
-  <script src="../js/Chess_board.js"></script>
-  <!-- <script src="../js/chessboardtest.js"></script> -->
-</body>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chess Board Offline Test</title>
+    <style>
+      /* CSS CƠ BẢN CHO BÀN CỜ */
+      :root {
+        --size: 70px; /* Kích thước ô cờ */
+        --light-color: #f0d9b5;
+        --dark-color: #b58863;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #333;
+        margin: 0;
+      }
+      .board-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(8, var(--size));
+        grid-template-rows: repeat(8, var(--size));
+        border: 5px solid #222;
+        user-select: none;
+      }
+      .square {
+        width: var(--size);
+        height: var(--size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+      }
+      .square.white {
+        background-color: var(--light-color);
+      }
+      .square.black {
+        background-color: var(--dark-color);
+      }
+      .square img {
+        width: 90%;
+        height: 90%;
+        object-fit: contain;
+        pointer-events: none; /* Quan trọng cho việc click/drag */
+      }
+      .square.highlight {
+        box-shadow: inset 0 0 0 5px rgba(0, 255, 0, 0.7);
+      }
+      .square.last-move {
+        background-color: rgba(255, 255, 0, 0.3) !important;
+      }
+
+      /* Tọa độ (Chỉ để Test) */
+      .coord-row {
+        display: flex;
+        width: calc(8 * var(--size));
+        justify-content: space-around;
+        color: white;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="board-container">
+      <div style="color: white; margin-bottom: 10px">
+        CHẾ ĐỘ TEST OFFLINE (Di chuyển Tự do)
+      </div>
+
+      <div class="board" id="chessBoard"></div>
+
+      <div class="coord-row">
+        <div>A</div>
+        <div>B</div>
+        <div>C</div>
+        <div>D</div>
+        <div>E</div>
+        <div>F</div>
+        <div>G</div>
+        <div>H</div>
+      </div>
+    </div>
+
+    <script>
+      // =======================================================
+      // I. BIẾN VÀ HÀM QUẢN LÝ TRẠNG THÁI (Controller Logic)
+      // =======================================================
+
+      let currentFEN =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+      let selectedSquare = null; // {r, c}
+      let lastMove = null; // {from, to}
+      let boardElement = document.getElementById("chessBoard");
+      let currentBoardState = null; // Để lưu mảng 8x8 phục vụ Input
+
+      // Hàm Phân tích FEN (Đã sửa lỗi để có thể hoạt động)
+      function decodeFEN(fen) {
+        const parts = fen.split(" ");
+        const boardPart = parts[0];
+        const turn = parts[1] === "w" ? "white" : "black";
+
+        let boardArray = [];
+        const ranks = boardPart.split("/");
+        ranks.forEach((rank) => {
+          let row = [];
+          for (const char of rank) {
+            if (/\d/.test(char)) {
+              for (let i = 0; i < parseInt(char); i++) {
+                row.push("");
+              }
+            } else {
+              row.push(char);
+            }
+          }
+          boardArray.push(row);
+          while (row.length < 8) row.push("");
+        });
+        return { board: boardArray, turn: turn };
+      }
+
+      // Hàm Tạo FEN từ Board (Đơn giản hóa cho chế độ test cục bộ)
+      function generateFENFromBoard(boardArray) {
+        let fen = "";
+        for (let r = 0; r < 8; r++) {
+          let emptyCount = 0;
+          for (let c = 0; c < 8; c++) {
+            const piece = boardArray[r][c];
+            if (piece === "") {
+              emptyCount++;
+            } else {
+              if (emptyCount > 0) {
+                fen += emptyCount;
+                emptyCount = 0;
+              }
+              fen += piece;
+            }
+          }
+          if (emptyCount > 0) {
+            fen += emptyCount;
+          }
+          if (r < 7) {
+            fen += "/";
+          }
+        }
+        // Giả định trạng thái FEN phụ không thay đổi (w KQkq - 0 1)
+        return fen + " w KQkq - 0 1";
+      }
+
+      // =======================================================
+      // II. LOGIC DI CHUYỂN CỤC BỘ (Offline Test Handler)
+      // =======================================================
+
+      function handleLocalMove(fromR, fromC, toR, toC) {
+        const gameData = decodeFEN(currentFEN);
+        const boardArray = gameData.board;
+
+        // Lấy quân cờ
+        const piece = boardArray[fromR][fromC];
+        if (!piece) return; // Đảm bảo có quân để di chuyển
+
+        // Cập nhật mảng Board
+        boardArray[toR][toC] = piece;
+        boardArray[fromR][fromC] = "";
+
+        // Cập nhật trạng thái FEN và nước đi cuối
+        currentFEN = generateFENFromBoard(boardArray);
+        lastMove = { from: { r: fromR, c: fromC }, to: { r: toR, c: toC } };
+        selectedSquare = null;
+      }
+
+      // =======================================================
+      // III. HÀM RENDER (View Logic)
+      // =======================================================
+
+      // Helper: Chuyển đổi tọa độ mảng (0-7) thành ký hiệu FEN (A1-H8)
+      function coordToAlg(r, c) {
+        const file = String.fromCharCode("a".charCodeAt(0) + c);
+        const rank = 8 - r;
+        return file + rank;
+      }
+
+      // Hàm chính để vẽ lại bàn cờ
+      function renderBoard() {
+        const gameData = decodeFEN(currentFEN);
+        const boardArray = gameData.board;
+        currentBoardState = boardArray; // Lưu lại mảng cho logic Input
+
+        boardElement.innerHTML = "";
+
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            // Trong chế độ test đơn giản, ta không cần xoay bàn cờ (rr=r, cc=c)
+            const square = document.createElement("div");
+            square.classList.add("square");
+            square.dataset.r = r;
+            square.dataset.c = c;
+
+            if ((r + c) % 2 === 0)
+              square.classList.add("black"); // Đổi màu để dễ nhìn
+            else square.classList.add("white");
+
+            // HIGH LIGHTS
+            if (
+              selectedSquare &&
+              selectedSquare.r === r &&
+              selectedSquare.c === c
+            ) {
+              square.classList.add("highlight");
+            }
+            if (
+              lastMove &&
+              ((lastMove.from.r === r && lastMove.from.c === c) ||
+                (lastMove.to.r === r && lastMove.to.c === c))
+            ) {
+              square.classList.add("last-move");
+            }
+
+            const piece = boardArray[r][c];
+            if (piece) {
+              // Logic lấy tên file hình ảnh (thích ứng với tên file có/không tiền tố)
+              let fileName = piece;
+              if (piece === piece.toUpperCase()) {
+                fileName = piece; // Trắng: R, Q, K
+              } else {
+                fileName = "b" + piece.toUpperCase(); // Đen: bR, bQ, bK, (giả định)
+              }
+
+              const img = document.createElement("img");
+              // CHỈNH SỬA ĐƯỜNG DẪN NÀY CHO CHÍNH XÁC VỚI FILE HÌNH ẢNH CỦA BẠN
+              img.src = `../../PBL4_imgs/image/${fileName}.png`;
+              img.alt = piece;
+              img.draggable = true;
+              square.appendChild(img);
+            }
+
+            // Gán sự kiện Input
+            square.addEventListener("click", handleInputClick);
+
+            boardElement.appendChild(square);
+          }
+        }
+      }
+
+// TRONG <script> của chess_board.html, thay thế các hàm tương ứng
+
+// =======================================================
+// IV. XỬ LÝ INPUT (Tương tác UI) - Đã sửa lỗi Drag & Drop
+// =======================================================
+
+let dragStartPos = null;
+
+// Xử lý Dragstart (Bắt đầu kéo)
+boardElement.addEventListener("dragstart", (e) => {
+    const img = e.target.closest("img");
+    if (img) {
+        const parentSquare = img.parentElement;
+        dragStartPos = {
+            r: parseInt(parentSquare.dataset.r),
+            c: parseInt(parentSquare.dataset.c),
+            // Lưu tham chiếu DOM của hình ảnh GỐC
+            draggedImg: img 
+        };
+        selectedSquare = { r: dragStartPos.r, c: dragStartPos.c }; // Đặt trạng thái chọn để highlight
+        
+        // Ẩn hình ảnh gốc (Chỉ thay đổi opacity, KHÔNG dùng style.display)
+        setTimeout(() => {
+            img.style.opacity = 0.1; 
+        }, 0);
+        
+        renderBoard(); // Cập nhật highlight
+    }
+});
+
+// Xử lý Dragend (Kết thúc kéo, dù thành công hay thất bại)
+boardElement.addEventListener("dragend", (e) => {
+    // Luôn phục hồi opacity của hình ảnh gốc ngay sau khi kết thúc kéo
+    const img = e.target.closest("img");
+    if (img) img.style.opacity = 1;
+    
+    dragStartPos = null;
+    selectedSquare = null;
+    renderBoard(); // Vẽ lại để xóa highlight nếu không có drop
+});
+
+
+boardElement.addEventListener("dragover", (e) => e.preventDefault());
+
+// Xử lý Drop (Thả quân)
+boardElement.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const square = e.target.closest(".square");
+    if (!square || !dragStartPos) return;
+
+    const toR = parseInt(square.dataset.r);
+    const toC = parseInt(square.dataset.c);
+    
+    // THỰC HIỆN DI CHUYỂN CỤC BỘ
+    handleLocalMove(dragStartPos.r, dragStartPos.c, toR, toC);
+
+    // Dọn dẹp: selectedSquare đã được handleLocalMove() xử lý.
+    // KHÔNG CẦN phục hồi opacity ở đây, dragend sẽ làm điều đó tự động.
+    
+    // KHÔNG cần gọi renderBoard() ở đây, vì handleLocalMove đã gọi nó.
+    // Nếu bạn muốn đảm bảo renderBoard được gọi:
+    renderBoard(); 
+});
+
+      // =======================================================
+      // V. KHỞI TẠO
+      // =======================================================
+      document.addEventListener("DOMContentLoaded", renderBoard);
+    </script>
+  </body>
 </html>

@@ -17,7 +17,7 @@
         historyContainer.innerHTML = list.map(match => `
             <div class="match-item" style="
             background:rgba(0, 0, 0, 0.7);padding:10px;border-radius:8px;margin:8px 0;
-            box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
+            box-shadow: 0 4px 14px rgba(20, 128, 129, 0.5);
             text-align:left;
             ">
             <strong>${match.playerX}</strong> vs <strong>${match.playerO}</strong><br>

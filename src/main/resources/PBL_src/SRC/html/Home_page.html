@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="../css/Home_page.css">
     <link rel="stylesheet" href="../css/Chess_board.css">
+    <link rel="stylesheet" href="../css/Account_setting.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
     <link rel="icon" href="../../PBL4_imgs/icon/logo.jpg"> 
     <title>Trang chủ — Game Cờ Vua</title>
@@ -95,6 +96,17 @@
             </div>
         </aside>
     </div>
+
+    <div id="levelPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content">
+            <h2>Chọn mức độ AI</h2>
+            <div class="level-options">
+                <button class="level-btn" data-level="easy">Dễ</button>
+                <button class="level-btn" data-level="medium">Trung bình</button>
+                <button class="level-btn" data-level="hard">Khó</button>
+            </div>
+            <button id="levelClose" class="close-btn">Đóng</button>
+        </div>
 
     <div id="historyPopup" class="popup-overlay" style="display:none;">
         <div class="popup-content" style="max-height:80vh;overflow-y:auto;">

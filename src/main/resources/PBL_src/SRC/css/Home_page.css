@@ -1,12 +1,24 @@
 *{box-sizing:border-box}
-html,body{
-  height:100%;
-  margin:0;
-  font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  color:#e6eef8;
-  background:url(../../PBL4_imgs/image/background5.png) no-repeat center center fixed;
-  background-size:cover;}
-  
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color: #e6eef8;
+
+  /* Nền chính */
+  background-color: #0f172a;
+
+  /* Hiệu ứng Blue Radial Glow như React code */
+  background-image: radial-gradient(
+    circle 600px at 50% 50%,
+    rgba(59, 130, 246, 0.3),
+    transparent
+  );
+
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+}
 .muted{opacity:0.7;font-size:13px}
 .menu {position: relative;;}
 .friends-list{
@@ -17,7 +29,6 @@ html,body{
   padding:10px 15px;
   border-radius:8px;
   z-index:1000;}
-/* .menu-banbe:hover .friends-list{display:block;} */
 
 .title {
     align-content: center;
@@ -30,7 +41,7 @@ html,body{
       justify-content: space-between;    /* căn giữa */
       align-items: stretch;    /* canh từ trên */
       gap: 18px;
-      padding: 24px;
+      padding: 15px;
       min-height: 100vh;
       box-sizing: border-box;
   }
@@ -38,7 +49,7 @@ html,body{
   
       /* left sidebar */
       .left{
-        background: rgba(255, 140, 0, 0.15);
+        background: rgba(16, 185, 129, 0.15);
         border-radius:12px;
         padding:18px;
         color:#dce9ff;
@@ -46,8 +57,8 @@ html,body{
         flex-direction:column;
         gap:14px;
         flex: 0 0 260px;
-        box-shadow: 0 8px 25px rgba(255, 120, 0, 0.4);
-        border: 1px solid rgba(255, 165, 0, 0.3);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        border: 1px solid rgba(16, 185, 129, 0.3);
       }
       .brand{
         display:flex;
@@ -58,7 +69,7 @@ html,body{
           width:48px;
           height:48px;
           border-radius:10px;
-          background:linear-gradient(135deg,#ffd166,#ef476f);
+          background:linear-gradient(135deg,#34d399,#1e90ff);
           display:flex;
           align-items:center;
           justify-content:center;
@@ -83,13 +94,15 @@ html,body{
         padding:10px;
         border-radius:8px;
         text-decoration:none;
-          background: linear-gradient(135deg, rgba(230, 149, 51, 0.85), rgba(204, 102, 0, 0.85));
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.85), rgba(4, 120, 87, 0.85));
           color: #fff;
           backdrop-filter: blur(14px);
-
+          transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
       }
       .menu a:hover{
-          transform:translateX(4px)
+        transform: scale(1.05);
+        box-shadow: 0 10px 20px rgba(16, 185, 129, 0.5); 
+        filter: brightness(1.1);
       }
       .menu .icon{
         width:20px;
@@ -155,10 +168,8 @@ html,body{
   
     /* right sidebar */
   
-  
-  
   .right-panel{
-    background: rgba(255, 140, 0, 0.15);
+    background: rgba(16, 185, 129, 0.15);
     padding:16px;
     border-radius:12px;
     display:flex;
@@ -166,8 +177,8 @@ html,body{
     gap:10px;
     align-items:center;
     flex : 0 0 260px;
-    box-shadow: 0 8px 25px rgba(255, 120, 0, 0.4);
-    border: 1px solid rgba(255, 165, 0, 0.3);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+    border: 1px solid rgba(16, 185, 129, 0.3);
   }
   .modes{
     display:flex;
@@ -183,13 +194,16 @@ html,body{
     justify-content:left;
     padding:12px;
     border-radius:10px;
-    background: linear-gradient(135deg, rgba(230, 149, 51, 0.85), rgba(204, 102, 0, 0.85));
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.85), rgba(4, 120, 87, 0.85));
     color: #fff;
     backdrop-filter: blur(14px);
-    cursor:pointer
+    cursor:pointer;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
   }
   .mode:hover{
-    transform:translateX(4px)
+    transform: scale(1.05);
+    box-shadow: 0 12px 25px rgba(16, 185, 129, 0.6);
+    filter: brightness(1.15);
   }
 
   /* Hỗ trợ hiển thị account view */
@@ -214,14 +228,14 @@ html,body{
   z-index: 9999;
 }
 .popup-content {
-  background: rgba(255, 140, 0, 0.15);
+  background: rgba(59, 130, 246, 0.3);
   backdrop-filter: blur(12px);
   padding: 28px;
   border-radius: 18px;
   text-align: center;
   width: 340px;
-  box-shadow: 0 8px 25px rgba(255, 120, 0, 0.4);
-  border: 1px solid rgba(255, 165, 0, 0.3);
+  box-shadow: 0 8px 25px rgba(7, 2, 44, 0.4);
+  border: 1px solid rgba(25, 5, 52, 0.3);
   color: #fff6e5;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -232,7 +246,7 @@ html,body{
   font-weight: 600;
   color: #ffd27f;
   letter-spacing: 0.5px;
-  text-shadow: 0 0 6px rgba(255, 160, 40, 0.4);
+  text-shadow: 0 0 6px rgba(25, 5, 52, 0.3);;
 }
 
 .popup-content button {
@@ -240,18 +254,18 @@ html,body{
   padding: 10px 22px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #ffb347, #ff8c00);
+  background: linear-gradient(135deg, #34d399, #059669);
   color: #fff;
   font-size: 15px;
   cursor: pointer;
   transition: all 0.25s ease;
-  box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.5);
 }
 
 .popup-content button:hover {
-  background: linear-gradient(135deg, #ff9900, #e67e00);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(255, 140, 0, 0.7);
+  background: linear-gradient(135deg, #10b981, #047857);
+  transform: scale(1.08);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.9);
 }
 
 .join-section {
@@ -265,7 +279,7 @@ html,body{
 }
 
 .online-wrapper {
-background: rgba(255, 140, 0, 0.15);
+background: rgba(16, 185, 129, 0.15);
 padding:16px;
 border-radius:12px;
 display:flex;
@@ -273,8 +287,8 @@ flex-direction:column;
 gap:10px;
 align-items:center;
 flex : 0 0 260px;
-box-shadow: 0 8px 25px rgba(255, 120, 0, 0.4);
-border: 1px solid rgba(255, 165, 0, 0.3);
+box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+border: 1px solid rgba(16, 185, 129, 0.3);
 
 }
 .btnn {
@@ -286,11 +300,13 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   justify-content:center;
   padding:12px;
   border-radius:10px;
-  background: linear-gradient(135deg, rgba(255, 165, 0, 0.85), rgba(255, 140, 0, 0.85));
-  cursor:pointer
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.85), rgba(16, 185, 129, 0.85));
+  cursor:pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 .btnn:hover {
-  transform:translateX(-2px);
+  transform: scale(1.03);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
 }
 .input {
   width: 100%;
@@ -298,23 +314,24 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   border-radius: 8px;
   font-size: 16px;
   outline: none;
-  box-shadow: 5px 5px 15px rgba(133, 81, 17, 0.2) inset;
+  box-shadow: 5px 5px 15px rgba(16, 185, 129, 0.2) inset;
   opacity: 0.9;
   background-color: rgba(42, 38, 38, 0.2);
 }
+
 #backToModes {
   position:absolute;
       top:10px;
       left:10px;
-      background:linear-gradient(135deg, rgba(255, 165, 0, 0.85), rgba(255, 140, 0, 0.85));
-
+      background:linear-gradient(135deg, rgba(52, 211, 153, 0.85), rgba(16, 185, 129, 0.85));
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
       color:white;
       font-size:18px;
       cursor:pointer;
       border-radius: 10px;
 }
 #backToModes:hover {
-  transform:translateX(-2px);
+  transform: scale(1.05);
   animation-duration: 0,5s;
 }
 
@@ -331,7 +348,7 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   backdrop-filter: blur(6px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   color: #333;
-  display: none;
+  /* display: none; */
 }
 
 .player-bar:hover {
@@ -386,11 +403,11 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   gap: 15px;
   padding: 18px;
   border-radius: 16px;
-  background: rgba(255, 140, 0, 0.15);
+  background: rgba(16, 185, 129, 0.15);
   backdrop-filter: blur(12px);
   color: #fff6e5;
-  box-shadow: 0 8px 25px rgba(255, 120, 0, 0.4);
-  border: 1px solid rgba(255, 165, 0, 0.3);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+  border: 1px solid rgba(16, 185, 129, 0.3);
   font-family: "Segoe UI", sans-serif;
 }
 
@@ -400,10 +417,10 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   font-weight: bold;
   text-align: center;
   padding: 8px;
-  background: linear-gradient(135deg, rgba(230,149,51,0.85), rgba(204,102,0,0.85));
+  background: rgba(16, 185, 129, 0.15);
   border-radius: 10px;
   color: #fffbe8;
-  text-shadow: 0 0 5px rgba(255,180,80,0.4);
+  text-shadow: 0 0 5px rgba(92, 255, 80, 0.4);
 }
 
 /* Thông tin người chơi */
@@ -415,7 +432,7 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   border-radius: 10px;
   font-weight: 500;
   color: #fff9ef;
-  box-shadow: inset 0 0 10px rgba(255,165,0,0.15);
+  box-shadow: inset 0 0 10px rgba(92, 255, 80, 0.4);
 }
 
 /* Tiêu đề chung */
@@ -430,10 +447,10 @@ border: 1px solid rgba(255, 165, 0, 0.3);
 .chat-section, .move-list-section {
   border-radius: 10px;
   padding: 10px;
-  background: rgba(255, 140, 0, 0.15);
+  background: rgba(16, 185, 129, 0.15);
   backdrop-filter: blur(10px);
   color: #fff;
-  box-shadow: inset 0 0 10px rgba(255, 165, 0, 0.2);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 
 /* Vùng tin nhắn */
@@ -466,17 +483,17 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   padding: 8px 16px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #ffb347, #ff8c00);
+  background: linear-gradient(135deg, #d4dbd5, #506a52);
   color: #fff;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.25s ease;
-  box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 .btn-chat:hover {
   background: linear-gradient(135deg, #ff9900, #e67e00);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(255, 140, 0, 0.7);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 
 /* Lịch sử nước đi */
