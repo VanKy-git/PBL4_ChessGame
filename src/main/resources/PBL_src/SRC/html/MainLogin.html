@@ -1,197 +1,353 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Login & Signup</title>
+    <meta charset="UTF-8">
+    <title>Login & Signup</title>
     <link rel="icon" href="../../PBL4_imgs/icon/logo.png">
     <style>
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #0c2340;
-      font-family: Arial, sans-serif;
-    }
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background:url(../../PBL4_imgs/image/background5.png);
+            background-size: cover;
+            font-family: Arial, sans-serif;
+        }
 
-    .container {
-      position: relative;
-      width: 1100px;
-      height: 600px;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-      display: flex;
-      transition: transform 0.8s ease-in-out;
-    }
+        .container {
+            position: relative;
+            width: 1100px;
+            height: 600px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            display: flex;
+            transition: transform 0.8s ease-in-out;
+        }
 
-    .left, .right {
-      flex: 1; /* Chia đều 50% - 50% */
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 40px;
-      box-sizing: border-box;
-      transition: transform 0.8s ease-in-out;
-    }
+        .left, .right {
+            flex: 1; /* Chia đều 50% - 50% */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            box-sizing: border-box;
+            transition: transform 0.8s ease-in-out;
+        }
 
-    .left {
-      background: url("../../PBL4_imgs/image/background.jpg") no-repeat center center;
-      background-size: cover;
-      color: white;
-    }
+        .left {
+            background: url("../../PBL4_imgs/image/background.jpg") no-repeat center center;
+            background-size: cover;
+            color: white;
+        }
 
-    .right {
-      background: rgba(0,0,0,0.85);
-      color: white;
-    }
+        .right {
+            background: rgba(0,0,0,0.85);
+            color: white;
+        }
 
-     /* Logo ở giữa */
-    .logo {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      border-radius: 50%;
-      padding: 15px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      z-index: 30;
-    }
-    .logo img {
-      width: 80px;
-      height: 80px;
-      display: block;
-    }
+        /* Logo ở giữa */
+        .logo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 50%;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 30;
+        }
+        .logo img {
+            width: 80px;
+            height: 80px;
+            display: block;
+        }
 
-    .title {
-      font-size: 36px;
-      font-weight: bold;
-      margin-bottom: 30px;
-    }
+        .password-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        .password-wrapper input {
+            width: 100%;
+            padding-right: 40px !important;
+            box-sizing: border-box;
+        }
+        .toggle-password {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #333; /* Màu của con mắt */
+            user-select: none; /* Không cho phép bôi đen */
+        }
+        .title {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
 
-    .form {
-      width: 280px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+        .form {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
 
-    .form input {
-      padding: 12px;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-    }
+        .form input {
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
 
-    .btn {
-      padding: 12px;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      color: white;
-      transition: 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
 
-    .btn-login { background: #0789fb; }
-    .btn-login:hover { background: #056cd6; }
+        .btn-login { background: #0789fb; }
+        .btn-login:hover { background: #64a1e8; }
+        .btn-register { background: #0788fb; }
+        .btn-register:hover { background: #64a1e8; }
 
-    .btn-google { background: #f44336; }
-    .btn-google:hover { background: #c62828; }
+        .btn-google { background: #f44336; }
+        .btn-google:hover { background: #c62828; }
 
-    .btn-google img {
-      width: 20px;
-      height: 20px;
-    }
+        /* --- THÊM MỚI CSS CHO NÚT GUEST --- */
+        .btn-guest { background: #6c757d; }
+        .btn-guest:hover { background: #5a6268; }
 
-    .link {
-      margin-top: 15px;
-      font-size: 14px;
-      cursor: pointer;
-      color: #bbb;
-    }
-    .link:hover { color: white; text-decoration: underline; }
+        .btn-google img {
+            width: 20px;
+            height: 20px;
+        }
 
-    /* Khi bật Signup mode */
-    .container.show-signup .left {
-      transform: translateX(100%);
-    }
-    .container.show-signup .right {
-      transform: translateX(-100%);
-    }
-  </style>
+        .link {
+            margin-top: 15px;
+            font-size: 14px;
+            cursor: pointer;
+            color: #bbb;
+        }
+        .link:hover { color: white; text-decoration: underline; }
+
+        /* Khi bật Signup mode */
+        .container.show-signup .left {
+            transform: translateX(100%);
+        }
+        .container.show-signup .right {
+            transform: translateX(-100%);
+        }
+        input[type="password"]::-ms-reveal {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <div class="container" id="container">
+<div class="container" id="container">
     <div class="left"></div>
     <div class="logo">
-      <img src="../../PBL4_imgs/icon/logo.png" alt="Logo">
+        <img src="../../PBL4_imgs/icon/logo.png" alt="Logo">
     </div>
     <div class="right" id="form-box">
-      <div class="title" id="form-title">Log In</div>
-      <div class="form" id="form-content">
-        <input type="text" placeholder="Username">
-        <input type="password" placeholder="Password">
-        <button class="btn btn-login">Log In</button>
-        <button class="btn btn-google">
-          <img src="../../PBL4_imgs/image/google.png" alt="Google Logo">
-            Log In With Google
-        </button>
-      </div>
-      <div class="link" onclick="toggleForm()">Don’t have an account? Sign Up</div>
+        <div class="title" id="form-title">Log In</div>
+        <div class="form" id="form-content">
+        </div>
+        <div class="link" onclick="toggleForm()">Don’t have an account? Sign Up</div>
     </div>
-  </div>
+</div>
 
-  <script>
+<script>
     const container = document.getElementById("container");
     const formTitle = document.getElementById("form-title");
     const formContent = document.getElementById("form-content");
     const link = document.querySelector(".link");
 
     let isSignup = false;
+    const API_URL = "http://localhost:8910";
 
+    // --- THÊM MỚI: HÀM XỬ LÝ CHƠI VỚI TƯ CÁCH GUEST ---
+    function playAsGuest() {
+        // Lấy một tên Guest ngẫu nhiên để server có thể nhận diện
+        const randomId = Math.floor(Math.random() * 1000);
+        localStorage.removeItem("playerId");
+        localStorage.removeItem("playerName");
+        localStorage.removeItem("token");
+        // Xóa playerId cũ (nếu có) để server biết đây là guest mới
+        window.location.href = "Home_page.html";
+
+        // Chuyển trang (Giả sử Home_page.html cùng cấp với MainLogin.html)
+        // **QUAN TRỌNG**: Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
+    }
+
+    formContent.addEventListener('click', async function(event) {
+
+        // SỬA LỖI 1: Lấy đúng target
+        const target = event.target;
+
+        // --- CHECK 1: Click vào "con mắt" ? ---
+        if (target.classList.contains('toggle-password')) {
+            // KHÔNG dùng preventDefault() ở đây
+            const input = target.previousElementSibling; // Lấy <input> ngay trước <span>
+
+            if (input && input.type === "password") {
+                input.type = "text";
+                target.textContent = "🙈"; // Đổi icon
+            } else if (input && input.type === "text") {
+                input.type = "password";
+                target.textContent = "🙉️"; // Đổi lại
+            }
+            return; // Xử lý xong, thoát
+        }
+
+        // --- CHECK 2: Click vào <button> ? ---
+        const buttonTarget = target.closest('button');
+        if (!buttonTarget) {
+            // Nếu click vào input hoặc khoảng trắng, không làm gì cả
+            return;
+        }
+
+        // SỬA LỖI 2: Di chuyển preventDefault() xuống đây
+        // Chỉ ngăn chặn hành vi mặc định CỦA NÚT
+        event.preventDefault();
+
+        // SỬA LỖI 3: Lấy input ở đây để cả Login và Register đều dùng được
+        const usernameInput = formContent.querySelector('input[placeholder="Username"]');
+        const passwordInput = formContent.querySelector('input[placeholder="Password"]');
+
+        // Xử lý các nút
+        if (buttonTarget.classList.contains('btn-login')) {
+            if(!passwordInput.value || !usernameInput.value){
+                alert("Please enter full information!");
+                return;
+            }
+            const respone = await fetch(`${API_URL}/api/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: usernameInput.value, password: passwordInput.value}),
+            });
+
+            const result = await respone.json();
+
+            if(respone.ok) {
+                if (result.success) {
+                    // Server trả về 200 OK
+                    // (Bạn đã xóa check result.success, nhưng nếu server trả về token, là OK)
+                    localStorage.setItem("token", result.data.token);
+                    localStorage.setItem("playerName", result.data.username);
+                    localStorage.setItem("playerId", result.data.userId);
+                    window.location.href = "Home_page.html";                }
+                else {
+                    alert(result.error);
+                }
+            }
+            else {
+                // Server trả về lỗi (400, 401, 500...)
+                alert("Đăng nhập thất bại: " + result.error);
+            }
+        }
+        else if (buttonTarget.classList.contains('btn-google')) {
+            alert("Chức năng Google Login chưa được kết nối!");
+        }
+        else if (buttonTarget.classList.contains('btn-guest')) {
+            playAsGuest();
+        }
+        else if (buttonTarget.classList.contains('btn-register')) {
+            const ConfirmPasswordInput = formContent.querySelector('input[placeholder="Confirm Password"]');
+            if(passwordInput.value !== ConfirmPasswordInput.value){
+                alert("ConfirmPassWord is not match");
+                return;
+            }
+            if(!passwordInput.value || !usernameInput.value || !ConfirmPasswordInput.value){
+                alert("Please enter full information!");
+                return;
+            }
+            if(passwordInput.value.length < 6){
+                alert("Password must be at least 6 characters");
+                return;
+            }
+
+            // SỬA LỖI 4: Thêm logic cho nút Đăng ký
+            const respone = await fetch(`${API_URL}/api/register`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: usernameInput.value, password: passwordInput.value}),
+            });
+
+            const result = await respone.json();
+
+            if (respone.ok) {
+                alert("Đăng ký thành công! Vui lòng đăng nhập.");
+                toggleForm(); // Lật về trang đăng nhập
+            } else {
+                alert("Đăng ký thất bại: " + result.error);
+            }
+        }
+    });
+
+    // Sửa đổi hàm toggleForm để chèn HTML
     function toggleForm() {
-      isSignup = !isSignup;
-      container.classList.toggle("show-signup");
+        isSignup = !isSignup;
+        container.classList.toggle("show-signup");
 
-      if (isSignup) {
-        formTitle.textContent = "Sign Up";
-        formContent.innerHTML = `
-          <input type="text" placeholder="Full Name">
-          <input type="email" placeholder="Email">
-          <input type="text" placeholder="Username">         
-          <input type="password" placeholder="Password">
+        if (isSignup) {
+            formTitle.textContent = "Sign Up";
+            formContent.innerHTML = `
+<!--          <input type="text" placeholder="Full Name">-->
+<!--          <input type="email" placeholder="Email">-->
+          <input type="text" placeholder="Username">
+          <div class="password-wrapper">
+            <input type="password" placeholder="Password">
+            <span class="toggle-password">🙉️</span>
+          </div>
+        <div class="password-wrapper">
           <input type="password" placeholder="Confirm Password">
-          <button class="btn btn-login">Sign Up</button>
+          <span class="toggle-password">🙉</span>
+      </div>
+          <button class="btn btn-register">Sign Up</button>
           <button class="btn btn-google">
             <img src="../../PBL4_imgs/image/google.png" alt="Google Logo">
             Sign Up With Google
           </button>
-        `;
-        link.textContent = "Already have an account? Log In";
-      } else {
-        formTitle.textContent = "Log In";
-        formContent.innerHTML = `
-          <input type="text" placeholder="Username">
-          <input type="password" placeholder="Password">
+          <button class="btn btn-guest">Play as Guest</button> `;
+            link.textContent = "Already have an account? Log In";
+        } else {
+            formTitle.textContent = "Log In";
+            formContent.innerHTML = `
+          <input name = "username" type="text" placeholder="Username">
+            <div class="password-wrapper">
+                <input name = "password" type="password" placeholder="Password">
+                <span class="toggle-password">🙉</span>
+            </div>
           <button class="btn btn-login">Log In</button>
           <button class="btn btn-google">
             <img src="../../PBL4_imgs/image/google.png" alt="Google Logo">
             Log In With Google
           </button>
-        `;
-        link.textContent = "Don't have an account? Sign Up";
-      }
+          <button class="btn btn-guest">Play as Guest</button> `;
+            link.textContent = "Don't have an account? Sign Up";
+        }
     }
-  </script>
+
+    // --- THÊM MỚI: Gọi toggleForm lần đầu để hiển thị form login mặc định ---
+    toggleForm(); // Hiển thị form
+    toggleForm(); // Gọi lại để quay về trạng thái login ban đầu (hơi hacky nhưng hoạt động)
+
+</script>
 </body>
 </html>

@@ -1,6 +1,11 @@
 package com.chessgame.server;
 
+import com.database.server.Utils.JwtConfig;
 import com.google.gson.Gson;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
@@ -57,11 +62,16 @@ public class ChessServer extends WebSocketServer {
             @SuppressWarnings("unchecked")
             Map<String, Object> data = gson.fromJson(message, Map.class);
             String type = (String) data.get("type");
+            Player player = connectionPlayerMap.get(webSocket);
+
+            // Nếu player chưa được xác thực VÀ tin nhắn không phải là "auth"
+            // (Chúng ta chỉ cho phép tin nhắn "auth" nếu chưa login)
+            if (player == null && !"auth".equals(type)) {
+                sendError(webSocket, "Bạn cần xác thực trước khi thực hiện hành động này.");
+                return;
+            }
 
             switch (type) {
-                case "connect":
-                    handlePlayerConnect(webSocket, data);
-                    break;
                 case "join":
                     handlePlayerJoin(webSocket, data);
                     break;
@@ -104,6 +114,9 @@ public class ChessServer extends WebSocketServer {
                 case "rematch_request":
                     handleRematchRequest(webSocket, data);
                     break;
+                case "auth":
+                    handleAuth(webSocket, data);
+                    break;
                 default:
                     System.out.println("Unknown message type: " + type);
             }
@@ -113,21 +126,60 @@ public class ChessServer extends WebSocketServer {
         }
     }
 
-    private void handlePlayerConnect(WebSocket  webSocket, Map<String, Object> data) {
-        String playerId = UUID.randomUUID().toString();
-        String playerName = (String) data.get("playerName");
+    private void handleAuth(WebSocket webSocket, Map<String, Object> data) {
+        String token = (String) data.get("token");
 
-        Player player = new Player(playerId, playerName, webSocket);
-        connectionPlayerMap.put(webSocket, player);
+        // Trường hợp 1: Chơi GUEST (không có token)
+        if (token == null) {
+            String guestName = "Guest_" + (new Random().nextInt(9000) + 1000);
+            String guestId = "guest_" + UUID.randomUUID().toString();
 
-        System.out.println("checked");
-        // Gửi thông tin người chơi
-        Map<String, Object> response = new HashMap<>();
-        response.put("type", "player_info");
-        response.put("playerId", playerId);
-        response.put("playerName", playerName);
-        webSocket.send(gson.toJson(response));
+            Player guestPlayer = new Player(guestId, guestName, webSocket);
+            connectionPlayerMap.put(webSocket, guestPlayer);
+
+            // Gửi thông tin Guest về client
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "player_info");
+            response.put("playerId", guestPlayer.getPlayerId());
+            response.put("playerName", guestPlayer.getPlayerName());
+            webSocket.send(gson.toJson(response));
+            return;
+        }
+
+        // Trường hợp 2: Chơi với tài khoản (có token)
+        try {
+            System.out.println(token + " " + JwtConfig.JWT_SECRET_KEY);
+            // Dùng Key bí mật để xác thực "vé"
+            Jws<Claims> claimsJws = Jwts.parserBuilder()
+                    .setSigningKey(JwtConfig.JWT_SECRET_KEY)
+                    .build()
+                    .parseClaimsJws(token);
+
+            // Nếu không ném lỗi, token là HỢP LỆ
+            Claims payload = claimsJws.getBody();
+            String userId = payload.getSubject(); // Lấy "userId"
+            String username = payload.get("username", String.class); // Lấy "username"
+
+            // (Nên kiểm tra DB xem user này có bị ban không, nhưng tạm thời bỏ qua)
+
+            // Tạo đối tượng Player
+            Player authenticatedPlayer = new Player(userId, username, webSocket);
+            connectionPlayerMap.put(webSocket, authenticatedPlayer); // Lưu player đã xác thực
+
+            // Gửi thông tin về client
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "player_info");
+            response.put("playerId", authenticatedPlayer.getPlayerId());
+            response.put("playerName", authenticatedPlayer.getPlayerName());
+            webSocket.send(gson.toJson(response));
+
+        } catch (JwtException e) {
+            // Lỗi: Token không hợp lệ (sai, hết hạn, ...)
+            sendError(webSocket, "Xác thực thất bại: " + e.getMessage());
+            webSocket.close(); // Đóng kết nối
+        }
     }
+
 
     private void handlePlayerJoin(WebSocket webSocket, Map<String, Object> data) {
         Player player = connectionPlayerMap.get(webSocket);
