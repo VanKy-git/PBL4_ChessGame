@@ -1,5 +1,5 @@
 // File: Home_page.js
-import {sendMessage} from "./Connect_websocket.js";
+import {connectMainSocket, sendMessage} from "./Connect_websocket.js";
 
 // Lấy playerName từ localStorage
 let playerName = localStorage.getItem("playerName") || "Guest";
@@ -45,10 +45,10 @@ function getLobbyHTML() {
         <div style="font-weight:700; font-size:18px; text-align:center; margin-bottom:10px;">Chơi trực tuyến</div>
         <div class="muted" style="text-align:center; margin-bottom:20px;">Kết nối với đối thủ khác</div>
         
-        <button id="createRoomBtn" class="btnn" disabled>Tạo phòng</button>
+        <button id="createRoomBtn" class="btnn" >Tạo phòng</button>
         <input id="joinRoomIdInput" class="input" placeholder="Nhập mã phòng...">
-        <button id="joinRoomBtn" class="btnn" disabled>Tham gia phòng</button>
-        <button id="matchmakingBtn" class="btnn" disabled>Ghép trận ngẫu nhiên</button>
+        <button id="joinRoomBtn" class="btnn" >Tham gia phòng</button>
+        <button id="matchmakingBtn" class="btnn" >Ghép trận ngẫu nhiên</button>
         
         <div id="lobbyStatus" class="status-lobby">Đang chờ kết nối...</div>
     </div>`;
@@ -197,21 +197,6 @@ function selectTimeControl() {
 
 function showLobbyView(selectedTimeMs = null) {
     if (rightPanel) rightPanel.innerHTML = getLobbyHTML();
-    // Kích hoạt kết nối
-    if(selectedTimeMs !== null) {
-        sendMessage({
-            type: "connect",
-            playerName: playerName,
-            playerId: localStorage.getItem("playerId"), // Gửi cả ID (nếu có)
-            timeControl: selectedTimeMs
-        });
-        const lobbyStatusEl = document.getElementById('lobbyStatus');
-        if (lobbyStatusEl) lobbyStatusEl.textContent = 'Đã kết nối, đang tìm trận...';
-    }
-    else {
-        const lobbyStatusEl = document.getElementById('lobbyStatus');
-        if (lobbyStatusEl) lobbyStatusEl.textContent = 'Chọn cách tìm trận.';
-    }
 }
 
 window.showGameOverPopup = function(result, reason) {
@@ -245,13 +230,7 @@ window.showGameOverPopup = function(result, reason) {
     // Nút Tìm trận mới: Gọi hàm findNewGame từ game_controller
     findNewBtn.onclick = () => {
         gameOverOverlay.classList.add('hidden'); // Ẩn popup
-        if (window.findNewGame) {
-            window.findNewGame(); // Gọi hàm tìm trận mới
-            // Chuyển về màn hình Lobby (quan trọng)
-            showLobbyView();
-        } else {
-            console.error("Không tìm thấy hàm window.findNewGame!");
-        }
+        showLobbyView();
     };
 
     // Nút Tái đấu: Gửi yêu cầu lên server
@@ -270,6 +249,9 @@ window.showGameOverPopup = function(result, reason) {
     // Nút Thoát: Quay về màn hình chọn chế độ
     leaveBtn.onclick = () => {
         gameOverOverlay.classList.add('hidden'); // Ẩn popup
+        if (window.leaveRoom) {
+            window.leaveRoom(); // Gửi tin nhắn rời phòng
+        }
         showModesView(); // Quay về màn hình chọn chế độ chơi
     };
 
@@ -366,6 +348,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // Lưu lại HTML ban đầu
     originalModesHTML = rightPanel.innerHTML;
+    connectMainSocket();
 
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {
@@ -373,16 +356,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // 1. Click "Chơi trực tuyến"
         const onlineModeBtn = event.target.closest('.mode[data-mode="online"]');
         if (onlineModeBtn) {
-            const selectedTime = await selectTimeControl();
-
-            if (selectedTime !== null) {
-                // Nếu người dùng đã chọn thời gian -> vào lobby và gửi yêu cầu tìm trận
-                showLobbyView(selectedTime);
-            } else {
-                // Nếu người dùng hủy -> không làm gì cả hoặc chỉ vào lobby
-                // showLobbyView(); // Chỉ vào lobby, không tìm trận
-            }
-            return;
+            showLobbyView();
         }
 
         // 2. Click "Back"

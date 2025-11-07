@@ -190,6 +190,7 @@ function enableLobbyButtons() {
 // Thay vào đó, chúng ta tạo các hàm handler riêng lẻ
 
 function onPlayerInfo(msg) {
+    window.location.href = "Home_page.html";
     playerId = msg.playerId;
     playerName = msg.playerName;
     localStorage.setItem("playerId", playerId);

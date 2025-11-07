@@ -5,6 +5,8 @@ let mainSocket = null;
 const SOCKET_URL = "ws://localhost:8080";
 const messageHandlers = {}; // ✅ Dùng cái này
 let pendingMessages = [];
+const token = localStorage.getItem("token");
+const playerId = localStorage.getItem("playerId");
 
 /**
  * Kết nối tới WebSocket server hoặc trả về socket đã mở.
@@ -18,7 +20,12 @@ export function connectMainSocket() {
     }
 
     mainSocket.onopen = () => {
-        console.log("✅ Đã kết nối server chính.");
+        console.log(" Đã kết nối server chính.");
+        mainSocket.send(JSON.stringify({
+            type: "auth",
+            token: token,
+            playerId: playerId
+        }));
         if (pendingMessages.length > 0) {
             console.log(` Gửi ${pendingMessages.length} tin nhắn chờ...`);
             pendingMessages.forEach(msg => mainSocket.send(JSON.stringify(msg)));

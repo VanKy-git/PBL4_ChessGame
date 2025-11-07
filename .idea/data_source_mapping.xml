@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourcePerFileMappings">
-    <file url="file://$PROJECT_DIR$/src/main/java/com/chatapp/server/Model/DAO/chat_messageDAO.java" value="ff4bffcc-219b-47d1-8e3f-b01dc1cda994" />
-    <file url="file://$PROJECT_DIR$/src/main/java/com/chatapp/server/Model/DAO/movesDAO.java" value="ff4bffcc-219b-47d1-8e3f-b01dc1cda994" />
+    <file url="file://$PROJECT_DIR$/src/main/java/com/database/server/DAO/chat_messageDAO.java" value="ff4bffcc-219b-47d1-8e3f-b01dc1cda994" />
+    <file url="file://$PROJECT_DIR$/src/main/java/com/database/server/DAO/movesDAO.java" value="ff4bffcc-219b-47d1-8e3f-b01dc1cda994" />
   </component>
 </project>
