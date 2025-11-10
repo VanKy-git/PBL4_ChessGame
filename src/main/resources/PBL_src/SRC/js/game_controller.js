@@ -102,11 +102,6 @@ function showGameOverModal(title, message) {
     };
 }
 
-// ==========================
-// 4. WEBSOCKET VÀ MESSAGE HANDLING
-// ==========================
-
-
 function createRoom() {
     console.log("createRoom pressed");
     sendMessage({ type: "create_room" });
@@ -116,27 +111,22 @@ function joinRoom() {
     if (id) sendMessage({ type: "join_room", roomId: id });
 }
 function findNewGame() {
-    // ✅ SỬA: Dùng sendMessage và các biến toàn cục
     gameActive = false;
     currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     renderGame();
     sendMessage({type: "join", playerName: playerName});
-    // ✅ SỬA: Cập nhật UI
 }
 function requestDraw() { if (gameActive) sendMessage({ type: "draw_request", roomId: roomId }); }
 function resignGame() { if (gameActive) sendMessage({ type: "resign", roomId: roomId }); }
 
 function sendChat() {
-    // ✅ TÌM ELEMENT TRỰC TIẾP Ở ĐÂY
     const inputElement = document.getElementById('chatInputEl');
 
-    // ✅ Kiểm tra xem có tìm thấy element không
     if (!inputElement) {
         console.error("Lỗi: Không tìm thấy ô nhập chat (#chatInputEl)!");
         return; // Thoát nếu không tìm thấy
     }
 
-    // ✅ Sử dụng element vừa tìm được
     const text = inputElement.value.trim();
     if (text && roomId) {
         sendMessage({ type: "chat", roomId: roomId, message: text });
@@ -155,17 +145,15 @@ function onPlayerLeft(msg)
 }
 
 function requestRematch() {
-    if (roomId && !gameActive) { // Chỉ gửi khi game đã kết thúc
+    if (roomId && !gameActive) {
         sendMessage({ type: "rematch_request", roomId: roomId });
-        rematchRequestedByMe = true; // Đánh dấu mình đã yêu cầu
+        rematchRequestedByMe = true;
         console.log("Da gui rematch");
-        // Cập nhật UI (ví dụ: đổi text nút Tái đấu thành "Đã yêu cầu...")
         const rematchBtn = document.getElementById('gameOverRematchBtn');
         if(rematchBtn) {
             rematchBtn.disabled = true;
             rematchBtn.textContent = "Đang chờ đối thủ...";
         }
-        // Nếu đối thủ cũng đã yêu cầu thì game sẽ tự bắt đầu lại
     }
 }
 window.requestRematch = requestRematch;
@@ -182,15 +170,9 @@ function enableLobbyButtons() {
     if (lobbyStatusEl) lobbyStatusEl.textContent = "Đã kết nối, sẵn sàng tạo phòng.";
 }
 
-// ==========================
-// 5. CÁC HÀM XỬ LÝ TIN NHẮN (HANDLER)
-// ==========================
-
-// ❌ XÓA: export function handleMessage(msg) { ... }
-// Thay vào đó, chúng ta tạo các hàm handler riêng lẻ
-
 function onPlayerInfo(msg) {
-    window.location.href = "Home_page.html";
+    // window.location.href = "Home_page.html";
+    // alert(msg);
     playerId = msg.playerId;
     playerName = msg.playerName;
     localStorage.setItem("playerId", playerId);
@@ -206,7 +188,6 @@ function onRoomCreatedOrJoined(msg) {
     if(msg.color)
     yourColor = msg.color;
     if (window.hideMatchmakingPopup) window.hideMatchmakingPopup();
-    // ✅ GỌI HÀM NÀY TỪ Home_page.js (sẽ tạo ở bước 3)
     window.showGameControlsView();
     updateStatus()
     renderGame();
@@ -215,18 +196,17 @@ function onRoomCreatedOrJoined(msg) {
 function resetGameLocalState() {
     console.log("Resetting local game state..."); // DEBUG
     gameActive = false;
-    currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Đặt lại FEN ban đầu
-    yourColor = null; // KHÔNG reset màu nếu muốn giữ lại cho rematch
-    roomId = null; // KHÔNG reset ID phòng nếu muốn giữ lại cho rematch
-    currentTurn = 'white'; // Reset lượt đi
-    selectedSquare = null; // Xóa ô đang chọn
-    lastMove = null; // Xóa nước đi cuối
-    player1Info = null; // Xóa thông tin đối thủ
-    stopTimer(); // Dừng đồng hồ client-side (quan trọng)
-    // Có thể reset thời gian hiển thị về giá trị ban đầu (tùy chọn)
-    whiteTimeMs = 60000; // Cần lấy thời gian ban đầu của phòng
+    currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    yourColor = null;
+    roomId = null;
+    currentTurn = 'white';
+    selectedSquare = null;
+    lastMove = null;
+    player1Info = null;
+    stopTimer();
+    whiteTimeMs = 60000;
     blackTimeMs = 60000;
-    player1Info = null; // Reset đối thủ
+    player1Info = null;
     const capturedAreas = document.querySelectorAll('.captured-pieces'); // ✅ Xóa quân ăn được cũ
     capturedAreas.forEach(area => area.innerHTML = '');
     updateTimerDisplay();
@@ -234,13 +214,12 @@ function resetGameLocalState() {
     const p2Bar = document.getElementById('player2Bar');
     if (p1Bar) p1Bar.classList.add('hidden');
     if (p2Bar) p2Bar.classList.add('hidden');
-    isKingInCheckState = false; // Reset trạng thái chiếu
-    validMoveSquares = []; // Xóa danh sách nước đi hợp lệ
-    window.validMoveSquares = []; // Cập nhật cả window
-    rematchOfferedByOpponent = false; // Reset cờ
+    isKingInCheckState = false;
+    validMoveSquares = [];
+    window.validMoveSquares = [];
+    rematchOfferedByOpponent = false;
     rematchRequestedByMe = false;
 
-    // Xóa lịch sử nước đi trên UI
     const moveListEl = document.getElementById('moveList');
     if (moveListEl) moveListEl.innerHTML = '';
 

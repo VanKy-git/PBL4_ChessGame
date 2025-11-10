@@ -121,8 +121,6 @@ function getGameControlsHTML() {
     </div>`;
 }
 
-// == CÁC HÀM HIỂN THỊ VIEW ==
-
 function showModesView() {
     if (rightPanel) rightPanel.innerHTML = originalModesHTML;
     // Tùy chọn: Gửi tin nhắn ngắt kết nối
@@ -132,20 +130,16 @@ function showModesView() {
 function showConfirmationPopup(title, message) {
     return new Promise((resolve) => {
         if (!confirmationOverlay || !confirmTitleEl || !confirmMessageEl || !confirmBtnYes || !confirmBtnNo) {
-            // Fallback dùng confirm() nếu element bị thiếu
             resolve(confirm(`${title}\n${message}`));
             return;
         }
 
-        // Cập nhật nội dung popup
         confirmTitleEl.textContent = title;
         confirmMessageEl.textContent = message;
 
-        // Xóa listener cũ trước khi gán mới (quan trọng!)
         confirmBtnYes.onclick = null;
         confirmBtnNo.onclick = null;
 
-        // Gán sự kiện cho nút
         confirmBtnYes.onclick = () => {
             confirmationOverlay.classList.add('hidden');
             resolve(true); // Trả về true khi đồng ý
@@ -155,7 +149,6 @@ function showConfirmationPopup(title, message) {
             resolve(false); // Trả về false khi hủy
         };
 
-        // Hiển thị popup
         confirmationOverlay.classList.remove('hidden');
     });
 }
@@ -164,33 +157,26 @@ function selectTimeControl() {
     return new Promise((resolve) => {
         if (!timeControlOverlay || !timeOptionsContainer || !cancelTimeSelectionBtn) {
             console.error("Không tìm thấy element của popup chọn thời gian!");
-            resolve(null); // Trả về null nếu không có popup
+            resolve(null);
             return;
         }
 
-        // Xóa listener cũ (nếu có) và gán listener mới cho các nút thời gian
         timeOptionsContainer.querySelectorAll('.time-btn').forEach(button => {
             const timeMs = parseInt(button.dataset.time);
-            // Tạo listener mới mỗi lần mở popup để tránh lỗi closure
             const clickHandler = () => {
                 timeControlOverlay.classList.add('hidden');
                 resolve(timeMs); // Trả về thời gian đã chọn (ms)
             };
-            // Gỡ listener cũ trước khi gắn mới (quan trọng!)
             button.replaceWith(button.cloneNode(true)); // Cách đơn giản để xóa mọi listener
             timeControlOverlay.querySelector(`[data-time="${timeMs}"]`).addEventListener('click', clickHandler);
         });
 
-        // Gán listener cho nút Hủy
         const cancelHandler = () => {
             timeControlOverlay.classList.add('hidden');
             resolve(null); // Trả về null khi hủy
         };
         cancelTimeSelectionBtn.replaceWith(cancelTimeSelectionBtn.cloneNode(true));
         document.getElementById('cancelTimeSelectionBtn').addEventListener('click', cancelHandler);
-
-
-        // Hiển thị popup
         timeControlOverlay.classList.remove('hidden');
     });
 }
@@ -202,12 +188,10 @@ function showLobbyView(selectedTimeMs = null) {
 window.showGameOverPopup = function(result, reason) {
     if (!gameOverOverlay || !gameOverTitleEl || !gameOverReasonEl || !findNewBtn || !rematchBtn || !leaveBtn) {
         console.error("Không tìm thấy các element của popup Game Over!");
-        // Fallback dùng alert
         alert(`Kết quả: ${result} - Lý do: ${reason || 'Kết thúc trận'}`);
         return;
     }
 
-    // --- Cập nhật nội dung ---
     switch (result) {
         case 'win':
             gameOverTitleEl.textContent = '🎉 Chiến thắng!';
@@ -225,28 +209,22 @@ window.showGameOverPopup = function(result, reason) {
     }
     gameOverReasonEl.textContent = reason || ''; // Hiển thị lý do hoặc để trống
 
-    // --- Gắn sự kiện cho các nút ---
-
-    // Nút Tìm trận mới: Gọi hàm findNewGame từ game_controller
     findNewBtn.onclick = () => {
         gameOverOverlay.classList.add('hidden'); // Ẩn popup
         showLobbyView();
     };
 
-    // Nút Tái đấu: Gửi yêu cầu lên server
     rematchBtn.onclick = () => {
         if (window.requestRematch) {
             console.log(window.requestRematch);
             window.requestRematch(); // Gọi hàm gửi yêu cầu
         } else {
             console.error("Chưa có hàm window.requestRematch!");
-            // Ẩn popup và quay lại lobby nếu không có hàm
             gameOverOverlay.classList.add('hidden');
             showLobbyView();
         }
     };
 
-    // Nút Thoát: Quay về màn hình chọn chế độ
     leaveBtn.onclick = () => {
         gameOverOverlay.classList.add('hidden'); // Ẩn popup
         if (window.leaveRoom) {
@@ -255,11 +233,9 @@ window.showGameOverPopup = function(result, reason) {
         showModesView(); // Quay về màn hình chọn chế độ chơi
     };
 
-    // --- Hiển thị popup ---
     gameOverOverlay.classList.remove('hidden');
 }
 
-// ✅ Gắn hàm này vào 'window' để game_controller có thể gọi nó
 window.showGameControlsView = function() {
     if (rightPanel) rightPanel.innerHTML = getGameControlsHTML();
 
@@ -276,10 +252,8 @@ function startMatchmakingTimer() {
     matchmakingStartTime = Date.now(); // Ghi lại thời điểm bắt đầu
     if (matchmakingTimerEl) matchmakingTimerEl.textContent = '00:00'; // Reset hiển thị
 
-    // Dừng interval cũ nếu có
     if (matchmakingIntervalId) clearInterval(matchmakingIntervalId);
 
-    // Cập nhật đồng hồ mỗi giây
     matchmakingIntervalId = setInterval(() => {
         const elapsedTime = Math.floor((Date.now() - matchmakingStartTime) / 1000); // Giây đã trôi qua
         const minutes = String(Math.floor(elapsedTime / 60)).padStart(2, '0');
@@ -290,17 +264,13 @@ function startMatchmakingTimer() {
     }, 1000);
 }
 
-// ✅ HÀM DỪNG ĐỒNG HỒ
 function stopMatchmakingTimer() {
     if (matchmakingIntervalId) {
         clearInterval(matchmakingIntervalId); // Dừng cập nhật
         matchmakingIntervalId = null;
     }
-    // Có thể reset text hoặc để nguyên giá trị cuối
-    // if (matchmakingTimerEl) matchmakingTimerEl.textContent = '00:00';
 }
 
-// == KHỞI TẠO ==
 document.addEventListener('DOMContentLoaded', function () {
     if (!rightPanel) {
         console.error("Không tìm thấy '.right-panel'");
@@ -310,20 +280,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (chessworldTitle) {
         chessworldTitle.addEventListener('mouseenter', () => {
-            // Animation khi chuột đi vào
-            anime.remove('.ml1 .letter'); // Xóa animation cũ (nếu có)
+            anime.remove('.ml1 .letter');
             anime({
                 targets: '.ml1 .letter',
-                translateY: [0, -10, 0], // Nhảy lên 10px rồi về vị trí cũ
-                scale: [1, 1.1, 1], // Phóng to nhẹ rồi về kích thước cũ
-                // rotate: [-5, 5, 0], // Thêm xoay nhẹ (tùy chọn)
+                translateY: [0, -10, 0],
+                scale: [1, 1.1, 1],
+                rotate: [-5, 5, 0],
                 duration: 600,
-                delay: anime.stagger(50), // Hiệu ứng lượn sóng
-                easing: 'easeOutElastic(1, .6)' // Easing tạo độ nảy
+                delay: anime.stagger(50),
+                easing: 'easeOutElastic(1, .6)'
             });
         });
 
-        // Tùy chọn: Animation khi chuột đi ra (quay về trạng thái tĩnh)
         chessworldTitle.addEventListener('mouseleave', () => {
             anime.remove('.ml1 .letter');
             anime({
@@ -348,7 +316,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // Lưu lại HTML ban đầu
     originalModesHTML = rightPanel.innerHTML;
-    connectMainSocket();
+    const token = localStorage.getItem("token");
+    const playerId = localStorage.getItem("playerId");
+    connectMainSocket(token, playerId);
 
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {

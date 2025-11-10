@@ -21,12 +21,12 @@ public class GameRoom {
     private long whiteTimeMs;
     private long blackTimeMs;
     // ✅ THÊM CÁC THUỘC TÍNH TIMER
-    private final ChessServer serverRef; // Tham chiếu đến ChessServer để gửi tin nhắn
+    private final NioWebSocketServer serverRef; // Tham chiếu đến ChessServer để gửi tin nhắn
     private transient ScheduledExecutorService timerService; // transient vì không cần serialize
     private transient ScheduledFuture<?> timerTask;
     private String rematchRequestedByColor = null;
 
-    public GameRoom(String roomId, long initialTimeMs, ChessServer serverRef) {
+    public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
         this.roomId = roomId;
         this.players = new CopyOnWriteArrayList<>(); // Thread-safe list
         this.status = "waiting";
@@ -80,7 +80,7 @@ public class GameRoom {
                     String winnerColor = "white".equals(playerWithTurn) ? "black" : "white";
 
                     // Gọi hàm xử lý hết giờ trên ChessServer
-                    serverRef.handleTimeout(this, winnerColor);
+//                    serverRef.handleTimeout(this, winnerColor);
                 }
             } catch (Exception e) {
                 System.err.println("Lỗi trong timer task (GameRoom) phòng " + roomId + ": " + e.getMessage());
