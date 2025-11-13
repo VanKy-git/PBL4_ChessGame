@@ -246,8 +246,6 @@
 
             if(respone.ok) {
                 if (result.success) {
-                    // Server trả về 200 OK
-                    // (Bạn đã xóa check result.success, nhưng nếu server trả về token, là OK)
                     localStorage.setItem("token", result.data.token);
                     localStorage.setItem("playerName", result.data.username);
                     localStorage.setItem("playerId", result.data.userId);
@@ -257,7 +255,6 @@
                 }
             }
             else {
-                // Server trả về lỗi (400, 401, 500...)
                 alert("Đăng nhập thất bại: " + result.error);
             }
         }
