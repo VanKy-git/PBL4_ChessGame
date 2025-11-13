@@ -704,7 +704,6 @@ function onDrawRejected(msg) {
     if(drawRequestBtn) drawRequestBtn.disabled = false;
 }
 
-// ✅ ĐĂNG KÝ TẤT CẢ HANDLER KHI FILE NÀY TẢI LÊN
 registerHandler('player_info', onPlayerInfo);
 registerHandler('room_info', onRoomCreatedOrJoined)
 registerHandler('room_created', onRoomCreatedOrJoined);
@@ -714,7 +713,6 @@ registerHandler('move_result', onMoveResult);
 registerHandler('chat', onChat);
 registerHandler('end_game', onEndGame);
 registerHandler('error', onError);
-// registerHandler('color', onRoomCreatedOrJoined);
 registerHandler('draw_offer', onDrawOfferReceived);
 registerHandler('draw_rejected', onDrawRejected);
 registerHandler('player_left', onPlayerLeft);
@@ -723,9 +721,7 @@ registerHandler('color', onColorAssigned); // Quan trọng cho rematch
 registerHandler('rematch_offer', onRematchOffer);
 registerHandler('rematch_unavailable', onRematchUnavailable);
 
-// ==========================
-// 6. LOGIC RENDER VÀ INPUT
-// ==========================
+//LOGIC RENDER VÀ INPUT
 
 function updatePlayerBars() {
     const p1Bar = document.getElementById('player1Bar');
@@ -737,12 +733,11 @@ function updatePlayerBars() {
 
     // Cập nhật tên Player 2 (Mình)
     if (player2Info && p2NameEl) {
-        p2NameEl.textContent = playerName; // Luôn hiển thị tên đã nhập/lưu
+        p2NameEl.textContent = playerName;
     } else if (p2NameEl) {
-        p2NameEl.textContent = "Bạn"; // Mặc định
+        p2NameEl.textContent = "Bạn";
     }
 
-    // Cập nhật tên Player 1 (Đối thủ)
     if (player1Info && p1NameEl) {
         p1NameEl.textContent = player1Info.name || "Đối thủ";
     } else if (p1NameEl) {

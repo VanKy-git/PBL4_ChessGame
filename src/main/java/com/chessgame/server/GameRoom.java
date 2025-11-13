@@ -40,7 +40,7 @@ public class GameRoom {
         this.serverRef = serverRef;
     }
 
-    // ✅ HÀM BẮT ĐẦU TIMER (trong GameRoom)
+    //HÀM BẮT ĐẦU TIMER (trong GameRoom)
     public synchronized void startTimer() {
         stopTimer(); // Dừng timer cũ (nếu có) trước khi bắt đầu mới
         if (!"playing".equals(status)) return; // Chỉ chạy khi đang chơi
@@ -90,7 +90,7 @@ public class GameRoom {
         }, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
-    // ✅ HÀM DỪNG TIMER (trong GameRoom)
+    // HÀM DỪNG TIMER (trong GameRoom)
     public synchronized void stopTimer() {
         if (timerTask != null && !timerTask.isDone()) {
             timerTask.cancel(false); // false để task hiện tại chạy xong nếu đang chạy
@@ -103,7 +103,7 @@ public class GameRoom {
         // }
     }
 
-    // ✅ HÀM DỌN DẸP HOÀN TOÀN TIMER SERVICE KHI PHÒNG BỊ HỦY
+    // HÀM DỌN DẸP HOÀN TOÀN TIMER SERVICE KHI PHÒNG BỊ HỦY
     public void shutdownTimerService() {
         stopTimer(); // Đảm bảo task đã dừng
         if (timerService != null && !timerService.isShutdown()) {
@@ -145,7 +145,7 @@ public class GameRoom {
         }
     }
 
-    public ChessValidator getValidator() {
+    public synchronized ChessValidator getValidator() {
         return validator;
     }
 
@@ -155,19 +155,19 @@ public class GameRoom {
             this.status = "finished";
         }
     }
-    public String getRematchRequestedByColor() {
+    public synchronized String getRematchRequestedByColor() {
         return rematchRequestedByColor;
     }
 
-    public void setRematchRequestedByColor(String color) {
+    public synchronized void setRematchRequestedByColor(String color) {
         this.rematchRequestedByColor = color;
     }
 
-    public boolean isFull() {
+    public synchronized boolean isFull() {
         return players.size() >= 2;
     }
 
-    public boolean isEmpty() {
+    public synchronized boolean isEmpty() {
         return players.isEmpty();
     }
 
@@ -187,56 +187,56 @@ public class GameRoom {
 
     // Getters and Setters
 
-    public long getInitialTimeMs() { return initialTimeMs; }
+    public synchronized long getInitialTimeMs() { return initialTimeMs; }
 
-    public String getIsDrawOffered() {
+    public synchronized String getIsDrawOffered() {
         return isDrawOffered;
     }
 
-    public void setIsDrawOffered(String isDrawOffered) {
+    public synchronized void setIsDrawOffered(String isDrawOffered) {
         this.isDrawOffered = isDrawOffered;
     }
 
-    public String getRoomId() {
+    public synchronized String getRoomId() {
         return roomId;
     }
 
-    public void setRoomId(String roomId) {
+    public synchronized void setRoomId(String roomId) {
         this.roomId = roomId;
     }
 
-    public List<Player> getPlayers() {
+    public synchronized List<Player> getPlayers() {
         return new ArrayList<>(players); // Return copy to prevent external modification
     }
 
-    public String getStatus() {
+    public synchronized String getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public synchronized void setStatus(String status) {
         this.status = status;
     }
 
-    public String getCurrentTurn() {
+    public synchronized String getCurrentTurn() {
         return currentTurn;
     }
 
-    public void setCurrentTurn(String currentTurn) {
+    public synchronized void setCurrentTurn(String currentTurn) {
         this.currentTurn = currentTurn;
     }
 
-    public long getCreatedAt() {
+    public synchronized long getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(long createdAt) {
+    public synchronized void setCreatedAt(long createdAt) {
         this.createdAt = createdAt;
     }
 
-    public long getWhiteTimeMs() { return whiteTimeMs; }
-    public void setWhiteTimeMs(long whiteTimeMs) { this.whiteTimeMs = whiteTimeMs; }
-    public long getBlackTimeMs() { return blackTimeMs; }
-    public void setBlackTimeMs(long blackTimeMs) { this.blackTimeMs = blackTimeMs; }
+    public synchronized long getWhiteTimeMs() { return whiteTimeMs; }
+    public synchronized void setWhiteTimeMs(long whiteTimeMs) { this.whiteTimeMs = whiteTimeMs; }
+    public synchronized long getBlackTimeMs() { return blackTimeMs; }
+    public synchronized void setBlackTimeMs(long blackTimeMs) { this.blackTimeMs = blackTimeMs; }
     @Override
     public String toString() {
         return "GameRoom{" +

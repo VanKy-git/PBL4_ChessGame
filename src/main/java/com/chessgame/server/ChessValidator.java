@@ -254,7 +254,7 @@ public class ChessValidator {
         return new MoveResult(true, message, winner, from, to);
     }
 
-    public List<String> getValidMovesForSquare(String algSquare) {
+    public synchronized List<String> getValidMovesForSquare(String algSquare) {
         List<String> validMoves = new ArrayList<>();
         if (algSquare == null || algSquare.length() != 2) {
             return validMoves; // Trả về rỗng nếu ô không hợp lệ
