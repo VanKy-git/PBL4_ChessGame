@@ -94,7 +94,27 @@ public class TestStockfish {
     }
 
     private static String getStockfishPath() {
-        // Đường dẫn tuyệt đối - THAY ĐỔI cho phù hợp với máy anh
-        return "C:/Users/ADMIN/IdeaProjects/PBL4_ChessGame/src/main/resources/stockfish/stockfish-windows.exe";
+        String os = System.getProperty("os.name").toLowerCase();
+        String projectRoot = System.getProperty("user.dir");
+
+        String fileName;
+        if (os.contains("win")) {
+            fileName = "stockfish-windows.exe";
+        } else if (os.contains("mac")) {
+            fileName = "stockfish-mac";
+        } else {
+            fileName = "stockfish-linux";
+        }
+
+        // Thử tìm trong src/main/resources trước (Maven structure)
+        String mavenPath = projectRoot + "/src/main/resources/stockfish/" + fileName;
+        java.io.File mavenFile = new java.io.File(mavenPath);
+
+        if (mavenFile.exists()) {
+            return mavenPath;
+        }
+
+        // Nếu không có, tìm trong resources (project root)
+        return projectRoot + "/resources/stockfish/" + fileName;
     }
 }
