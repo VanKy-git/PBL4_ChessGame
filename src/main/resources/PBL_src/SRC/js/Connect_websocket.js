@@ -1,15 +1,10 @@
-// ../js/Connect_websocket.js
-
-
 let mainSocket = null;
 const SOCKET_URL = "ws://10.10.30.103:8080";
 const messageHandlers = {}; // ✅ Dùng cái này
 let pendingMessages = [];
 
-/**
- * Kết nối tới WebSocket server hoặc trả về socket đã mở.
- */
-export function connectMainSocket() {
+
+export function connectMainSocket(token, playerId) {
     if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
         return mainSocket;
     }
@@ -18,7 +13,12 @@ export function connectMainSocket() {
     }
 
     mainSocket.onopen = () => {
-        console.log("✅ Đã kết nối server chính.");
+        console.log(" Đã kết nối server chính.");
+        mainSocket.send(JSON.stringify({
+            type: "auth",
+            token: token,
+            playerId: playerId
+        }));
         if (pendingMessages.length > 0) {
             console.log(` Gửi ${pendingMessages.length} tin nhắn chờ...`);
             pendingMessages.forEach(msg => mainSocket.send(JSON.stringify(msg)));
@@ -30,7 +30,6 @@ export function connectMainSocket() {
         try {
             const msg = JSON.parse(event.data);
             console.log('Received:', msg);
-            // ✅ Gọi hàm nội bộ để điều phối
             handleMessage(msg);
         } catch (e) {
             console.error("[Socket] Lỗi phân tích tin nhắn WebSocket:", e);
@@ -39,15 +38,12 @@ export function connectMainSocket() {
 
     mainSocket.onclose = () => {
         console.log("🔌 Đã ngắt kết nối WebSocket");
-        mainSocket = null; // ✅ Reset socket
+        mainSocket = null;
     };
     mainSocket.onerror = (e) => console.error("[Socket] Lỗi socket:", e);
     return mainSocket;
 }
 
-/**
- * Gửi đối tượng JavaScript dưới dạng chuỗi JSON qua WebSocket.
- */
 export function sendMessage(messageObject) {
     if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
         mainSocket.send(JSON.stringify(messageObject));
@@ -62,9 +58,6 @@ export function sendMessage(messageObject) {
     return false;
 }
 
-/**
- * Đăng ký hàm xử lý cho một loại tin nhắn cụ thể.
- */
 export function registerHandler(type, handlerFunction) {
     if (messageHandlers[type]) {
         console.warn(`[Socket] Ghi đè handler cho type: ${type}`);
@@ -72,10 +65,6 @@ export function registerHandler(type, handlerFunction) {
     messageHandlers[type] = handlerFunction;
 }
 
-/**
- * ✅ HÀM NỘI BỘ: Điều phối tin nhắn
- * (Hàm này mà bạn đã thiếu ở lượt trước)
- */
 function handleMessage(msg) {
     if (msg.type && messageHandlers[msg.type]) {
         messageHandlers[msg.type](msg);

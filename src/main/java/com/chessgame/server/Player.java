@@ -2,14 +2,16 @@ package com.chessgame.server;
 
 import org.java_websocket.WebSocket;
 
+import java.nio.channels.SocketChannel;
+
 public class Player {
     private String playerId;
     private String playerName;
     private String color;
-    private WebSocket connection;
+    private SocketChannel connection;
     private Long preferredTimeMs;
 
-    public Player(String playerId, String playerName, WebSocket connection) {
+    public Player(String playerId, String playerName, SocketChannel connection) {
         this.playerId = playerId;
         this.playerName = playerName;
         this.connection = connection;
@@ -41,11 +43,11 @@ public class Player {
         this.color = color;
     }
 
-    public WebSocket getConnection() {
+    public SocketChannel getConnection() {
         return connection;
     }
 
-    public void setConnection(WebSocket connection) {
+    public void setConnection(SocketChannel connection) {
         this.connection = connection;
     }
 
