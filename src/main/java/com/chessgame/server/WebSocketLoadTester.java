@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class WebSocketLoadTester {
 
-    private static final String SERVER_URL = "ws://localhost:8080";
-    private static final int NUM_CLIENTS = 1000;
+    private static final String SERVER_URL = "ws://10.250.124.215:8080";
+    private static final int NUM_CLIENTS = 10000;
 
     // Metrics
     private static final AtomicInteger connectedClients = new AtomicInteger(0);

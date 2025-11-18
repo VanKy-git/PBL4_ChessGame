@@ -1,5 +1,10 @@
 package com.chessgame.server;
 
+
+import com.database.server.MainApiServer;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
+import java.io.IOException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -20,6 +25,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+
+
 
 public class NioWebSocketServer implements Runnable {
     private final int port;
@@ -1101,11 +1108,35 @@ public class NioWebSocketServer implements Runnable {
 
     // --- MAIN ---
     public static void main(String[] args) {
+
+        EntityManagerFactory ENTITY_MANAGER_FACTORY = null;
         try {
             NioWebSocketServer server = new NioWebSocketServer(8080);
             new Thread(server).start();
         } catch (IOException e) {
             System.err.println("  Cannot start server: " + e.getMessage());
+        }
+
+        try {
+            // Lỗi ban đầu: FATAL: password authentication failed xảy ra tại đây!
+            ENTITY_MANAGER_FACTORY = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+            System.out.println("✅ JPA/Hibernate đã khởi tạo thành công.");
+        } catch (Exception e) {
+            System.err.println("❌ LỖI KHỞI TẠO CƠ SỞ DỮ LIỆU. Đang thoát: " + e.getMessage());
+            e.printStackTrace();
+            return; // Dừng ứng dụng nếu DB không kết nối được
+        }
+
+        try {
+            int httpPort = 8910;
+            // Tạo instance của MainApiServer (là một Runnable)
+            MainApiServer httpApiServer = new MainApiServer(httpPort, ENTITY_MANAGER_FACTORY);
+            // Chạy nó trong một luồng (Thread) mới
+            new Thread(httpApiServer).start(); 
+            System.out.println("✅ HTTP API Server (MainApiServer) đang chạy trên cổng " + httpPort);
+        } catch (Exception e) {
+            System.err.println("❌ LỖI KHỞI CHẠY HTTP API SERVER: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

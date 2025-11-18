@@ -23,7 +23,7 @@ public class matchesController {
     private final Gson gson;
 
     public matchesController(EntityManagerFactory emf ) {
-        emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+        // emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         this.matchService = new matchesService(emf);
         this.gson = GsonUtils.gson;
     }
@@ -157,6 +157,36 @@ public class matchesController {
         }
     }
 
+// TRONG matchesController.java (SỬA ĐỔI)
+public String getHistoryByUserId(String userIdStr) { 
+    try {
+        // 1. Phân tích cú pháp chuỗi thành số nguyên trực tiếp
+        int id = Integer.parseInt(userIdStr); 
+        
+        // 2. Gọi Service như bình thường
+        List<matches> list = matchService.getMatchesWithPlayersByUser(id); 
+        System.out.println("Lịch sử trận đấu cho user ID " + id + ": " + list);
+        // 3. Xây dựng JSON response
+        Map<String, Object> res = new HashMap<>();
+        res.put("success", true);
+        res.put("history", list);
+        
+        return gson.toJson(res);
+    } 
+    catch (NumberFormatException e) {
+        return errorResponse("ID người dùng không hợp lệ.");
+    } 
+    catch(IllegalArgumentException e)
+    {
+        System.out.println("Lỗi: " + e.getMessage());
+        return errorResponse("Lỗi: " + e.getMessage());
+    } 
+    catch (Exception e) {
+        e.printStackTrace();
+        return errorResponse("Lỗi xử lý lịch sử: " + e.getMessage());
+    }
+}
+
     // ========================= ROUTER =========================
 
     public String handleRequest(String action, String requestJson) {
@@ -174,8 +204,12 @@ public class matchesController {
                     return getMatchWithPlayers(requestJson);
                 case "getAllMatchesWithPlayers":
                     return getAllMatchesWithPlayers();
+                case "getHistoryByUserId":
+                    return getHistoryByUserId(requestJson);
+                
                 default:
                     return errorResponse("Action không hợp lệ: " + action);
+                
             }
         } catch (Exception e) {
             e.printStackTrace();

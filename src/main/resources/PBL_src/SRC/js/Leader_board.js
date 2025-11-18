@@ -1,12 +1,10 @@
-import { connectMainSocket, sendMessage, registerHandler } from './Connect_websocket.js';
-
-// GIẢ ĐỊNH: Các phần tử này có ID:
+// File: Leaderboard.js
 const leaderboardLink = document.getElementById('leaderboardLink');
 const leaderboardPopup = document.getElementById('leaderboardPopup');
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 const leaderboardClose = document.getElementById('leaderboardClose');
 
-// --- 1. Hàm Render ---
+const API_URL = "http://localhost:8910";
 
 function renderLeaderboard(list) {
     if (!list || list.length === 0) {
@@ -33,24 +31,35 @@ function renderLeaderboard(list) {
     }).join("");
 }
 
-// --- 2. Đăng ký Handler ---
-
 function handleLeaderboardData(data) {
     renderLeaderboard(data.leaderboard);
 }
 
-registerHandler("leaderboard_data", handleLeaderboardData);
+// Hàm fetch dữ liệu từ API
+async function fetchLeaderboardData() {
+    try {
+        const response = await fetch(`${API_URL}/leaderboard`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            handleLeaderboardData(data);
+        } else {
+            throw new Error(data.message || "Lỗi khi tải bảng xếp hạng.");
+        }
+    } catch (error) {
+        console.error("[Leaderboard.js] Lỗi Fetch:", error);
+        leaderboardContainer.innerHTML = `<p>Lỗi kết nối hoặc dữ liệu: ${error.message}</p>`;
+    }
+}
 
-// --- 3. Listener ---
-
+// --- Listener (Sử dụng fetch thay vì sendMessage) ---
 if (leaderboardLink) {
     leaderboardLink.addEventListener("click", (e) => {
         e.preventDefault();
         leaderboardPopup.style.display = "flex";
         leaderboardContainer.innerHTML = "Đang tải...";
         
-        connectMainSocket();
-        sendMessage({ type: "get_leaderboard" });
+        fetchLeaderboardData();
     });
 
     leaderboardClose.addEventListener("click", () => {

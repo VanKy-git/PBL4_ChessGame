@@ -1,5 +1,5 @@
 let mainSocket = null;
-const SOCKET_URL = "ws://10.10.30.103:8080";
+const SOCKET_URL = "ws://localhost:8080 ";
 const messageHandlers = {}; // ✅ Dùng cái này
 let pendingMessages = [];
 
