@@ -195,62 +195,96 @@ server.createContext("/api/history", exchange -> {
 });
 
 
-    // --- Endpoint Bạn bè (GET /api/friends)
-server.createContext("/api/friends", exchange -> {
-    if ("OPTIONS".equals(exchange.getRequestMethod())) { 
-        handleOptions(exchange); 
-        return; 
-    }
-
-    if ("GET".equals(exchange.getRequestMethod())) {
+     // --- Endpoint Bạn bè (GET/DELETE /api/friends)
+     server.createContext("/api/friends", exchange -> {
+        String requestMethod = exchange.getRequestMethod();
+        
+        // 🚨 Đảm bảo CORS Headers luôn được set đầu tiên
         setCorsHeaders(exchange);
 
-        try {
-            // Lấy query từ URL (để tìm playerId)
-            String query = exchange.getRequestURI().getQuery();
-            Map<String, String> params = parseQuery(query);
-            
-            // Lấy playerId từ query (thay vì Header như code cũ)
-            String userId = params.getOrDefault("playerId", null);
-
-            if (userId == null) {
-                sendResponse(exchange, 400, """
-                {
-                  "success": false,
-                  "message": "Thiếu tham số playerId!"
-                }
-                """);
-                return;
-            }
-
-            // Gọi controller
-            System.out.println("🔍 [DEBUG] Received playerId: " + userId); // ✅ Log
-            
-            String getFriendsJson = String.format("""
-                { "userId": %s }
-            """, userId);
-            System.out.println("🔍 [DEBUG] Sending to controller: " + getFriendsJson); // ✅ Log
-            
-            String responseJson = friendsController.handleRequest("getFriendsOfUser", getFriendsJson);
-            System.out.println("🔍 [DEBUG] Controller response: " + responseJson);
-
-            // Trả về JSON
-            sendResponse(exchange, 200, responseJson);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi xử lý /api/friends!"
-            }
-            """);
+        if ("OPTIONS".equalsIgnoreCase(requestMethod)) { 
+            exchange.sendResponseHeaders(204, -1); // Trả về 204 No Content cho Preflight
+            return; 
         }
 
-    } else {
-        sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
-    }
-});
+        if ("GET".equalsIgnoreCase(requestMethod)) {
+            try {
+                // Lấy query từ URL (để tìm playerId)
+                String query = exchange.getRequestURI().getQuery();
+                Map<String, String> params = parseQuery(query);
+                
+                // Lấy playerId từ query (thay vì Header như code cũ)
+                String userId = params.getOrDefault("playerId", null);
+
+                if (userId == null) {
+                    sendResponse(exchange, 400, """
+                    {
+                      "success": false,
+                      "message": "Thiếu tham số playerId!"
+                    }
+                    """);
+                    return;
+                }
+
+                // Gọi controller
+                String getFriendsJson = String.format("""
+                    { "userId": %s }
+                """, userId);
+                
+                String responseJson = friendsController.handleRequest("getFriendsOfUser", getFriendsJson);
+
+                // Trả về JSON
+                sendResponse(exchange, 200, responseJson);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                sendResponse(exchange, 500, """
+                {
+                  "success": false,
+                  "message": "Lỗi Server khi xử lý GET /api/friends!"
+                }
+                """);
+            }
+        } else if ("DELETE".equalsIgnoreCase(requestMethod)) { // 🚨 FIX: Sử dụng equalsIgnoreCase
+             try {
+                // Lấy friendshipId từ query (e.g., /api/friends?friendshipId=5)
+                String query = exchange.getRequestURI().getQuery();
+                Map<String, String> params = parseQuery(query);
+                String friendshipId = params.getOrDefault("friendshipId", null);
+
+                if (friendshipId == null) {
+                    sendResponse(exchange, 400, """
+                    {
+                      "success": false,
+                      "message": "Thiếu tham số friendshipId!"
+                    }
+                    """);
+                    return;
+                }
+
+                String deleteJson = String.format("""
+                    { "friendshipId": %s }
+                """, friendshipId);
+
+                // Gọi controller để xóa
+                String responseJson = friendsController.handleRequest("deleteFriendship", deleteJson);
+                
+                // Nếu xóa thành công, trả về 200 hoặc 204 No Content
+                sendResponse(exchange, responseJson.contains("\"success\": true") ? 200 : 400, responseJson);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                sendResponse(exchange, 500, """
+                {
+                  "success": false,
+                  "message": "Lỗi Server khi xử lý DELETE /api/friends!"
+                }
+                """);
+            }
+        } else {
+            sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
+        }
+    });
 
 // --- Endpoint Bảng xếp hạng (GET /api/leaderboard)
 server.createContext("/api/leaderboard", exchange -> {

@@ -12,17 +12,57 @@ function renderHistoryList(list) {
         return;
     }
 
-    historyContainer.innerHTML = list.map(match => `
-        <div class="match-item" style="
-        background:rgba(0, 0, 0, 0.7);padding:10px;border-radius:8px;margin:8px 0;
-        box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
-        text-align:left;
-        ">
-        <strong>${match.playerX}</strong> vs <strong>${match.playerO}</strong><br>
-        <span>🏆 Người thắng: <b>${match.winner}</b></span><br>
-        <span class="muted">${new Date(match.date).toLocaleString()}</span>
-        </div>
-    `).join("");
+    historyContainer.innerHTML = list.map(match => {
+        // --- 1. LẤY DỮ LIỆU CẦN THIẾT ---
+        
+        // Trận đấu của bạn có các đối tượng player1 và player2
+        const player1Name = match.player1 ? match.player1.userName : 'Unknown Player 1';
+        const player2Name = match.player2 ? match.player2.userName : 'Unknown Player 2';
+        
+        const status = match.matchStatus; // Trạng thái: "waiting", "finished", v.v.
+        
+        // Giả sử trường thời gian là created_at nằm trong đối tượng player1 (hoặc tìm trường rõ ràng hơn)
+        const matchTimeField = match.player1.createdAt || 'Invalid Date';
+        const formattedDate = new Date(matchTimeField).toLocaleString();
+
+        let winnerDisplay = '';
+        let statusColor = '#fff';
+
+        // --- 2. XÁC ĐỊNH NGƯỜI THẮNG DỰA TRÊN TRẠNG THÁI VÀ winnerId (Nếu có) ---
+        
+        if (status === 'finished' && match.winnerId) {
+            // Logic này sẽ hoạt động khi Backend sửa lại và cung cấp winnerId
+            const winnerId = match.winnerId;
+            const winnerName = (winnerId === match.player1.user_id) ? player1Name : player2Name;
+            
+            winnerDisplay = `<span>🏆 Người thắng: <b>${winnerName}</b></span>`;
+            
+            // Xác định thắng/thua cho người dùng hiện tại
+            if (winnerId === CURRENT_USER_ID) {
+                statusColor = '#00ff00'; // Thắng
+            } else {
+                statusColor = '#ff0000'; // Thua
+            }
+        } else if (status === 'waiting') {
+            winnerDisplay = `<span style="color:#ffff00;">Trạng thái: Đang chờ</span>`;
+            statusColor = '#ffff00';
+        } else {
+             winnerDisplay = `<span>Trạng thái: ${status}</span>`;
+        }
+
+        // --- 3. RENDER HTML ---
+        return `
+            <div class="match-item" style="
+            background:rgba(0, 0, 0, 0.7);padding:10px;border-radius:8px;margin:8px 0;
+            box-shadow: 0 4px 14px rgba(255, 140, 0, 0.5);
+            text-align:left;
+            ">
+            <strong style="color: ${statusColor};">${player1Name} vs ${player2Name}</strong><br>
+            ${winnerDisplay}<br>
+            <span class="muted">${formattedDate}</span>
+            </div>
+        `;
+    }).join("");
 }
 
 // Xử lý dữ liệu nhận được

@@ -40,6 +40,8 @@ public class friendsDAO {
             """, friends.class)
                 .setParameter("id", userId)
                 .getResultList();
+
+
     }
 
     public friends getFriendById(int friendshipId) {

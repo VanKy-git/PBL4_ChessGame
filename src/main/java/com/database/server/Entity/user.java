@@ -138,4 +138,17 @@ public class user {
                 ", createdAt=" + createdAt +
                 '}';
     }
+
+    @Override
+public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof user)) return false;
+    user other = (user) o;
+    return this.user_id == other.user_id;
+}
+
+@Override
+public int hashCode() {
+    return Integer.hashCode(this.user_id);
+}
 }
