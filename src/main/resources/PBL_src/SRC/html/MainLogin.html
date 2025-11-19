@@ -247,7 +247,23 @@
             if(respone.ok) {
                 if (result.success) {
                     localStorage.setItem("token", result.data.token);
-                    localStorage.setItem("playerName", result.data.username);
+
+                    // Lưu TOÀN BỘ thông tin user dạng JSON
+                    const userData = {
+                        userId: result.data.userId,
+                        username: result.data.username,
+                        email: result.data.email,
+                        avatar: result.data.avatar || '../../PBL4_imgs/icon/man.png',
+                        elo: result.data.elo || 1200,
+                        winCount: result.data.winCount || 0,
+                        lossCount: result.data.lossCount || 0,
+                        createdAt: result.data.createdAt || new Date().toISOString()
+                    };
+
+                    // Chuyển object thành JSON string và lưu
+                    localStorage.setItem("userData", JSON.stringify(userData));
+
+                    // Vẫn giữ playerId và playerName để backward compatible
                     localStorage.setItem("playerId", result.data.userId);
                     window.location.href = "Home_page.html";                }
                 else {
