@@ -191,5 +191,34 @@
     <script type="module" src="../js/Leader_board.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     </div>
+    <div id="ai-setup-overlay" class="popup-overlay hidden">
+        <div class="popup-content ai-popup">
+            <h3>Cấu hình AI Stockfish</h3>
+
+            <div class="setup-section">
+                <label>Độ khó (Elo):</label>
+                <div class="elo-options">
+                    <button class="elo-btn selected" data-elo="1350">Dễ (1350)</button>
+                    <button class="elo-btn" data-elo="1600">Vừa (1600)</button>
+                    <button class="elo-btn" data-elo="2000">Khó (2000)</button>
+                    <button class="elo-btn" data-elo="2500">Kiện tướng</button>
+                </div>
+            </div>
+
+            <div class="setup-section">
+                <label>Thời gian:</label>
+                <div class="time-options-ai">
+                    <button class="time-btn-ai selected" data-time="600000">10 Phút</button>
+                    <button class="time-btn-ai" data-time="900000">15 Phút</button>
+                    <button class="time-btn-ai" data-time="1800000">30 Phút</button>
+                </div>
+            </div>
+
+            <div class="confirmation-buttons">
+                <button id="startAiGameBtn" class="btn-action confirm">Bắt đầu</button>
+                <button id="cancelAiSetupBtn" class="btn-action cancel">Hủy</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

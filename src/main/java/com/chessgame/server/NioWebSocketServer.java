@@ -33,6 +33,7 @@ public class NioWebSocketServer implements Runnable {
     private final Map<Long, ConcurrentLinkedQueue<Player>> waitingQueuesByTime = new ConcurrentHashMap<>();
     private final Map<SocketChannel, Object> writeLocks = new ConcurrentHashMap<>();
     private final Queue<SocketChannel> disconnectQueue = new ConcurrentLinkedQueue<>();
+    private static final String STOCKFISH_PATH = "D:\\Programing\\PBL4_ChessGame/src/main/resources/stockfish/stockfish-windows.exe ";
 
     public NioWebSocketServer(int port) throws IOException {
         this.port = port;
@@ -498,6 +499,9 @@ public class NioWebSocketServer implements Runnable {
                 case "rematch_request":
                     handleRematchRequest(player, data);
                     break;
+                case "create_ai_game": // ✅ THÊM CASE NÀY
+                    handleCreateAiGame(player, data);
+                    break;
                 default:
                     System.out.println("Unknown type: " + type);
                     sendErrorMessage(client, "Unknown message type");
@@ -510,6 +514,67 @@ public class NioWebSocketServer implements Runnable {
             System.err.println("Error in handleGameLogic: " + e.getMessage());
             e.printStackTrace();
             sendErrorMessage(client, "Lỗi xử lý logic: " + e.getMessage());
+        }
+    }
+
+    private void handleCreateAiGame(Player player, Map<String, Object> data) {
+        if (player == null) return;
+
+        try {
+            String roomId = generateUniqueRoomId();
+            long timeControl = 600000; // Mặc định 10 phút
+            if (data.get("timeControl") instanceof Number) {
+                timeControl = ((Number) data.get("timeControl")).longValue();
+            }
+
+            // Lấy độ khó (Elo)
+            int elo = 1350; // Mặc định dễ nhất
+            if (data.get("elo") instanceof Number) {
+                elo = ((Number) data.get("elo")).intValue();
+            }
+
+            // 1. Khởi tạo GameRoom
+            GameRoom room = new GameRoom(roomId, timeControl, this);
+
+            // 2. Khởi động Stockfish
+            StockfishEngine engine = new StockfishEngine(STOCKFISH_PATH);
+            engine.setElo(elo); // Set độ khó
+            room.setStockfishEngine(engine); // Lưu vào phòng
+
+            // 3. Tạo Bot Player
+            String botId = "STOCKFISH_AI_" + roomId;
+            // Bot không cần socket connection (null)
+            Player botPlayer = new Player(botId, "Stockfish (Elo " + elo + ")", null);
+
+            // 4. Chọn màu (Random)
+            if (Math.random() < 0.5) {
+                player.setColor("white");
+                botPlayer.setColor("black");
+            } else {
+                player.setColor("black");
+                botPlayer.setColor("white");
+            }
+
+            // 5. Thêm vào phòng
+            room.addPlayer(player);
+            room.addPlayer(botPlayer);
+            gameRooms.put(roomId, room);
+
+            // Gửi thông tin phòng cho người chơi thật
+            sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor()));
+            sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor()));
+
+            // Bắt đầu game
+            startGame(room);
+
+            // ✅ NẾU BOT CẦM TRẮNG -> BOT ĐI TRƯỚC
+            if ("white".equals(botPlayer.getColor())) {
+                triggerStockfishMove(room, botPlayer);
+            }
+
+        } catch (IOException e) {
+            System.err.println("Lỗi khởi tạo Stockfish: " + e.getMessage());
+            sendErrorMessage(player.getConnection(), "Không thể khởi động AI Engine. Kiểm tra đường dẫn file.");
         }
     }
 
@@ -740,47 +805,166 @@ public class NioWebSocketServer implements Runnable {
         }
     }
 
+//    private void handleGameMove(Player player, Map<String, Object> data) {
+//        if (player == null) return;
+//        String roomId = (String) data.get("roomId");
+//        GameRoom room = gameRooms.get(roomId);
+//
+//        if (room == null || !room.getStatus().equals("playing")) return;
+//        if (!room.getCurrentTurn().equals(player.getColor())) {
+//            sendErrorMessage(player.getConnection(), "It's not your turn!");
+//            return;
+//        }
+//
+//        String from = data.get("from").toString();
+//        String to = data.get("to").toString();
+//        Character promo = data.get("promotion") == null ? null : (Character) data.get("promotion");
+//        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(from, to, player.getColor(), promo);
+//
+//        if (!moveResult.isValid) {
+//            sendMessage(player.getConnection(), Map.of(
+//                    "type", "move_result",
+//                    "result", false,
+//                    "message", moveResult.message
+//            ));
+//        } else {
+//            String nextTurn = player.getColor().equals("white") ? "black" : "white";
+//            room.setCurrentTurn(nextTurn);
+//            String fen = room.getValidator().toFen();
+//            boolean isNextPlayerInCheck = room.getValidator().isKingInCheck(nextTurn, room.getValidator().getBoard());
+//
+//            Map<String, Object> fenData = new HashMap<>();
+//            fenData.put("result", true);
+//            fenData.put("fen", fen);
+//            fenData.put("lastMove", Map.of("from", from, "to", to));
+//            fenData.put("isCheck", isNextPlayerInCheck);
+//            notifyRoomPlayers(room, "move_result", fenData);
+//
+//            if (moveResult.winner != null) {
+//                notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
+//                room.setStatus("finished");
+//                room.stopTimer();
+//            }
+//        }
+//    }
+
+    // Sửa lại handleGameMove để gọi processMove
     private void handleGameMove(Player player, Map<String, Object> data) {
         if (player == null) return;
         String roomId = (String) data.get("roomId");
         GameRoom room = gameRooms.get(roomId);
-
-        if (room == null || !room.getStatus().equals("playing")) return;
-        if (!room.getCurrentTurn().equals(player.getColor())) {
-            sendErrorMessage(player.getConnection(), "It's not your turn!");
-            return;
-        }
+        if (room == null) return;
 
         String from = data.get("from").toString();
         String to = data.get("to").toString();
-        Character promo = data.get("promotion") == null ? null : (Character) data.get("promotion");
+        Character promo = data.get("promotion") == null ? null : ((String)data.get("promotion")).charAt(0);
+
+        // Gọi hàm xử lý chung
+        boolean moveSuccess = processMove(room, player, from, to, promo);
+
+        // Nếu người đi thành công VÀ đối thủ là AI -> Kích hoạt AI đi
+        if (moveSuccess && "playing".equals(room.getStatus())) {
+            Player opponent = room.getOpponent(player);
+            // Kiểm tra nếu đối thủ là Bot (Connection == null và có engine trong phòng)
+            if (opponent.getConnection() == null && room.getStockfishEngine() != null) {
+                triggerStockfishMove(room, opponent);
+            }
+        }
+    }
+
+    // ✅ HÀM XỬ LÝ NƯỚC ĐI CHUNG (Cho cả người và máy)
+// Trả về true nếu đi thành công
+    private boolean processMove(GameRoom room, Player player, String from, String to, Character promo) {
+        if (!"playing".equals(room.getStatus())) return false;
+        if (!room.getCurrentTurn().equals(player.getColor())) {
+            if (player.getConnection() != null)
+                sendErrorMessage(player.getConnection(), "Chưa tới lượt của bạn!");
+            return false;
+        }
+
         ChessValidator.MoveResult moveResult = room.getValidator().validateMove(from, to, player.getColor(), promo);
 
         if (!moveResult.isValid) {
-            sendMessage(player.getConnection(), Map.of(
-                    "type", "move_result",
-                    "result", false,
-                    "message", moveResult.message
-            ));
-        } else {
-            String nextTurn = player.getColor().equals("white") ? "black" : "white";
-            room.setCurrentTurn(nextTurn);
-            String fen = room.getValidator().toFen();
-            boolean isNextPlayerInCheck = room.getValidator().isKingInCheck(nextTurn, room.getValidator().getBoard());
+            if (player.getConnection() != null) {
+                sendMessage(player.getConnection(), Map.of(
+                        "type", "move_result", "result", false, "message", moveResult.message
+                ));
+            }
+            return false;
+        }
 
-            Map<String, Object> fenData = new HashMap<>();
-            fenData.put("result", true);
-            fenData.put("fen", fen);
-            fenData.put("lastMove", Map.of("from", from, "to", to));
-            fenData.put("isCheck", isNextPlayerInCheck);
-            notifyRoomPlayers(room, "move_result", fenData);
+        // --- Nước đi hợp lệ ---
+        String nextTurn = player.getColor().equals("white") ? "black" : "white";
+        room.setCurrentTurn(nextTurn);
 
-            if (moveResult.winner != null) {
-                notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
-                room.setStatus("finished");
-                room.stopTimer();
+        // Cập nhật Stockfish (quan trọng: phải báo cho engine biết bàn cờ mới)
+        if (room.getStockfishEngine() != null) {
+            try {
+                room.getStockfishEngine().setPosition(room.getValidator().toFen());
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
+
+        String fen = room.getValidator().toFen();
+        boolean isNextPlayerInCheck = room.getValidator().isKingInCheck(nextTurn, room.getValidator().getBoard());
+
+        Map<String, Object> fenData = new HashMap<>();
+        fenData.put("type", "move_result");
+        fenData.put("result", true);
+        fenData.put("fen", fen);
+        fenData.put("lastMove", Map.of("from", from, "to", to));
+        fenData.put("isCheck", isNextPlayerInCheck);
+
+        // Gửi cho tất cả người chơi (người thật) trong phòng
+        notifyRoomPlayers(room, "move_result", fenData);
+
+        if (moveResult.winner != null) {
+            notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
+            room.setStatus("finished");
+            room.shutdownTimerService(); // Tắt timer và Engine
+        }
+
+        return true;
+    }
+
+    private void triggerStockfishMove(GameRoom room, Player botPlayer) {
+        // Chạy trong thread pool để không chặn luồng chính
+        threadPool.submit(() -> {
+            try {
+                // Giả lập thời gian suy nghĩ (tối thiểu 500ms cho tự nhiên)
+                // và tối đa dựa trên thời gian còn lại, ví dụ 2 giây
+                int thinkTime = 2000;
+
+                String bestMoveUCI = room.getStockfishEngine().getBestMove(thinkTime);
+
+                if (bestMoveUCI == null) {
+                    System.err.println("Stockfish không trả về nước đi nào!");
+                    return;
+                }
+
+                // Stockfish trả về dạng "e2e4" hoặc "a7a8q" (phong cấp)
+                // Cần cắt chuỗi ra
+                String from = bestMoveUCI.substring(0, 2);
+                String to = bestMoveUCI.substring(2, 4);
+                Character promo = null;
+
+                if (bestMoveUCI.length() > 4) {
+                    promo = bestMoveUCI.charAt(4); // Lấy ký tự phong cấp (q, r, b, n)
+                }
+
+                System.out.println("Bot đi: " + from + " -> " + to);
+
+                // Gọi lại processMove (đệ quy logic nhưng an toàn vì đã đổi lượt)
+                // Lưu ý: processMove không synchronized, nhưng GameRoom state nên được bảo vệ
+                // Trong trường hợp này, vì Bot chạy tuần tự sau người, rủi ro thấp.
+                // Để an toàn tuyệt đối, nên đồng bộ hóa việc gọi processMove trong GameRoom.
+                processMove(room, botPlayer, from, to, promo);
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     private void handleChatMessage(Player player, Map<String, Object> data) {

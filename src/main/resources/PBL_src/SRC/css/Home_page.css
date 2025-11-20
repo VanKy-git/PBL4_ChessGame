@@ -8,6 +8,50 @@ html,body{
   background-size:cover;}
   
 .muted{opacity:0.7;font-size:13px}
+/* CSS cho AI Popup */
+.ai-popup {
+    width: 400px;
+    text-align: center;
+}
+
+.setup-section {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.setup-section label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #ccc;
+}
+
+.elo-options, .time-options-ai {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.elo-btn, .time-btn-ai {
+    padding: 8px 15px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+    flex: 1;
+}
+
+.elo-btn:hover, .time-btn-ai:hover {
+    background: #555;
+}
+
+.elo-btn.selected, .time-btn-ai.selected {
+    background: #81b64c; /* Màu xanh giống chess.com */
+    border-color: #81b64c;
+    font-weight: bold;
+}
 .logo-image {
     width: 40px; /* Đặt chiều rộng mong muốn (ví dụ: 40px) */
     height: 40px; /* Đặt chiều cao mong muốn (ví dụ: 40px) */

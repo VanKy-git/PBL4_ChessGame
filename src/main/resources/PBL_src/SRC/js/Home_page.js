@@ -27,7 +27,17 @@ const confirmBtnNo = document.getElementById('confirmBtnNo');
 const timeControlOverlay = document.getElementById('time-control-overlay');
 const timeOptionsContainer = timeControlOverlay?.querySelector('.time-options');
 const cancelTimeSelectionBtn = document.getElementById('cancelTimeSelectionBtn');
+// 1. Lấy các Element
+const aiModeBtn = document.querySelector('.mode[data-mode="ai"]');
+const aiOverlay = document.getElementById('ai-setup-overlay');
+const startAiBtn = document.getElementById('startAiGameBtn');
+const cancelAiBtn = document.getElementById('cancelAiSetupBtn');
+const eloBtns = document.querySelectorAll('.elo-btn');
+const aiTimeBtns = document.querySelectorAll('.time-btn-ai');
 
+// Biến lưu cấu hình đang chọn
+let selectedElo = 1350;
+let selectedAiTime = 600000;
 let matchmakingIntervalId = null; // ID để dừng setInterval
 let matchmakingStartTime = 0;   // Thời điểm bắt đầu tìm trận
 
@@ -52,6 +62,63 @@ function getLobbyHTML() {
         
         <div id="lobbyStatus" class="status-lobby">Đang chờ kết nối...</div>
     </div>`;
+}
+
+if (aiModeBtn) {
+    aiModeBtn.addEventListener('click', () => {
+        aiOverlay.classList.remove('hidden');
+        aiOverlay.style.display = 'flex'; // Đảm bảo nó hiện lên nếu CSS dùng display none
+    });
+}
+
+// 3. Sự kiện đóng Popup
+if (cancelAiBtn) {
+    cancelAiBtn.addEventListener('click', () => {
+        aiOverlay.classList.add('hidden');
+        aiOverlay.style.display = 'none';
+    });
+}
+
+// 4. Logic chọn Elo (Highlight nút được chọn)
+eloBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        // Xóa class selected ở tất cả nút
+        eloBtns.forEach(b => b.classList.remove('selected'));
+        // Thêm vào nút vừa bấm
+        e.target.classList.add('selected');
+        // Lưu giá trị
+        selectedElo = parseInt(e.target.dataset.elo);
+    });
+});
+
+// 5. Logic chọn Thời gian (Highlight nút được chọn)
+aiTimeBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        aiTimeBtns.forEach(b => b.classList.remove('selected'));
+        e.target.classList.add('selected');
+        selectedAiTime = parseInt(e.target.dataset.time);
+    });
+});
+
+// 6. Gửi lệnh tạo game xuống Server
+if (startAiBtn) {
+    startAiBtn.addEventListener('click', () => {
+        console.log(`Creating AI Game: Elo ${selectedElo}, Time ${selectedAiTime}`);
+
+        sendMessage({
+            type: "create_ai_game",
+            elo: selectedElo,
+            timeControl: selectedAiTime
+        });
+
+        // Ẩn popup
+        aiOverlay.classList.add('hidden');
+        aiOverlay.style.display = 'none';
+
+        // Ẩn giao diện Lobby (nếu có), hiện bàn cờ
+        // (Logic này có thể đã được xử lý khi nhận message 'game_start' hoặc 'room_joined')
+        showGameControlsView();
+    });
 }
 
 // Hàm hiển thị popup

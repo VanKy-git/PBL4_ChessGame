@@ -20,6 +20,7 @@ public class GameRoom {
     private long initialTimeMs;
     private long whiteTimeMs;
     private long blackTimeMs;
+    private StockfishEngine stockfishEngine;
     // ✅ THÊM CÁC THUỘC TÍNH TIMER
     private final NioWebSocketServer serverRef; // Tham chiếu đến ChessServer để gửi tin nhắn
     private transient ScheduledExecutorService timerService; // transient vì không cần serialize
@@ -110,6 +111,10 @@ public class GameRoom {
             timerService.shutdown();
             System.out.println("Timer service shut down for room " + roomId); // DEBUG
         }
+        if (stockfishEngine != null) {
+            stockfishEngine.close();
+            System.out.println("Đã tắt Stockfish cho phòng " + roomId);
+        }
     }
 
     public void addPlayer(Player player) {
@@ -186,6 +191,15 @@ public class GameRoom {
     }
 
     // Getters and Setters
+
+
+    public StockfishEngine getStockfishEngine() {
+        return stockfishEngine;
+    }
+
+    public void setStockfishEngine(StockfishEngine stockfishEngine) {
+        this.stockfishEngine = stockfishEngine;
+    }
 
     public synchronized long getInitialTimeMs() { return initialTimeMs; }
 
