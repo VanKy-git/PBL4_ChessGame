@@ -440,6 +440,61 @@ public class ChessValidator {
         return false;
     }
 
+//    private boolean validateKing(char piece, int fromRow, int fromCol, int toRow, int toCol,
+//                                 char[][] boardState) {
+//        String color = Character.isUpperCase(piece) ? "white" : "black";
+//
+//        // Di chuyển thông thường 1 ô
+//        if (Math.abs(toRow - fromRow) <= 1 && Math.abs(toCol - fromCol) <= 1) {
+//            // ✅ THÊM KIỂM TRA: Ô ĐẾN có bị đối phương tấn công không?
+//            if (isSquareUnderAttack(toRow, toCol, color, boardState)) {
+//                return false; // Không được đi vào ô bị chiếu
+//            }
+//            return true; // Ô đến an toàn
+//        }
+//
+//        // Nhập thành (chỉ kiểm tra khi di chuyển 2 ô ngang)
+//        if (fromRow == toRow && Math.abs(fromCol - toCol) == 2) {
+//            // Logic kiểm tra nhập thành (đã có vẻ đúng)
+//            if (isKingInCheck(color, boardState)) {
+//                return false;
+//            }
+//            return isCastlingValid(fromRow, fromCol, toRow, toCol, boardState, color);
+//        }
+//        return false;
+//    }
+//
+//    private boolean isCastlingValid(int fromRow, int fromCol, int toRow, int toCol,
+//                                    char[][] boardState, String color) {
+//        String kingSide = color.equals("white") ? "K" : "k";
+//        String queenSide = color.equals("white") ? "Q" : "q";
+//
+//        // Nhập thành cánh Vua (Kingside)
+//        if (toCol > fromCol) {
+//            if (castlingRights.contains(kingSide) &&
+//                    boardState[fromRow][fromCol + 1] == '.' &&
+//                    boardState[fromRow][fromCol + 2] == '.' &&
+//                    !isSquareUnderAttack(fromRow, fromCol + 1, color, boardState) &&
+//                    !isSquareUnderAttack(fromRow, fromCol + 2, color, boardState)) {
+//                return true;
+//            }
+//        }
+//        // Nhập thành cánh Hậu (Queenside)
+//        else {
+//            if (castlingRights.contains(queenSide) &&
+//                    boardState[fromRow][fromCol - 1] == '.' &&
+//                    boardState[fromRow][fromCol - 2] == '.' &&
+//                    boardState[fromRow][fromCol - 3] == '.' &&
+//                    !isSquareUnderAttack(fromRow, fromCol - 1, color, boardState) &&
+//                    !isSquareUnderAttack(fromRow, fromCol - 2, color, boardState)) {
+//                return true;
+//            }
+//        }
+//        return false;
+//    }
+
+    // thay thể hàm validateKing và isCastlingValid
+
     private boolean validateKing(char piece, int fromRow, int fromCol, int toRow, int toCol,
                                  char[][] boardState) {
         String color = Character.isUpperCase(piece) ? "white" : "black";
