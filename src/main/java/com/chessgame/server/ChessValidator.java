@@ -308,53 +308,51 @@ public class ChessValidator {
 
     public synchronized List<String> getValidMovesForSquare(String algSquare) {
         List<String> validMoves = new ArrayList<>();
-        if (algSquare == null || algSquare.length() != 2) {
-            return validMoves; // Trả về rỗng nếu ô không hợp lệ
-        }
+        if (algSquare == null || algSquare.length() != 2) return validMoves;
 
-        // Chuyển đổi ký hiệu đại số sang tọa độ
         int fromRow = 8 - Character.getNumericValue(algSquare.charAt(1));
         int fromCol = algSquare.charAt(0) - 'a';
-
-        // Kiểm tra tọa độ hợp lệ
-        if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7) {
-            return validMoves;
-        }
+        if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7) return validMoves;
 
         char piece = board[fromRow][fromCol];
-        String pieceColor = isCorrectTurn(piece, "white") ? "white" : (isCorrectTurn(piece, "black") ? "black" : null);
+        if (piece == '.') return validMoves;
 
-        // Chỉ tính nếu ô đó có quân cờ và đúng lượt đi hiện tại
-        if (piece == '.' || pieceColor == null || !pieceColor.equals(this.currentTurn)) {
-            return validMoves;
-        }
+        String pieceColor = Character.isUpperCase(piece) ? "white" : "black";
 
-        // Thử đi đến tất cả các ô khác
+        // BỎ HOÀN TOÀN kiểm tra currentTurn ở đây
+        // if (!pieceColor.equals(currentTurn)) return validMoves; ← XÓA DÒNG NÀY
+
         for (int tr = 0; tr < 8; tr++) {
             for (int tc = 0; tc < 8; tc++) {
-                // 1. Kiểm tra sơ bộ (dùng hàm geometry hoặc isValidMove đầy đủ)
-                // Dùng isValidMove đầy đủ sẽ chính xác hơn, bao gồm cả nhập thành
                 if (isValidMove(piece, fromRow, fromCol, tr, tc, board, enPassantTarget)) {
-                    // 2. Tạo bàn cờ tạm và đi thử
                     char[][] tempBoard = cloneBoard(board);
-                    char originalTargetPiece = tempBoard[tr][tc]; // Lưu quân bị ăn
+                    char captured = tempBoard[tr][tc];
                     tempBoard[tr][tc] = piece;
                     tempBoard[fromRow][fromCol] = '.';
 
-                    // Mô phỏng bắt tốt qua đường trên tempBoard (nếu cần, logic này đã có trong validateMove nên có thể bỏ qua?)
-                    // Logic mô phỏng nhập thành trên tempBoard (nếu cần)
+                    // XỬ LÝ NHẬP THÀNH
+                    if (Character.toLowerCase(piece) == 'k' && Math.abs(fromCol - tc) == 2) {
+                        int rookCol = tc > fromCol ? 7 : 0;
+                        int newRookCol = tc > fromCol ? tc - 1 : tc + 1;
+                        tempBoard[fromRow][newRookCol] = tempBoard[fromRow][rookCol];
+                        tempBoard[fromRow][rookCol] = '.';
+                    }
 
-                    // 3. Kiểm tra Vua có an toàn không sau nước đi thử
-                    // Sử dụng hàm isKingInCheck hoặc isKingInCheckSimple
+                    // XỬ LÝ BẮT TỐT QUA ĐƯỜNG
+                    if (Character.toLowerCase(piece) == 'p' && fromCol != tc && captured == '.') {
+                        String targetSq = (char)('a' + tc) + "" + (8 - tr);
+                        if (targetSq.equals(enPassantTarget)) {
+                            int pawnRow = pieceColor.equals("white") ? tr + 1 : tr - 1;
+                            tempBoard[pawnRow][tc] = '.';
+                        }
+                    }
+
                     if (!isKingInCheck(pieceColor, tempBoard)) {
-                        // Nếu Vua an toàn, thêm ô đích vào danh sách
                         validMoves.add((char)('a' + tc) + "" + (8 - tr));
                     }
-                    // Không cần rollback tempBoard
                 }
             }
         }
-
         return validMoves;
     }
 
@@ -553,16 +551,16 @@ public class ChessValidator {
 
         // Di chuyển thông thường 1 ô
         if (Math.abs(toRow - fromRow) <= 1 && Math.abs(toCol - fromCol) <= 1) {
-            // ✅ THÊM KIỂM TRA: Ô ĐẾN có bị đối phương tấn công không?
+            // Kiểm tra ô đến có bị đối phương tấn công không
             if (isSquareUnderAttack(toRow, toCol, color, boardState)) {
-                return false; // Không được đi vào ô bị chiếu
+                return false;
             }
-            return true; // Ô đến an toàn
+            return true;
         }
 
         // Nhập thành (chỉ kiểm tra khi di chuyển 2 ô ngang)
         if (fromRow == toRow && Math.abs(fromCol - toCol) == 2) {
-            // Logic kiểm tra nhập thành (đã có vẻ đúng)
+            // Vua đang bị chiếu thì không được nhập thành
             if (isKingInCheck(color, boardState)) {
                 return false;
             }
@@ -578,23 +576,53 @@ public class ChessValidator {
 
         // Nhập thành cánh Vua (Kingside)
         if (toCol > fromCol) {
-            if (castlingRights.contains(kingSide) &&
-                    boardState[fromRow][fromCol + 1] == '.' &&
+            // Kiểm tra castlingRights trước
+            if (!castlingRights.contains(kingSide)) {
+                return false;
+            }
+
+            // Kiểm tra bounds
+            if (fromCol + 3 >= 8) {
+                return false;
+            }
+
+            // Kiểm tra các ô trống và không bị tấn công
+            if (boardState[fromRow][fromCol + 1] == '.' &&
                     boardState[fromRow][fromCol + 2] == '.' &&
                     !isSquareUnderAttack(fromRow, fromCol + 1, color, boardState) &&
                     !isSquareUnderAttack(fromRow, fromCol + 2, color, boardState)) {
-                return true;
+
+                // Kiểm tra xe còn ở vị trí
+                char expectedRook = color.equals("white") ? 'R' : 'r';
+                if (boardState[fromRow][fromCol + 3] == expectedRook) {
+                    return true;
+                }
             }
         }
         // Nhập thành cánh Hậu (Queenside)
         else {
-            if (castlingRights.contains(queenSide) &&
-                    boardState[fromRow][fromCol - 1] == '.' &&
+            // Kiểm tra castlingRights trước
+            if (!castlingRights.contains(queenSide)) {
+                return false;
+            }
+
+            // Kiểm tra bounds
+            if (fromCol - 4 < 0) {
+                return false;
+            }
+
+            // Kiểm tra các ô trống và không bị tấn công
+            if (boardState[fromRow][fromCol - 1] == '.' &&
                     boardState[fromRow][fromCol - 2] == '.' &&
                     boardState[fromRow][fromCol - 3] == '.' &&
                     !isSquareUnderAttack(fromRow, fromCol - 1, color, boardState) &&
                     !isSquareUnderAttack(fromRow, fromCol - 2, color, boardState)) {
-                return true;
+
+                // Kiểm tra xe còn ở vị trí
+                char expectedRook = color.equals("white") ? 'R' : 'r';
+                if (boardState[fromRow][fromCol - 4] == expectedRook) {
+                    return true;
+                }
             }
         }
         return false;

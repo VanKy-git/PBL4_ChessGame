@@ -1,377 +1,436 @@
 package com.chessgame.server;
 
-import java.io.IOException;
 import java.util.*;
 
+/**
+ * Chess AI - PHIÊN BẢN SẠCH: ĐÃ LOẠI BỎ HOÀN TOÁI TIMEOUT
+ * Chỉ dùng depth cố định theo DifficultyLevel
+ * Chạy đủ depth, không bị ngắt giữa chừng
+ */
 public class Computer {
 
     /* ===== THUỘC TÍNH ===== */
-
-    private final String roomId;
-    private final Player humanPlayer;
-    private final DifficultyLevel difficulty;
     private final ChessValidator validator;
-    private final NioWebSocketServer server;
-    private final StockfishEngine stockfish;
-    private String status;
-    private boolean isPlayerWhite;
+    private final String aiColor;
+    private final DifficultyLevel difficulty;
 
-    /* ===== ĐƯỜNG DẪN STOCKFISH ===== */
-    private static final String STOCKFISH_PATH = getStockfishPath();
+    // Transposition Table + Zobrist
+    private final Map<Long, TranspositionEntry> transpositionTable;
+    private final long[][][] zobristTable;
+    private final long[] zobristCastling;
+    private final long[] zobristEnPassant;
+    private final long zobristTurn;
 
-//    private static String getStockfishPath() {
-//        String os = System.getProperty("os.name").toLowerCase();
-//        if (os.contains("win")) {
-//            return "resources/stockfish/stockfish-windows.exe";
-//        } else if (os.contains("mac")) {
-//            return "resources/stockfish/stockfish-mac";
-//        } else {
-//            return "resources/stockfish/stockfish-linux";
-//        }
-//    }
-
-    private static String getStockfishPath() {
-        String os = System.getProperty("os.name").toLowerCase();
-        String projectRoot = System.getProperty("user.dir");
-
-        String fileName;
-        if (os.contains("win")) {
-            fileName = "stockfish-windows.exe";
-        } else if (os.contains("mac")) {
-            fileName = "stockfish-mac";
-        } else {
-            fileName = "stockfish-linux";
-        }
-
-        // Thử tìm trong src/main/resources trước (Maven structure)
-        String mavenPath = projectRoot + "/src/main/resources/stockfish/" + fileName;
-        java.io.File mavenFile = new java.io.File(mavenPath);
-
-        if (mavenFile.exists()) {
-            return mavenPath;
-        }
-
-        // Nếu không có, tìm trong resources (project root)
-        return projectRoot + "/resources/stockfish/" + fileName;
-    }
+    // Thống kê
+    private final SearchStatistics stats = new SearchStatistics();
 
     /* ===== ENUM MỨC ĐỘ KHÓ ===== */
-
     public enum DifficultyLevel {
-        EASY(1350, 500, "Dễ"),           // Elo 1350, 0.5s
-        MEDIUM(1800, 1000, "Trung bình"), // Elo 1800, 1s
-        HARD(2200, 2000, "Khó"),          // Elo 2200, 2s
-        EXPERT(2850, 3000, "Chuyên gia"); // Elo 2850, 3s
+        EASY(4, "Dễ"),
+        MEDIUM(5, "Trung bình"),
+        HARD(6, "Khó"),
+        EXPERT(8, "Chuyên gia"),      // Đã tăng lên 8 cho mạnh hơn
+        MASTER(10, "Bậc thầy");
 
-        private final int eloRating;
-        private final int thinkTimeMs;
+        private final int searchDepth;
         private final String displayName;
 
-        DifficultyLevel(int elo, int timeMs, String name) {
-            this.eloRating = elo;
-            this.thinkTimeMs = timeMs;
+        DifficultyLevel(int depth, String name) {
+            this.searchDepth = depth;
             this.displayName = name;
         }
 
-        public int getEloRating() { return eloRating; }
-        public int getThinkTimeMs() { return thinkTimeMs; }
+        public int getSearchDepth() { return searchDepth; }
         public String getDisplayName() { return displayName; }
     }
 
+    /* ===== CÁC CLASS NỘI BỘ ===== */
+    private static class TranspositionEntry {
+        long zobristHash;
+        int depth;
+        int score;
+        int flag;
+        String bestMove;
+
+        static final int EXACT = 0;
+        static final int LOWER_BOUND = 1;
+        static final int UPPER_BOUND = 2;
+
+        TranspositionEntry(long hash, int depth, int score, int flag, String move) {
+            this.zobristHash = hash;
+            this.depth = depth;
+            this.score = score;
+            this.flag = flag;
+            this.bestMove = move;
+        }
+    }
+
+    public static class SearchStatistics {
+        public long nodesEvaluated = 0;
+        public long branchesPruned = 0;
+        public long cacheHits = 0;
+        public long cacheMisses = 0;
+        public double searchTimeMs = 0;
+        public int maxDepthReached = 0;
+
+        public void reset() {
+            nodesEvaluated = branchesPruned = cacheHits = cacheMisses = 0;
+            searchTimeMs = 0;
+            maxDepthReached = 0;
+        }
+
+        @Override
+        public String toString() {
+            double hitRate = (cacheHits + cacheMisses) > 0 ? 100.0 * cacheHits / (cacheHits + cacheMisses) : 0;
+            return String.format(
+                    "Nodes: %,d | Pruned: %,d | Cache: %,d/%,d (%.1f%%) | Time: %.3fs | Depth: %d",
+                    nodesEvaluated, branchesPruned, cacheHits, (cacheHits + cacheMisses),
+                    hitRate, searchTimeMs / 1000.0, maxDepthReached
+            );
+        }
+    }
+
     /* ===== CONSTRUCTOR ===== */
-
-    public Computer(String roomId, Player humanPlayer, DifficultyLevel difficulty,
-                    boolean isPlayerWhite, NioWebSocketServer server) {
-        this.roomId = roomId;
-        this.humanPlayer = humanPlayer;
+    public Computer(ChessValidator validator, String aiColor, DifficultyLevel difficulty) {
+        this.validator = validator;
+        this.aiColor = aiColor;
         this.difficulty = difficulty;
-        this.isPlayerWhite = isPlayerWhite;
-        this.server = server;
-        this.validator = new ChessValidator();
-        this.status = "waiting";
 
-        humanPlayer.setColor(isPlayerWhite ? "white" : "black");
+        this.transpositionTable = new HashMap<>();
+        this.zobristTable = initializeZobristTable();
+        this.zobristCastling = initializeZobristCastling();
+        this.zobristEnPassant = initializeZobristEnPassant();
+        this.zobristTurn = new Random(12345).nextLong();
 
-        // Khởi tạo Stockfish Engine
-        try {
-            this.stockfish = new StockfishEngine(STOCKFISH_PATH);
-            this.stockfish.setElo(difficulty.getEloRating());
-            this.stockfish.setThreads(2);
-            this.stockfish.setHashSize(128);
-
-            System.out.println(String.format(
-                    "[Computer Room %s] Tạo phòng: %s (%s) vs Stockfish (Elo %d - %s)",
-                    roomId, humanPlayer.getPlayerName(),
-                    humanPlayer.getColor(), difficulty.getEloRating(), difficulty.getDisplayName()
-            ));
-        } catch (IOException e) {
-            System.err.println("[Computer Room] Lỗi khởi tạo Stockfish: " + e.getMessage());
-            throw new RuntimeException("Không thể khởi động Stockfish Engine", e);
-        }
+        System.out.println("[Computer] Khởi tạo AI: " + aiColor + " | Level: " + difficulty.getDisplayName() +
+                " | Depth cố định: " + difficulty.getSearchDepth());
     }
 
-    /* ===== BẮT ĐẦU GAME ===== */
+    /* ===== ZOBRIST HASHING (giữ nguyên) ===== */
+    private long[][][] initializeZobristTable() {
+        Random rand = new Random(12345);
+        long[][][] table = new long[6][64][2];
+        for (int p = 0; p < 6; p++)
+            for (int sq = 0; sq < 64; sq++)
+                for (int c = 0; c < 2; c++)
+                    table[p][sq][c] = rand.nextLong();
+        return table;
+    }
 
-    public void startGame() {
-        this.status = "playing";
-        this.validator.resetBoard();
+    private long[] initializeZobristCastling() {
+        Random r = new Random(54321);
+        long[] t = new long[4];
+        for (int i = 0; i < 4; i++) t[i] = r.nextLong();
+        return t;
+    }
 
-        try {
-            this.stockfish.resetPosition();
-        } catch (IOException e) {
-            System.err.println("[Computer Room] Lỗi reset Stockfish: " + e.getMessage());
-        }
+    private long[] initializeZobristEnPassant() {
+        Random r = new Random(98765);
+        long[] t = new long[8];
+        for (int i = 0; i < 8; i++) t[i] = r.nextLong();
+        return t;
+    }
 
-        System.out.println(String.format(
-                "[Computer Room %s] Game bắt đầu! %s vs Stockfish (%s)",
-                roomId, humanPlayer.getPlayerName(), difficulty.getDisplayName()
-        ));
+    private long computeZobristHash(char[][] board, String turn, String castling, String enPassant) {
+        long hash = 0L;
 
-        Map<String, Object> gameStartData = new HashMap<>();
-        gameStartData.put("gameState", validator.toFen());
-        gameStartData.put("currentTurn", "white");
-        gameStartData.put("roomId", roomId);
-        gameStartData.put("playerColor", humanPlayer.getColor());
-        gameStartData.put("aiLevel", difficulty.getDisplayName());
-        gameStartData.put("playerWhite", Map.of(
-                "id", humanPlayer.getPlayerId(),
-                "name", humanPlayer.getPlayerName()
-        ));
-        gameStartData.put("playerBlack", Map.of(
-                "id", "ai",
-                "name", "Stockfish (" + difficulty.getDisplayName() + ")"
-        ));
-
-        server.sendMessage(humanPlayer.getConnection(), Map.of(
-                "type", "game_start",
-                "data", gameStartData
-        ));
-
-        // Nếu AI đi trước (người chơi cầm đen)
-        if (!isPlayerWhite) {
-            new Thread(() -> {
-                try {
-                    Thread.sleep(500);
-                    makeAIMove();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+        // Pieces
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                char p = board[r][c];
+                if (p != '.') {
+                    int type = getPieceType(p);
+                    int sq = r * 8 + c;
+                    int color = Character.isUpperCase(p) ? 0 : 1;
+                    hash ^= zobristTable[type][sq][color];
                 }
-            }).start();
-        }
-    }
-
-    /* ===== NHẬN NƯỚC ĐI TỪ NGƯỜI CHƠI ===== */
-
-    /**
-     * Nhận nước đi từ người chơi (algebraic notation: e2, e4,...)
-     * Check hợp lệ bằng ChessValidator API
-     * Nếu hợp lệ, gọi AI đi tiếp
-     */
-    public void receivePlayerMove(String from, String to, Character promotion) {
-        System.out.println(String.format(
-                "[Computer Room %s] Nhận nước đi: %s -> %s",
-                roomId, from, to
-        ));
-
-        if (!"playing".equals(status)) {
-            sendError("Game không ở trạng thái đang chơi!");
-            return;
-        }
-
-        if (!validator.getCurrentTurn().equals(humanPlayer.getColor())) {
-            sendError("Không phải lượt của bạn!");
-            return;
-        }
-
-        // Validate và thực hiện nước đi bằng ChessValidator API
-        ChessValidator.MoveResult moveResult = validator.validateMove(
-                from, to, humanPlayer.getColor(), promotion
-        );
-
-        if (!moveResult.isValid) {
-            server.sendMessage(humanPlayer.getConnection(), Map.of(
-                    "type", "move_result",
-                    "result", false,
-                    "message", moveResult.message
-            ));
-            return;
-        }
-
-        // Nước đi hợp lệ
-        String aiColor = isPlayerWhite ? "black" : "white";
-        String fen = validator.toFen();
-        boolean isAIInCheck = validator.isKingInCheck(aiColor, validator.getBoard());
-
-        Map<String, Object> resultData = new HashMap<>();
-        resultData.put("result", true);
-        resultData.put("fen", fen);
-        resultData.put("lastMove", Map.of("from", from, "to", to));
-        resultData.put("isCheck", isAIInCheck);
-
-        server.sendMessage(humanPlayer.getConnection(), Map.of(
-                "type", "move_result",
-                "data", resultData
-        ));
-
-        // Kiểm tra game over
-        if (moveResult.winner != null) {
-            handleGameOver(moveResult.winner, "checkmate");
-            return;
-        }
-
-        // AI đi tiếp (delay 500ms)
-        new Thread(() -> {
-            try {
-                Thread.sleep(500);
-                makeAIMove();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
-        }).start();
+        }
+
+        // Castling rights
+        if (castling.contains("K")) hash ^= zobristCastling[0];
+        if (castling.contains("Q")) hash ^= zobristCastling[1];
+        if (castling.contains("k")) hash ^= zobristCastling[2];
+        if (castling.contains("q")) hash ^= zobristCastling[3];
+
+        // En passant
+        if (!"-".equals(enPassant)) {
+            int file = enPassant.charAt(0) - 'a';
+            hash ^= zobristEnPassant[file];
+        }
+
+        // Turn
+        if ("white".equals(turn)) hash ^= zobristTurn;
+
+        return hash;
     }
 
-    /* ===== AI TÍNH TOÁN VÀ ĐI (STOCKFISH) ===== */
+    private int getPieceType(char p) {
+        return switch (Character.toLowerCase(p)) {
+            case 'p' -> 0;
+            case 'n' -> 1;
+            case 'b' -> 2;
+            case 'r' -> 3;
+            case 'q' -> 4;
+            case 'k' -> 5;
+            default -> -1;
+        };
+    }
 
-    /**
-     * AI tính toán và trả về nước đi cho server
-     * Sử dụng Stockfish để tính nước đi tốt nhất
-     * Trả về nước đi dạng algebraic notation (e2, e4,...)
-     */
-    private void makeAIMove() {
+    /* ===== TÌM NƯỚC ĐI TỐT NHẤT - KHÔNG CÒN TIMEOUT ===== */
+    public String getBestMove() {
         long startTime = System.currentTimeMillis();
+        stats.reset();
+        transpositionTable.clear();
 
-        String aiColor = isPlayerWhite ? "black" : "white";
-        System.out.println(String.format(
-                "[Computer Room %s] Stockfish (%s) đang suy nghĩ... (Elo: %d)",
-                roomId, aiColor, difficulty.getEloRating()
-        ));
+        int targetDepth = difficulty.getSearchDepth();
+        String bestMove = null;
 
-        try {
-            // Cập nhật vị trí hiện tại cho Stockfish
-            String currentFen = validator.toFen();
-            stockfish.setPosition(currentFen);
+        System.out.println("[Computer] Bắt đầu tìm kiếm - Depth cố định: " + targetDepth);
 
-            // Lấy nước đi tốt nhất từ Stockfish (UCI format: e2e4, e7e8q)
-            String bestMoveUCI = stockfish.getBestMove(difficulty.getThinkTimeMs());
-
-            if (bestMoveUCI == null || bestMoveUCI.isEmpty()) {
-                System.err.println("[AI ERROR] Stockfish không trả về nước đi");
-                handleGameOver(humanPlayer.getColor(), "ai_error");
-                return;
+        // Iterative Deepening (vẫn giữ để có PV move tốt hơn)
+        for (int depth = 1; depth <= targetDepth; depth++) {
+            String move = searchRoot(depth);
+            if (move != null) {
+                bestMove = move;
+                stats.maxDepthReached = depth;
             }
-
-            long endTime = System.currentTimeMillis();
-            double thinkingTime = (endTime - startTime) / 1000.0;
-
-            // Chuyển đổi UCI move (e2e4) sang algebraic notation (from: e2, to: e4)
-            String from = bestMoveUCI.substring(0, 2); // e2
-            String to = bestMoveUCI.substring(2, 4);   // e4
-
-            Character promotion = null;
-            if (bestMoveUCI.length() == 5) {
-                promotion = bestMoveUCI.charAt(4); // q, r, b, n
-            }
-
-            // Thực hiện nước đi bằng ChessValidator API
-            ChessValidator.MoveResult moveResult = validator.validateMove(
-                    from, to, aiColor, promotion
-            );
-
-            if (!moveResult.isValid) {
-                System.err.println("[AI ERROR] Nước đi Stockfish không hợp lệ: " + bestMoveUCI);
-                handleGameOver(humanPlayer.getColor(), "ai_error");
-                return;
-            }
-
-            System.out.println(String.format(
-                    "[Computer Room %s] Stockfish đã đi: %s->%s (%.2fs)",
-                    roomId, from, to, thinkingTime
-            ));
-
-            String fen = validator.toFen();
-            boolean isPlayerInCheck = validator.isKingInCheck(
-                    humanPlayer.getColor(), validator.getBoard()
-            );
-
-            Map<String, Object> aiMoveData = new HashMap<>();
-            aiMoveData.put("result", true);
-            aiMoveData.put("fen", fen);
-            aiMoveData.put("lastMove", Map.of("from", from, "to", to));
-            aiMoveData.put("isCheck", isPlayerInCheck);
-            aiMoveData.put("aiThinkingTime", thinkingTime);
-
-            server.sendMessage(humanPlayer.getConnection(), Map.of(
-                    "type", "ai_move",
-                    "data", aiMoveData
-            ));
-
-            if (moveResult.winner != null) {
-                handleGameOver(moveResult.winner, "checkmate");
-            }
-
-        } catch (IOException e) {
-            System.err.println("[AI ERROR] Lỗi giao tiếp với Stockfish: " + e.getMessage());
-            handleGameOver(humanPlayer.getColor(), "ai_error");
+            System.out.println("[Computer] Depth " + depth + " hoàn thành → " + bestMove + " | " + stats);
         }
-    }
 
-    /* ===== XỬ LÝ KẾT THÚC GAME ===== */
+        stats.searchTimeMs = System.currentTimeMillis() - startTime;
+        System.out.println("[Computer] HOÀN TẤT - Trả về nước đi depth " + stats.maxDepthReached + ": " + bestMove);
+        System.out.println("[Computer] Thống kê cuối: " + stats);
 
-    private void handleGameOver(String winner, String reason) {
-        status = "finished";
-
-        System.out.println(String.format(
-                "[Computer Room %s] Game kết thúc! Winner: %s, Reason: %s",
-                roomId, winner, reason
-        ));
-
-        Map<String, Object> endData = new HashMap<>();
-        endData.put("winner", winner);
-        endData.put("reason", reason);
-
-        server.sendMessage(humanPlayer.getConnection(), Map.of(
-                "type", "end_game",
-                "data", endData
-        ));
-
-        // Đóng Stockfish engine
-        cleanup();
-    }
-
-    private void sendError(String message) {
-        server.sendMessage(humanPlayer.getConnection(), Map.of(
-                "type", "error",
-                "message", message
-        ));
-    }
-
-    /* ===== CLEANUP ===== */
-
-    public void cleanup() {
-        if (stockfish != null && stockfish.isRunning()) {
-            stockfish.close();
-            System.out.println("[Computer Room " + roomId + "] Đã đóng Stockfish engine");
+        // Fallback cực hiếm
+        if (bestMove == null) {
+            List<String> moves = getAllLegalMoves(aiColor, validator.getBoard());
+            bestMove = moves.isEmpty() ? "resign" : moves.get(0);
         }
+
+        return bestMove;
     }
 
-    /* ===== GETTER ===== */
+    private String searchRoot(int depth) {
+        char[][] board = validator.getBoard();
+        List<String> moves = getAllLegalMoves(aiColor, board);
+        if (moves.isEmpty()) return null;
 
-    public String getRoomId() { return roomId; }
-    public String getStatus() { return status; }
-    public Player getHumanPlayer() { return humanPlayer; }
+        orderMoves(moves, board);
 
-    /**
-     * Người chơi đầu hàng
-     */
-    public void resign() {
-        String aiColor = isPlayerWhite ? "black" : "white";
-        handleGameOver(aiColor, "resignation");
+        String bestMove = null;
+        int bestScore = Integer.MIN_VALUE;
+        int alpha = Integer.MIN_VALUE;
+        int beta = Integer.MAX_VALUE;
+
+        for (String move : moves) {
+            char[][] newBoard = makeMove(board, move);
+            int score = -minimax(newBoard, depth - 1, -beta, -alpha, getOpponentColor(aiColor));
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
+            }
+            alpha = Math.max(alpha, score);
+        }
+        return bestMove;
     }
 
-    /**
-     * Lấy các nước đi hợp lệ cho một ô (sử dụng ChessValidator API)
-     */
-    public List<String> getValidMovesForSquare(String square) {
-        return validator.getValidMovesForSquare(square);
+    /* ===== MINIMAX + ALPHA-BETA (đã bỏ hết timeout check) ===== */
+    private int minimax(char[][] board, int depth, int alpha, int beta, String currentPlayer) {
+        stats.nodesEvaluated++;
+
+        // Transposition Table lookup
+        String castling = computeCastlingRights(board);
+        long hash = computeZobristHash(board, currentPlayer, castling, "-");
+        TranspositionEntry entry = transpositionTable.get(hash);
+
+        if (entry != null && entry.depth >= depth) {
+            stats.cacheHits++;
+            if (entry.flag == TranspositionEntry.EXACT) return entry.score;
+            if (entry.flag == TranspositionEntry.LOWER_BOUND) alpha = Math.max(alpha, entry.score);
+            if (entry.flag == TranspositionEntry.UPPER_BOUND) beta = Math.min(beta, entry.score);
+            if (alpha >= beta) return entry.score;
+        } else {
+            stats.cacheMisses++;
+        }
+
+        if (depth == 0 || isGameOver(board)) {
+            return evaluateBoard(board);
+        }
+
+        List<String> moves = getAllLegalMoves(currentPlayer, board);
+        if (moves.isEmpty()) {
+            return validator.isKingInCheck(currentPlayer, board)
+                    ? -100000 + depth
+                    : 0;
+        }
+
+        orderMoves(moves, board);
+
+        int bestScore = Integer.MIN_VALUE;
+        String bestMove = null;
+        int originalAlpha = alpha;
+
+        for (String move : moves) {
+            char[][] newBoard = makeMove(board, move);
+            int score = -minimax(newBoard, depth - 1, -beta, -alpha, getOpponentColor(currentPlayer));
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
+            }
+            alpha = Math.max(alpha, score);
+            if (alpha >= beta) {
+                stats.branchesPruned++;
+                break;
+            }
+        }
+
+        // Lưu vào TT
+        int flag = (bestScore <= originalAlpha) ? TranspositionEntry.UPPER_BOUND :
+                (bestScore >= beta) ? TranspositionEntry.LOWER_BOUND :
+                        TranspositionEntry.EXACT;
+
+        transpositionTable.put(hash, new TranspositionEntry(hash, depth, bestScore, flag, bestMove));
+        return bestScore;
     }
+
+    /* ===== CÁC HÀM CÒN LẠI (giữ nguyên, chỉ rút gọn comment) ===== */
+    private void orderMoves(List<String> moves, char[][] board) {
+        moves.sort((m1, m2) -> Integer.compare(scoreMoveForOrdering(m2, board), scoreMoveForOrdering(m1, board)));
+    }
+
+    private int scoreMoveForOrdering(String move, char[][] board) {
+        int score = 0;
+        String from = move.substring(0, 2), to = move.substring(2, 4);
+        int fromRow = 8 - Character.getNumericValue(from.charAt(1));
+        int fromCol = from.charAt(0) - 'a';
+        int toRow = 8 - Character.getNumericValue(to.charAt(1));
+        int toCol = to.charAt(0) - 'a';
+
+        char moving = board[fromRow][fromCol];
+        char captured = board[toRow][toCol];
+
+        if (captured != '.') {
+            score += 10 * getPieceValue(captured) - getPieceValue(moving);
+        }
+
+        // PV move từ TT
+        long hash = computeZobristHash(board, validator.getCurrentTurn(), computeCastlingRights(board), "-");
+        TranspositionEntry e = transpositionTable.get(hash);
+        if (e != null && move.equals(e.bestMove)) score += 10000;
+
+        if ((toRow == 3 || toRow == 4) && (toCol >= 2 && toCol <= 5)) score += 20;
+
+        return score;
+    }
+
+    private int evaluateBoard(char[][] board) {
+        return evaluateMaterial(board) * 10 + evaluatePosition(board) * 2;
+    }
+
+    private int evaluateMaterial(char[][] board) {
+        int score = 0;
+        for (int r = 0; r < 8; r++) for (int c = 0; c < 8; c++) {
+            char p = board[r][c];
+            if (p != '.') {
+                int val = getPieceValue(p);
+                score += isPieceColor(p, aiColor) ? val : -val;
+            }
+        }
+        return score;
+    }
+
+    private int evaluatePosition(char[][] board) {
+        int score = 0;
+        for (int r = 0; r < 8; r++) for (int c = 0; c < 8; c++) {
+            char p = board[r][c];
+            if (p != '.') {
+                int val = getPositionalValue(p, r, c);
+                score += isPieceColor(p, aiColor) ? val : -val;
+            }
+        }
+        return score;
+    }
+
+    private int getPositionalValue(char piece, int row, int col) {
+        int center = ((row == 3 || row == 4) && (col >= 2 && col <= 5)) ? 10 : 0;
+        if (Character.toLowerCase(piece) == 'p') {
+            return isPieceColor(piece, "white") ? (7 - row) * 5 + center : row * 5 + center;
+        }
+        return center;
+    }
+
+    private int getPieceValue(char p) {
+        return switch (Character.toLowerCase(p)) {
+            case 'p' -> 100;
+            case 'n' -> 320;
+            case 'b' -> 330;
+            case 'r' -> 500;
+            case 'q' -> 900;
+            case 'k' -> 20000;
+            default -> 0;
+        };
+    }
+
+    private List<String> getAllLegalMoves(String color, char[][] board) {
+        List<String> moves = new ArrayList<>();
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                char p = board[r][c];
+                if (p != '.' && isPieceColor(p, color)) {
+                    String from = String.format("%c%d", (char)('a' + c), 8 - r);
+                    List<String> targets = validator.getValidMovesForSquare(from);
+                    for (String to : targets) moves.add(from + to);
+                }
+            }
+        }
+        return moves;
+    }
+
+    private String computeCastlingRights(char[][] board) {
+        StringBuilder sb = new StringBuilder();
+        if (board[7][4] == 'K' && board[7][7] == 'R') sb.append('K');
+        if (board[7][4] == 'K' && board[7][0] == 'R') sb.append('Q');
+        if (board[0][4] == 'k' && board[0][7] == 'r') sb.append('k');
+        if (board[0][4] == 'k' && board[0][0] == 'r') sb.append('q');
+        return sb.length() > 0 ? sb.toString() : "-";
+    }
+
+    private char[][] makeMove(char[][] board, String move) {
+        char[][] copy = new char[8][8];
+        for (int i = 0; i < 8; i++) copy[i] = Arrays.copyOf(board[i], 8);
+
+        int fr = 8 - Character.getNumericValue(move.charAt(1));
+        int fc = move.charAt(0) - 'a';
+        int tr = 8 - Character.getNumericValue(move.charAt(3));
+        int tc = move.charAt(2) - 'a';
+
+        copy[tr][tc] = copy[fr][fc];
+        copy[fr][fc] = '.';
+        return copy;
+    }
+
+    private boolean isPieceColor(char piece, String color) {
+        if (piece == '.') return false;
+        boolean whitePiece = Character.isUpperCase(piece);
+        return (color.equals("white") && whitePiece) || (color.equals("black") && !whitePiece);
+    }
+
+    private String getOpponentColor(String color) {
+        return color.equals("white") ? "black" : "white";
+    }
+
+    private boolean isGameOver(char[][] board) {
+        boolean hasWhiteKing = false, hasBlackKing = false;
+        for (char[] row : board) for (char p : row) {
+            if (p == 'K') hasWhiteKing = true;
+            if (p == 'k') hasBlackKing = true;
+        }
+        return !hasWhiteKing || !hasBlackKing;
+    }
+
+    /* ===== GETTERS ===== */
+    public SearchStatistics getStatistics() { return stats; }
+    public DifficultyLevel getDifficulty() { return difficulty; }
 }
