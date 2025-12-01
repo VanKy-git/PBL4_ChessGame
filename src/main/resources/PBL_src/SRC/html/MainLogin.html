@@ -261,11 +261,20 @@
                     };
 
                     // Chuyển object thành JSON string và lưu
-                    localStorage.setItem("userData", JSON.stringify(userData));
-
-                    // Vẫn giữ playerId và playerName để backward compatible
+                    // LƯU ĐÚNG 100% – KHÔNG THỂ SAI ĐƯỢC NỮA
+                    localStorage.setItem("token", result.data.token);
                     localStorage.setItem("playerId", result.data.userId);
-                    window.location.href = "Home_page.html";                }
+                    localStorage.setItem("playerName", result.data.username);           // ĐÚNG KEY
+                    localStorage.setItem("avatarUrl", result.data.avatar || "../../PBL4_imgs/icon/man.png");
+
+                    // Cache thêm cache để lần sau load nhanh (tùy chọn nhưng tốt)
+                    localStorage.setItem("userData", JSON.stringify({
+                        playerId: result.data.userId,
+                        username: result.data.username,
+                        avatarUrl: result.data.avatar || "../../PBL4_imgs/icon/man.png"
+                    }));
+
+                    window.location.href = "Home_page.html";             }
                 else {
                     alert(result.error);
                 }

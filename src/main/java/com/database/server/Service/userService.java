@@ -631,4 +631,139 @@ public class userService {
             em.close();
         }
     }
+
+    // ========== CẬP NHẬT TÀI KHOẢN ==========
+// Thêm vào cuối class userService (trước dấu đóng ngoặc })
+
+    /**
+     * Cập nhật thông tin tài khoản (username, email, avatarUrl)
+     * @param userId ID người dùng
+     * @param username Tên mới
+     * @param email Email mới
+     * @param avatarUrl URL avatar mới
+     * @return true nếu thành công
+     */
+    public boolean updateAccount(int userId, String username, String email, String avatarUrl) {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em);
+
+        try {
+            em.getTransaction().begin();
+
+            user foundUser = dao.getUserById(userId);
+
+            if (foundUser == null) {
+                em.getTransaction().rollback();
+                return false;
+            }
+
+            // Kiểm tra username mới có bị trùng không (nếu thay đổi)
+            if (username != null && !username.isEmpty() && !username.equals(foundUser.getUserName())) {
+                if (dao.isUsernameExists(username)) {
+                    em.getTransaction().rollback();
+                    throw new RuntimeException("Username đã tồn tại!");
+                }
+                foundUser.setUserName(username);
+            }
+
+            // Kiểm tra email mới có bị trùng không (nếu thay đổi)
+            if (email != null && !email.isEmpty() && !email.equals(foundUser.getEmail())) {
+                if (dao.isEmailExists(email)) {
+                    em.getTransaction().rollback();
+                    throw new RuntimeException("Email đã tồn tại!");
+                }
+                foundUser.setEmail(email);
+            }
+
+            // Cập nhật avatar
+            if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                foundUser.setAvatarUrl(avatarUrl);
+            }
+
+            dao.updateUser(foundUser);
+            em.getTransaction().commit();
+
+            System.out.println("✅ Updated account for user: " + userId);
+            return true;
+
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            throw e;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            em.close();
+        }
+    }
+
+    /**
+     * Đổi mật khẩu
+     * @param userId ID người dùng
+     * @param oldPassword Mật khẩu cũ
+     * @param newPassword Mật khẩu mới
+     * @return true nếu thành công
+     */
+    public boolean changePassword(int userId, String oldPassword, String newPassword) {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em);
+
+        try {
+            em.getTransaction().begin();
+
+            user foundUser = dao.getUserById(userId);
+
+            if (foundUser == null) {
+                em.getTransaction().rollback();
+                return false;
+            }
+
+            // Kiểm tra user có password không (user Google chưa set password)
+            if (foundUser.getPassword() == null || foundUser.getPassword().isEmpty()) {
+                em.getTransaction().rollback();
+                throw new RuntimeException("Tài khoản chưa có mật khẩu. Vui lòng đặt mật khẩu mới.");
+            }
+
+            // Kiểm tra mật khẩu cũ (sử dụng BCrypt)
+            if (!BCrypt.checkpw(oldPassword, foundUser.getPassword())) {
+                em.getTransaction().rollback();
+                throw new RuntimeException("Mật khẩu cũ không đúng!");
+            }
+
+            // Kiểm tra mật khẩu mới có hợp lệ không
+            if (newPassword == null || newPassword.length() < 6) {
+                em.getTransaction().rollback();
+                throw new RuntimeException("Mật khẩu mới phải có ít nhất 6 ký tự!");
+            }
+
+            // Hash mật khẩu mới và cập nhật
+            String hashedNewPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            foundUser.setPassword(hashedNewPassword);
+
+            dao.updateUser(foundUser);
+            em.getTransaction().commit();
+
+            System.out.println("✅ Password changed for user: " + userId);
+            return true;
+
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            throw e;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            em.close();
+        }
+    }
 }

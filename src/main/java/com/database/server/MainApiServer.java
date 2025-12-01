@@ -284,54 +284,141 @@ server.createContext("/api/leaderboard", exchange -> {
     }
 });
 
-// --- Endpoint Tài khoản (GET /api/account)
-// server.createContext("/api/account", exchange -> {
-//     if ("OPTIONS".equals(exchange.getRequestMethod())) { 
-//         handleOptions(exchange); 
-//         return; 
-//     }
+// --- Endpoint Tài khoản (GET /api/account?playerId=xxx)
+        server.createContext("/api/account", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
 
-//     if ("GET".equals(exchange.getRequestMethod())) {
-//         setCorsHeaders(exchange);
-        
-//         try {
-//             // Lấy query từ URL (để tìm playerId)
-//             String query = exchange.getRequestURI().getQuery();
-//             Map<String, String> params = parseQuery(query);
-            
-//             // Lấy playerId từ query
-//             String userId = params.getOrDefault("playerId", null);
+            if ("GET".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
 
-//             if (userId == null) {
-//                 sendResponse(exchange, 400, """
-//                 {
-//                   "success": false,
-//                   "message": "Thiếu tham số playerId!"
-//                 }
-//                 """);
-//                 return;
-//             }
+                try {
+                    // Lấy query từ URL
+                    String query = exchange.getRequestURI().getQuery();
+                    Map<String, String> params = parseQuery(query);
 
-//             // Gọi controller
-//             String responseJson = userController.getAccountDetails(userId);
+                    // Lấy playerId từ query
+                    String userId = params.getOrDefault("playerId", null);
 
-//             // Trả về JSON
-//             sendResponse(exchange, 200, responseJson);
+                    if (userId == null) {
+                        sendResponse(exchange, 400, """
+                {
+                  "success": false,
+                  "message": "Thiếu tham số playerId!"
+                }
+                """);
+                        return;
+                    }
 
-//         } catch (Exception e) {
-//             e.printStackTrace();
-//             sendResponse(exchange, 500, """
-//             {
-//               "success": false,
-//               "message": "Lỗi Server khi xử lý /api/account!"
-//             }
-//             """);
-//         }
+                    // Gọi controller để lấy thông tin user
+                    String getUserJson = String.format("""
+                { "userId": %s }
+            """, userId);
 
-//     } else {
-//         sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
-//     }
-// });
+                    String responseJson = userController.handleRequest("getUserById", getUserJson);
+
+                    // Trả về JSON
+                    sendResponse(exchange, 200, responseJson);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sendResponse(exchange, 500, """
+            {
+              "success": false,
+              "message": "Lỗi Server khi xử lý /api/account!"
+            }
+            """);
+                }
+
+            } else {
+                sendResponse(exchange, 405, """
+        {
+          "success": false,
+          "message": "Method Not Allowed"
+        }
+        """);
+            }
+        });
+
+// --- Endpoint Cập nhật tài khoản (POST /api/account/update)
+        server.createContext("/api/account/update", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
+
+            if ("POST".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
+
+                try {
+                    String requestBody = readRequestBody(exchange);
+                    System.out.println("📥 [DEBUG] Update request: " + requestBody);
+
+                    String responseJson = userController.handleRequest("updateAccount", requestBody);
+                    System.out.println("📤 [DEBUG] Update response: " + responseJson);
+
+                    sendResponse(exchange, 200, responseJson);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sendResponse(exchange, 500, """
+            {
+              "success": false,
+              "message": "Lỗi Server khi cập nhật tài khoản!"
+            }
+            """);
+                }
+
+            } else {
+                sendResponse(exchange, 405, """
+        {
+          "success": false,
+          "message": "Method Not Allowed"
+        }
+        """);
+            }
+        });
+
+// --- Endpoint Đổi mật khẩu (POST /api/account/change-password)
+        server.createContext("/api/account/change-password", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
+
+            if ("POST".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
+
+                try {
+                    String requestBody = readRequestBody(exchange);
+                    System.out.println("🔐 [DEBUG] Change password request for user");
+
+                    String responseJson = userController.handleRequest("changePassword", requestBody);
+                    System.out.println("📤 [DEBUG] Change password response: " + responseJson);
+
+                    sendResponse(exchange, 200, responseJson);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sendResponse(exchange, 500, """
+            {
+              "success": false,
+              "message": "Lỗi Server khi đổi mật khẩu!"
+            }
+            """);
+                }
+
+            } else {
+                sendResponse(exchange, 405, """
+        {
+          "success": false,
+          "message": "Method Not Allowed"
+        }
+        """);
+            }
+        });
     }
 
 

@@ -896,4 +896,103 @@ border: 1px solid rgba(255, 165, 0, 0.3);
 .friend-item .score {
   color: #ffd27f;
 }
-  
+
+/* === PHẦN NGƯỜI CHƠI DƯỚI CÙNG SIDEBAR === */
+/* === PHIÊN BẢN MỚI: NÚT ĐĂNG XUẤT DƯỚI AVATAR === */
+.user-profile-section {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 85%;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 165, 0, 0.2);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    text-align: center; /* Căn giữa tất cả vào giữa */
+    transition: all 0.3s ease;
+}
+
+.user-profile-section:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateX(-50%) translateY(-3px);
+}
+
+.user-avatar img {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #ff6b00;
+    box-shadow: 0 0 15px rgba(255, 107, 0, 0.6);
+    margin-bottom: 8px;
+}
+
+.user-info-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.user-info-center .username {
+    font-weight: 700;
+    font-size: 16px;
+    color: #fff;
+}
+
+.user-info-center .player-id {
+    font-size: 13px;
+    opacity: 0.85;
+    color: #ffd27f;
+    margin-bottom: 4px;
+}
+
+.user-info-center .btn-logout {
+    background: linear-gradient(135deg, #d32f2f, #c62828);
+    color: white;
+    border: none;
+    padding: 9px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(211, 47, 47, 0.5);
+    width: fit-content;
+    margin: 0 auto;
+}
+
+.user-info-center .btn-logout:hover {
+    background: linear-gradient(135deg, #ef5350, #e53935);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(211, 47, 47, 0.7);
+}
+
+.left {
+    position: relative;
+    padding-bottom: 130px; /* Tăng lên chút để không bị che */
+}
+/* Thêm vào Home_page.css nếu muốn đẹp hơn */
+.confirmation-popup h3 {
+    color: #ffd27f;
+    font-size: 20px;
+}
+.confirmation-popup p {
+    color: #fff6e5;
+    font-size: 15px;
+}
+.confirmation-buttons .confirm {
+    background: linear-gradient(135deg, #28a745, #218838);
+}
+.confirmation-buttons .confirm:hover {
+    background: linear-gradient(135deg, #34c759, #2ca04a);
+}
+.confirmation-buttons .cancel {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+}

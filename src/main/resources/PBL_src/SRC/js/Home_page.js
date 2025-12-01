@@ -4,6 +4,103 @@ import {connectMainSocket, sendMessage} from "./Connect_websocket.js";
 // Lấy playerName từ localStorage
 let playerName = localStorage.getItem("playerName") || "Guest";
 
+// === SIDEBAR USER INFO + LOGOUT (THÊM VÀO ĐÂY) ===
+async function loadSidebarUserInfo() {
+    const usernameEl = document.getElementById('sidebarUsername');
+    const playerIdEl = document.getElementById('sidebarPlayerId');
+    const avatarEl   = document.getElementById('sidebarAvatar');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (!usernameEl || !playerIdEl || !avatarEl) {
+        setTimeout(loadSidebarUserInfo, 100);
+        return;
+    }
+
+    const playerId = localStorage.getItem("playerId");
+    const token    = localStorage.getItem("token");
+
+    // NẾU KHÔNG CÓ TOKEN HOẶC PLAYERID → GUEST
+    if (!playerId || !token) {
+        usernameEl.textContent = "Guest";
+        playerIdEl.textContent = "ID: #0000";
+        avatarEl.src = "../../PBL4_imgs/icon/user.png";
+        return;
+    }
+
+    // BẮT BUỘC GỌI API MỖI LẦN ĐỂ LẤY DỮ LIỆU MỚI NHẤT TỪ DB
+    try {
+        const res = await fetch(`http://localhost:8910/api/account?playerId=${playerId}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!res.ok) throw new Error("Token lỗi hoặc hết hạn");
+
+        const json = await res.json();
+        if (json.success && json.data) {
+            const u = json.data;
+            // HIỆN ĐÚNG DỮ LIỆU MỚI NHẤT TỪ DB
+            usernameEl.textContent = u.userName || "Guest";
+            playerIdEl.textContent = `ID: #${u.playerId || playerId}`;
+            if (u.avatarUrl) {
+                avatarEl.src = u.avatarUrl;
+            }
+
+            // CẬP NHẬT LẠI localStorage ĐỂ LẦN SAU NHANH HƠN
+            localStorage.setItem("playerName", u.username);
+            if (u.avatarUrl) localStorage.setItem("avatarUrl", u.avatarUrl);
+        }
+    } catch (err) {
+        console.warn("Không load được từ DB → dùng cache cũ:", err);
+        // Nếu API lỗi → mới dùng cache
+        const cached = localStorage.getItem("playerName");
+        usernameEl.textContent = cached ? cached + " (offline)" : "Guest";
+        playerIdEl.textContent = `ID: #${playerId}`;
+    }
+}
+
+async function logout() {
+    // HIỆN POPUP XÁC NHẬN ĐẸP
+    const confirmed = await showConfirmationPopup(
+        "Xác nhận đăng xuất",
+        "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?"
+    );
+
+    if (!confirmed) return; // Bấm Hủy → thoát hàm
+
+    const playerId = localStorage.getItem("playerId");
+    const token = localStorage.getItem("token");
+
+    // Gửi logout lên server (nếu có token)
+    if (playerId && token) {
+        try {
+            await fetch(`${API_URL}/api/auth/logout`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ playerId })
+            });
+        } catch (e) {
+            console.warn("Server không phản hồi logout (vẫn ok)", e);
+        }
+    }
+
+    // XÓA SẠCH DỮ LIỆU ĐĂNG NHẬP
+    localStorage.removeItem("token");
+    localStorage.removeItem("playerId");
+    localStorage.removeItem("playerName");
+    localStorage.removeItem("avatarUrl");
+
+    // Reset giao diện về Guest
+    document.getElementById('sidebarUsername').textContent = "Guest";
+    document.getElementById('sidebarPlayerId').textContent = "ID: #0000";
+    document.getElementById('sidebarAvatar').src = "../../PBL4_imgs/icon/user.png";
+
+    // Chuyển về trang login (thay tên file nếu khác)
+    window.location.href = "../html/MainLogin.html";
+}
+
 // Các hàm đổi Theme (Giữ nguyên)
 const boardEl = document.getElementById('chessBoard');
 
@@ -319,6 +416,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const token = localStorage.getItem("token");
     const playerId = localStorage.getItem("playerId");
     connectMainSocket(token, playerId);
+    loadSidebarUserInfo();
 
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {
@@ -413,6 +511,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 showModesView(); // Quay về màn hình chọn chế độ
             }
             return;
+        }
+    });
+
+    // ĐĂNG XUẤT – BẮT RIÊNG VÌ NÚT NẰM Ở SIDEBAR, KHÔNG NẰM TRONG rightPanel
+    const logoutButton = document.getElementById('logoutBtn');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', logout);
+    }
+    // LẮNG NGHE SỰ KIỆN CẬP NHẬT AVATAR TỪ BẤT KỲ TRANG NÀO (Account_setting.js)
+    window.addEventListener('userInfoUpdated', (e) => {
+        const { username, avatarUrl } = e.detail || {};
+
+        if (username) {
+            const el = document.getElementById('sidebarUsername');
+            if (el) el.textContent = username;
+            playerName = username; // cập nhật biến toàn cục luôn
+        }
+
+        if (avatarUrl) {
+            const img = document.getElementById('sidebarAvatar');
+            if (img) img.src = avatarUrl + '?t=' + Date.now();
         }
     });
 });

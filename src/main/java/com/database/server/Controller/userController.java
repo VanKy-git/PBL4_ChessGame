@@ -501,6 +501,63 @@ public class userController {
         }
     }
 
+    // ========================= CẬP NHẬT TÀI KHOẢN =========================
+// Thêm vào class userController (sau phần updateStatus)
+
+    /**
+     * Cập nhật thông tin tài khoản (username, email, avatarUrl)
+     * Request: { "playerId": "1", "username": "newname", "email": "new@email.com", "avatarUrl": "url" }
+     */
+    public String updateAccount(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            int userId = Integer.parseInt(request.get("playerId").toString());
+            String username = (String) request.get("username");
+            String email = (String) request.get("email");
+            String avatarUrl = (String) request.get("avatarUrl");
+
+            boolean success = userService.updateAccount(userId, username, email, avatarUrl);
+
+            if (success) {
+                // Trả về dữ liệu mới sau khi update
+                user updatedUser = userService.getUserById(userId);
+                return successResponse(updatedUser);
+            } else {
+                return errorResponse("Cập nhật tài khoản thất bại");
+            }
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Đổi mật khẩu
+     * Request: { "playerId": "1", "oldPassword": "old123", "newPassword": "new456" }
+     */
+    public String changePassword(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            int userId = Integer.parseInt(request.get("playerId").toString());
+            String oldPassword = (String) request.get("oldPassword");
+            String newPassword = (String) request.get("newPassword");
+
+            boolean success = userService.changePassword(userId, oldPassword, newPassword);
+
+            if (success) {
+                return successResponse("Đổi mật khẩu thành công");
+            } else {
+                return errorResponse("Đổi mật khẩu thất bại");
+            }
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
+
     // ========================= ROUTE HANDLER =========================
 
     public String handleRequest(String action, String requestJson) {
@@ -531,6 +588,11 @@ public class userController {
                 // Cập nhật
                 case "updateStatus":
                     return updateStatus(requestJson);
+
+                case "updateAccount":
+                    return updateAccount(requestJson);
+                case "changePassword":
+                    return changePassword(requestJson);
 
                 default:
                     return errorResponse("Action không hợp lệ: " + action);
