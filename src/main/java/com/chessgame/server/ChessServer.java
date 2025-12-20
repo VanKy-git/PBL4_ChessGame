@@ -1,11 +1,14 @@
 package com.chessgame.server;
 
+import Model.DAO.userDAO;
+import Model.Entity.user;
 import com.google.gson.Gson;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -17,6 +20,7 @@ public class ChessServer extends WebSocketServer {
     private final Map<WebSocket, Player> connectionPlayerMap;
     private final Map<String, GameRoom> gameRooms;
     private final Queue<Player> waitingQueue;
+    private final userDAO userDAO; // Sử dụng UserDAO
 
     public ChessServer(int port) {
         super(new InetSocketAddress(port));
@@ -26,6 +30,7 @@ public class ChessServer extends WebSocketServer {
         this.waitingQueue = new ConcurrentLinkedQueue<>();
         this.gson = new Gson();
         this.connections = Collections.synchronizedSet(new HashSet<>());
+        this.userDAO = new userDAO(); // Khởi tạo UserDAO
         setConnectionLostTimeout(60);
     }
 
@@ -59,6 +64,12 @@ public class ChessServer extends WebSocketServer {
             String type = (String) data.get("type");
 
             switch (type) {
+                case "login":
+                    handleLogin(webSocket, data);
+                    break;
+                case "signup":
+                    handleSignup(webSocket, data);
+                    break;
                 case "connect":
                     handlePlayerConnect(webSocket, data);
                     break;
@@ -103,6 +114,59 @@ public class ChessServer extends WebSocketServer {
             e.printStackTrace();
         }
     }
+
+    private void handleLogin(WebSocket webSocket, Map<String, Object> data) {
+        String username = (String) data.get("username");
+        String password = (String) data.get("password");
+
+        try {
+            user user = userDAO.login(username, password);
+            if (user != null) {
+                // Login success
+                Player player = new Player(user.getUser_name(), user.getFull_name(), webSocket);
+                connectionPlayerMap.put(webSocket, player);
+
+                Map<String, Object> response = new HashMap<>();
+                response.put("type", "login_success");
+                response.put("user", user); // Gửi toàn bộ đối tượng user
+                webSocket.send(gson.toJson(response));
+            } else {
+                // Login fail
+                Map<String, Object> response = new HashMap<>();
+                response.put("type", "login_fail");
+                response.put("message", "Invalid username or password");
+                webSocket.send(gson.toJson(response));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            sendError(webSocket, "Database error during login.");
+        }
+    }
+
+    private void handleSignup(WebSocket webSocket, Map<String, Object> data) {
+        String fullName = (String) data.get("fullName");
+        String email = (String) data.get("email");
+        String username = (String) data.get("username");
+        String password = (String) data.get("password");
+
+        try {
+            boolean success = userDAO.register(username, password, email, fullName);
+            if (success) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("type", "signup_success");
+                webSocket.send(gson.toJson(response));
+            } else {
+                Map<String, Object> response = new HashMap<>();
+                response.put("type", "signup_fail");
+                response.put("message", "Username or email already exists");
+                webSocket.send(gson.toJson(response));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            sendError(webSocket, "Database error during registration.");
+        }
+    }
+
 
     private void handlePlayerConnect(WebSocket  webSocket, Map<String, Object> data) {
         String playerId = UUID.randomUUID().toString();

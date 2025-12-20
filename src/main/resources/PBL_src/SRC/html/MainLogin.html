@@ -139,8 +139,8 @@
     <div class="right" id="form-box">
       <div class="title" id="form-title">Log In</div>
       <div class="form" id="form-content">
-        <input type="text" placeholder="Username">
-        <input type="password" placeholder="Password">
+        <input type="text" id="username-login" placeholder="Username">
+        <input type="password" id="password-login" placeholder="Password">
         <button class="btn btn-login">Log In</button>
         <button class="btn btn-google">
           <img src="../../PBL4_imgs/image/google.png" alt="Google Logo">
@@ -152,12 +152,61 @@
   </div>
 
   <script>
+    console.log("Script loaded");
     const container = document.getElementById("container");
     const formTitle = document.getElementById("form-title");
     const formContent = document.getElementById("form-content");
     const link = document.querySelector(".link");
 
     let isSignup = false;
+    let ws;
+
+    try {
+        ws = new WebSocket("ws://localhost:8080");
+        console.log("Attempting to connect to WebSocket...");
+    } catch (e) {
+        console.error("Failed to create WebSocket:", e);
+    }
+
+    if (ws) {
+        ws.onopen = function() {
+            console.log("WebSocket connection established");
+        };
+
+        ws.onmessage = function(event) {
+            console.log("Received message:", event.data);
+            const data = JSON.parse(event.data);
+            switch (data.type) {
+                case 'login_success':
+                    console.log("Login success:", data.user);
+                    sessionStorage.setItem('user', JSON.stringify(data.user));
+                    window.location.href = 'Home_page.html';
+                    break;
+                case 'login_fail':
+                    alert(data.message);
+                    break;
+                case 'signup_success':
+                    alert('Sign up successful! Please log in.');
+                    toggleForm(); // Switch to login form
+                    break;
+                case 'signup_fail':
+                    alert(data.message);
+                    break;
+                case 'error':
+                    alert('Error: ' + data.message);
+                    break;
+            }
+        };
+
+        ws.onclose = function() {
+            console.log("WebSocket connection closed");
+        };
+
+        ws.onerror = function(error) {
+            console.error("WebSocket Error:", error);
+            // alert("Could not connect to the server. Please check if the server is running.");
+        };
+    }
 
     function toggleForm() {
       isSignup = !isSignup;
@@ -166,11 +215,11 @@
       if (isSignup) {
         formTitle.textContent = "Sign Up";
         formContent.innerHTML = `
-          <input type="text" placeholder="Full Name">
-          <input type="email" placeholder="Email">
-          <input type="text" placeholder="Username">         
-          <input type="password" placeholder="Password">
-          <input type="password" placeholder="Confirm Password">
+          <input type="text" id="fullname-signup" placeholder="Full Name">
+          <input type="email" id="email-signup" placeholder="Email">
+          <input type="text" id="username-signup" placeholder="Username">
+          <input type="password" id="password-signup" placeholder="Password">
+          <input type="password" id="confirm-password-signup" placeholder="Confirm Password">
           <button class="btn btn-login">Sign Up</button>
           <button class="btn btn-google">
             <img src="../../PBL4_imgs/image/google.png" alt="Google Logo">
@@ -181,8 +230,8 @@
       } else {
         formTitle.textContent = "Log In";
         formContent.innerHTML = `
-          <input type="text" placeholder="Username">
-          <input type="password" placeholder="Password">
+          <input type="text" id="username-login" placeholder="Username">
+          <input type="password" id="password-login" placeholder="Password">
           <button class="btn btn-login">Log In</button>
           <button class="btn btn-google">
             <img src="../../PBL4_imgs/image/google.png" alt="Google Logo">
@@ -192,6 +241,71 @@
         link.textContent = "Don't have an account? Sign Up";
       }
     }
+
+    formContent.addEventListener('click', function(event) {
+        // Sử dụng closest để bắt sự kiện click ngay cả khi click vào phần tử con của nút
+        const btn = event.target.closest('.btn-login');
+
+        if (btn) {
+            console.log("Button clicked!");
+            event.preventDefault(); // Ngăn chặn hành vi mặc định
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.warn("WebSocket not ready. State:", ws ? ws.readyState : "No WS");
+                alert("Not connected to the server. Please wait or check server.");
+                return;
+            }
+
+            if (isSignup) {
+                // Handle Sign Up
+                const fullName = document.getElementById('fullname-signup').value;
+                const email = document.getElementById('email-signup').value;
+                const username = document.getElementById('username-signup').value;
+                const password = document.getElementById('password-signup').value;
+                const confirmPassword = document.getElementById('confirm-password-signup').value;
+
+                console.log("Signup attempt:", { fullName, email, username });
+
+                if (!fullName || !email || !username || !password || !confirmPassword) {
+                    alert('Please fill in all fields.');
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    alert('Passwords do not match.');
+                    return;
+                }
+
+                const message = {
+                    type: 'signup',
+                    fullName,
+                    email,
+                    username,
+                    password
+                };
+                ws.send(JSON.stringify(message));
+
+            } else {
+                // Handle Log In
+                const username = document.getElementById('username-login').value;
+                const password = document.getElementById('password-login').value;
+
+                console.log("Login attempt:", { username });
+
+                if (!username || !password) {
+                    alert('Please enter username and password.');
+                    return;
+                }
+
+                const message = {
+                    type: 'login',
+                    username,
+                    password
+                };
+                ws.send(JSON.stringify(message));
+            }
+        }
+    });
   </script>
 </body>
 </html>

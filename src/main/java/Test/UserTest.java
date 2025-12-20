@@ -1,15 +1,12 @@
 package Test;
 
 import Model.DAO.userDAO;
-import Model.Entity.DBConnection;
 import Model.Entity.user;
-
-import java.sql.Connection;
 
 public class UserTest {
     public static void main(String[] args) {
-        try (Connection conn = DBConnection.getConnection()) {
-            userDAO dao = new userDAO(conn);
+        try {
+            userDAO dao = new userDAO();
 
             // Thử đăng nhập
             String testUsername = "nvn";
