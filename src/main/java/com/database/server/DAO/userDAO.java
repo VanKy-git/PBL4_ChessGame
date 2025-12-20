@@ -356,23 +356,65 @@ public class userDAO {
     /**
      * Tạo user mới từ Google OAuth
      */
+    /**
+     * Tạo user mới từ Google OAuth
+     * @param email Email từ Google
+     * @param googleId Google ID (unique)
+     * @param displayName Tên hiển thị từ Google (dùng làm username)
+     * @param avatarUrl URL ảnh đại diện
+     */
     public user createUserWithGoogle(String email, String googleId, String displayName, String avatarUrl) {
-        String username = generateUsernameFromEmail(email);
+        // KIỂM TRA DỮ LIỆU ĐẦU VÀO
+        if (email == null || email.isEmpty()) {
+            throw new IllegalArgumentException("Email không được rỗng!");
+        }
+        if (googleId == null || googleId.isEmpty()) {
+            throw new IllegalArgumentException("Google ID không được rỗng!");
+        }
+        if (displayName == null || displayName.isEmpty()) {
+            throw new IllegalArgumentException("Tên hiển thị không được rỗng!");
+        }
 
+        // ✅ DÙNG DISPLAY NAME TỪ GOOGLE LÀM USERNAME
+        // Loại bỏ ký tự đặc biệt, chỉ giữ chữ cái, số và khoảng trắng
+        String username = displayName.trim();
+
+        // Nếu username bị trùng, thêm số vào cuối
+        String finalUsername = username;
+        int counter = 1;
+        while (isUsernameExists(finalUsername)) {
+            finalUsername = username + counter++;
+        }
+
+        System.out.println("🔧 [DEBUG] Creating Google user with:");
+        System.out.println("   Display Name (from Google): " + displayName);
+        System.out.println("   Username (saved to DB): " + finalUsername);
+        System.out.println("   Email: " + email);
+        System.out.println("   Google ID: " + googleId);
+        System.out.println("   Avatar URL: " + avatarUrl);
+
+        // TẠO USER MỚI
         user newUser = new user();
-        newUser.setUserName(username);
-        newUser.setEmail(email);
+        newUser.setUserName(finalUsername);      // ✅ Dùng name từ Google
+        newUser.setEmail(email);                 // ✅ Lưu email vào trường email
         newUser.setProvider("google");
-        newUser.setProviderId(googleId);
+        newUser.setProviderId(googleId);         // ✅ Lưu Google ID vào provider_id
         newUser.setAvatarUrl(avatarUrl);
-        newUser.setPassword("oauth_default");
+        newUser.setPassword("oauth_default");    // Không cần password thật
         newUser.setEloRating(1200);
         newUser.setWinCount(0);
         newUser.setLossCount(0);
         newUser.setStatus("Offline");
         newUser.setCreateAt(LocalDateTime.now());
 
+        // LƯU VÀO DATABASE
         em.persist(newUser);
+
+        System.out.println("✅ [DEBUG] Google user created successfully!");
+        System.out.println("   User ID: " + newUser.getUserId());
+        System.out.println("   Username: " + newUser.getUserName());
+        System.out.println("   Email: " + newUser.getEmail());
+
         return newUser;
     }
 

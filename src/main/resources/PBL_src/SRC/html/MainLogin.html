@@ -195,6 +195,16 @@
         // **QUAN TRỌNG**: Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
     }
 
+    // HÀM MỚI: Chuyển đến trang Google Login
+    function redirectToGoogleLogin() {
+        // Lưu trạng thái hiện tại (login hoặc signup) để trang Google biết
+        localStorage.setItem("googleAuthMode", isSignup ? "signup" : "login");
+
+        // Chuyển đến trang Google Login
+        // **QUAN TRỌNG**: Thay đổi đường dẫn này cho phù hợp với cấu trúc thư mục của bạn
+        window.location.href = "ggAccount.html";
+    }
+
     formContent.addEventListener('click', async function(event) {
 
         // SỬA LỖI 1: Lấy đúng target
@@ -283,8 +293,10 @@
                 alert("Đăng nhập thất bại: " + result.error);
             }
         }
-        else if (buttonTarget.classList.contains('btn-google')) {
-            alert("Chức năng Google Login chưa được kết nối!");
+        // XỬ LÝ NÚT GOOGLE - THAY ĐỔI
+        if (buttonTarget.classList.contains('btn-google')) {
+            redirectToGoogleLogin();
+            return;
         }
         else if (buttonTarget.classList.contains('btn-guest')) {
             playAsGuest();

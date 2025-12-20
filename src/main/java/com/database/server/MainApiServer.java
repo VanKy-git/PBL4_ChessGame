@@ -138,6 +138,44 @@ public class MainApiServer implements Runnable {
             }
         });
 
+        // --- API REGISTER WITH GOOGLE ---
+        server.createContext("/api/registerWithGoogle", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
+
+            if ("POST".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
+                String requestBody = readRequestBody(exchange);
+                String responseJson = userController.handleRequest("registerWithGoogle", requestBody);
+
+                // 400 nếu thất bại, 200 nếu thành công
+                sendResponse(exchange, responseJson.contains("\"success\": false") ? 400 : 200, responseJson);
+            } else {
+                sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
+            }
+        });
+
+        // --- API LOGIN WITH GOOGLE ---
+        server.createContext("/api/loginWithGoogle", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
+
+            if ("POST".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
+                String requestBody = readRequestBody(exchange);
+                String responseJson = userController.handleRequest("loginWithGoogle", requestBody);
+
+                // 401 nếu thất bại, 200 nếu thành công
+                sendResponse(exchange, responseJson.contains("\"success\": false") ? 401 : 200, responseJson);
+            } else {
+                sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
+            }
+        });
+
         // --- 2. DATA ENDPOINTS (GET) ---
         
         // --- Endpoint Lịch sử (GET /api/history)

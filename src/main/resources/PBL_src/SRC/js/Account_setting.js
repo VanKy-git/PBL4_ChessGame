@@ -1,5 +1,3 @@
-// Account_setting.js - PHIÊN BẢN CUỐI CÙNG, HOÀN HẢO NHẤT (2025 Edition)
-
 const accountLink = document.getElementById("account-link");
 const centerContent = document.querySelector(".center");
 let originalBoardContent = null;

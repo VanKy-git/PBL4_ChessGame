@@ -253,6 +253,8 @@ import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 
+import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -340,39 +342,40 @@ public class userController {
                 return errorResponse("ID token is required");
             }
 
-            user newUser = userService.registerWithGoogle(idToken); // có thể ném exception khi email đã tồn tại
+            // Gọi Service để tạo user mới
+            user newUser = userService.registerWithGoogle(idToken);
 
-            return successResponse(newUser);
+            // TẠO JWT TOKEN (giống như login)
+            long nowMillis = System.currentTimeMillis();
+            Date now = new Date(nowMillis);
+            Date exp = new Date(nowMillis + com.database.server.Utils.JwtConfig.JWT_EXPIRATION_MS);
+
+            String jwtToken = io.jsonwebtoken.Jwts.builder()
+                    .setSubject(String.valueOf(newUser.getUserId()))
+                    .claim("username", newUser.getUserName())
+                    .setIssuedAt(now)
+                    .setExpiration(exp)
+                    .signWith(com.database.server.Utils.JwtConfig.JWT_SECRET_KEY, io.jsonwebtoken.SignatureAlgorithm.HS256)
+                    .compact();
+
+            // Tạo response giống như login
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("token", jwtToken);
+            responseData.put("userId", newUser.getUserId());
+            responseData.put("username", newUser.getUserName());
+            responseData.put("email", newUser.getEmail());
+            responseData.put("avatar", newUser.getAvatarUrl());
+            responseData.put("picture", newUser.getAvatarUrl());
+            responseData.put("elo", newUser.getEloRating());
+            responseData.put("winCount", newUser.getWinCount());
+            responseData.put("lossCount", newUser.getLossCount());
+
+            return successResponse(responseData);
 
         } catch (RuntimeException e) {
             return errorResponse(e.getMessage());
         } catch (Exception e) {
             return errorResponse("Lỗi khi đăng ký bằng Google: " + e.getMessage());
-        }
-    }
-
-    public String loginWithGoogle(String requestJson) {
-        try {
-            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
-            String idToken = (String) request.get("idToken");
-
-            if (idToken == null || idToken.isEmpty()) {
-                return errorResponse("ID token is required");
-            }
-
-            user existingUser = userService.loginWithGoogle(idToken);
-
-            if (existingUser == null) {
-                // Không tìm thấy -> yêu cầu register
-                return errorResponse("User not found. Please register with Google first.");
-            }
-
-            return successResponse(existingUser);
-
-        } catch (RuntimeException e) {
-            return errorResponse(e.getMessage());
-        } catch (Exception e) {
-            return errorResponse("Lỗi khi đăng nhập bằng Google: " + e.getMessage());
         }
     }
 
@@ -385,18 +388,70 @@ public class userController {
 //                return errorResponse("ID token is required");
 //            }
 //
-//            user resultUser = userService.authenticateWithGoogle(idToken);
-//            if (resultUser != null) {
-//                return successResponse(resultUser);
-//            } else {
-//                return errorResponse("Google authentication failed");
+//            user existingUser = userService.loginWithGoogle(idToken);
+//
+//            if (existingUser == null) {
+//                // Không tìm thấy -> yêu cầu register
+//                return errorResponse("User not found. Please register with Google first.");
 //            }
+//
+//            return successResponse(existingUser);
+//
 //        } catch (RuntimeException e) {
 //            return errorResponse(e.getMessage());
 //        } catch (Exception e) {
-//            return errorResponse("Lỗi: " + e.getMessage());
+//            return errorResponse("Lỗi khi đăng nhập bằng Google: " + e.getMessage());
 //        }
 //    }
+
+    public String loginWithGoogle(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            String idToken = (String) request.get("idToken");
+
+            if (idToken == null || idToken.isEmpty()) {
+                return errorResponse("ID token is required");
+            }
+
+            // Gọi Service để tìm user
+            user existingUser = userService.loginWithGoogle(idToken);
+
+            if (existingUser == null) {
+                return errorResponse("Tài khoản không tồn tại. Vui lòng đăng ký trước!");
+            }
+
+            // TẠO JWT TOKEN
+            long nowMillis = System.currentTimeMillis();
+            Date now = new Date(nowMillis);
+            Date exp = new Date(nowMillis + com.database.server.Utils.JwtConfig.JWT_EXPIRATION_MS);
+
+            String jwtToken = io.jsonwebtoken.Jwts.builder()
+                    .setSubject(String.valueOf(existingUser.getUserId()))
+                    .claim("username", existingUser.getUserName())
+                    .setIssuedAt(now)
+                    .setExpiration(exp)
+                    .signWith(com.database.server.Utils.JwtConfig.JWT_SECRET_KEY, io.jsonwebtoken.SignatureAlgorithm.HS256)
+                    .compact();
+
+            // Tạo response
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("token", jwtToken);
+            responseData.put("userId", existingUser.getUserId());
+            responseData.put("username", existingUser.getUserName());
+            responseData.put("email", existingUser.getEmail());
+            responseData.put("avatar", existingUser.getAvatarUrl());
+            responseData.put("elo", existingUser.getEloRating());
+            responseData.put("winCount", existingUser.getWinCount());
+            responseData.put("lossCount", existingUser.getLossCount());
+
+            return successResponse(responseData);
+
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
+        } catch (Exception e) {
+            return errorResponse("Lỗi khi đăng nhập bằng Google: " + e.getMessage());
+        }
+    }
 
     public String linkGoogleAccount(String requestJson) {
         try {
