@@ -17,8 +17,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 60px 20px;
-    min-height: 100vh;
+    padding: 40px 20px;
+    width: 100%;
 }
 
 .title {
@@ -33,23 +33,30 @@ body {
     background: rgba(102,57,3,0.15);
     padding: 30px 40px;
     border-radius: 18px;
-    width: 380px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    width: 100%;
+    max-width: 900px; /* Tăng chiều rộng tối đa */
+    display: grid; /* Chuyển sang grid layout */
+    grid-template-columns: 200px 1fr; /* Cột 1 cho avatar, cột 2 cho phần còn lại */
+    grid-template-areas:
+        "avatar info"
+        "avatar stats"
+        "actions actions";
+    gap: 20px 40px; /* Khoảng cách giữa hàng và cột */
     box-shadow: 0 4px 20px rgba(255,140,0,0.5);
     backdrop-filter: blur(10px);
 }
 
 .avatar {
+    grid-area: avatar;
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    margin-bottom: 10px;
 }
 
 .avatar img {
-    width: 120px;
-    height: 120px;
+    width: 150px;
+    height: 150px;
     border-radius: 50%;
     object-fit: cover;
     box-shadow: 0 0 15px rgba(255,255,255,0.3);
@@ -65,16 +72,40 @@ body {
 }
 
 .id-player {
+    grid-area: avatar;
+    align-self: end; /* Đẩy xuống dưới cùng của khu vực avatar */
     text-align: center;
     font-size: 18px;
     font-weight: bold;
-    margin: 10px 0;
+    margin-top: 15px;
     color: var(--accent);
+}
+
+.info-section {
+    grid-area: info;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stats-grid {
+    grid-area: stats;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.actions {
+    grid-area: actions;
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    justify-content: flex-end; /* Đẩy nút về bên phải */
 }
 
 label {
     font-weight: 600;
-    margin: 8px 0 4px;
+    margin-bottom: 4px;
     font-size: 14px;
 }
 
@@ -104,43 +135,20 @@ input:disabled {
     opacity: 0.6;
 }
 
-input[type="password"] {
-    font-family: 'Courier New', monospace;
-    letter-spacing: 2px;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin: 10px 0;
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-}
-
 .stat-item label {
     font-size: 13px;
     opacity: 0.9;
-    margin-bottom: 4px;
-}
-
-.stat-item input {
-    font-size: 13px;
-    padding: 8px 10px;
 }
 
 .btn {
-    padding: 12px;
+    padding: 12px 25px; /* Tăng padding cho nút to hơn */
     border: none;
     border-radius: 10px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     color: white;
-    font-size: 14px;
+    font-size: 15px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
@@ -149,23 +157,11 @@ input[type="password"] {
 }
 
 .btn-change-password {
-    width: 100%;
     background: #17a2b8;
-    margin-top: 8px;
 }
 
 .btn-change-password:hover {
     background: #138496;
-}
-
-.actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 20px;
-}
-
-.actions .btn {
-    flex: 1;
 }
 
 .btn-save {
@@ -286,16 +282,21 @@ input[type="password"] {
 /* Responsive */
 @media (max-width: 768px) {
     .account-section {
-        width: 100%;
-        max-width: 380px;
-        padding: 25px 30px;
+        grid-template-columns: 1fr; /* Chuyển về 1 cột trên mobile */
+        grid-template-areas:
+            "avatar"
+            "info"
+            "stats"
+            "actions";
+        padding: 25px 20px;
     }
-
-    .stats-grid {
-        grid-template-columns: 1fr;
+    .avatar {
+        justify-content: center;
     }
-
-    .avatar-grid {
-        grid-template-columns: repeat(3, 1fr);
+    .id-player {
+        align-self: center;
+    }
+    .actions {
+        justify-content: center;
     }
 }

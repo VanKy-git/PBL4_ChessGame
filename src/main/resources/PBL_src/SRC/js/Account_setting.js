@@ -1,6 +1,7 @@
 const accountLink = document.getElementById("account-link");
-const centerContent = document.querySelector(".center");
-let originalBoardContent = null;
+const accountPopup = document.getElementById("accountPopup");
+const accountContainer = document.getElementById("accountContainer");
+const accountClose = document.getElementById("accountClose");
 
 const API_URL = "http://localhost:8910";
 
@@ -19,14 +20,45 @@ const avatarPresets = [
 
 let selectedAvatarUrl = null;
 
-function showBoard() {
-    if (centerContent && originalBoardContent) {
-        centerContent.innerHTML = originalBoardContent;
-        centerContent.classList.remove('account-view');
+// --- HÀM TẢI NỘI DUNG VÀO POPUP ---
+async function loadAccountContent() {
+    try {
+        const response = await fetch('Account_setting.html');
+        if (!response.ok) {
+            throw new Error('Failed to load account settings content');
+        }
+        const content = await response.text();
+        accountContainer.innerHTML = content;
+        
+        // Gắn các listener sau khi nội dung được tải
+        attachAccountEventListeners();
+        // Tải dữ liệu tài khoản
+        fetchAndPopulateAccountData();
+
+    } catch (error) {
+        console.error('[Account_setting.js] Error loading content:', error);
+        accountContainer.innerHTML = '<p style="color: #e74c3c;">Không thể tải nội dung tài khoản.</p>';
     }
 }
 
-// ========== LẤY DỮ LIỆU TÀI KHOẢN ==========
+// --- LISTENER CHO LINK VÀ NÚT ĐÓNG ---
+if (accountLink) {
+    accountLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        accountPopup.style.display = 'flex';
+        accountContainer.innerHTML = 'Đang tải...';
+        loadAccountContent();
+    });
+}
+
+if(accountClose) {
+    accountClose.addEventListener('click', () => {
+        accountPopup.style.display = 'none';
+    });
+}
+
+// --- CÁC HÀM LOGIC ---
+
 async function fetchAndPopulateAccountData() {
     const currentUserId = localStorage.getItem("playerId") || "unknown";
 
@@ -45,7 +77,6 @@ async function fetchAndPopulateAccountData() {
             document.getElementById('lossCount').value = userData.lossCount || 0;
             document.getElementById('createdAt').value = userData.createdAt || userData.createAt || '';
 
-            // Cập nhật avatar hiện tại
             const avatarImg = document.getElementById('currentAvatar');
             if (avatarImg && userData.avatarUrl) {
                 avatarImg.src = userData.avatarUrl;
@@ -56,46 +87,6 @@ async function fetchAndPopulateAccountData() {
     }
 }
 
-// ========== LƯU CHỈ AVATAR (khi bấm Xác nhận trong modal) ==========
-// 1. Chỉ đổi avatar (khi bấm "Xác nhận" trong modal)
-async function saveAvatarOnly() {
-    if (!selectedAvatarUrl) return;
-
-    const playerId = localStorage.getItem("playerId");
-    const updateData = { playerId, avatarUrl: selectedAvatarUrl };
-
-    try {
-        const res = await fetch(`${API_URL}/api/account/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updateData)
-        });
-        const result = await res.json();
-
-        if (result.success) {
-            alert('Đổi ảnh đại diện thành công!');
-
-            // Cập nhật ngay avatar ở trang Cài đặt
-            document.getElementById('currentAvatar').src = selectedAvatarUrl;
-
-            // PHÁT SỰ KIỆN CHO SIDEBAR
-            window.dispatchEvent(new CustomEvent('userInfoUpdated', {
-                detail: { avatarUrl: selectedAvatarUrl }
-            }));
-
-            // Cập nhật localStorage
-            localStorage.setItem("avatarUrl", selectedAvatarUrl);
-
-            // Reset + đóng modal
-            selectedAvatarUrl = null;
-            closeAvatarModal();
-        }
-    } catch (err) {
-        alert('Lỗi kết nối!');
-    }
-}
-
-// 2. Lưu username + email + avatar (nếu có)
 async function saveAllChanges() {
     const playerId = localStorage.getItem("playerId");
     const username = document.getElementById('username').value.trim();
@@ -107,7 +98,7 @@ async function saveAllChanges() {
     }
 
     const updateData = { playerId, username, email };
-    if (selectedAvatarUrl) updateData.avatarUrl = selectedAvatarUrl; // thêm nếu có
+    if (selectedAvatarUrl) updateData.avatarUrl = selectedAvatarUrl;
 
     try {
         const res = await fetch(`${API_URL}/api/account/update`, {
@@ -119,34 +110,24 @@ async function saveAllChanges() {
 
         if (result.success) {
             alert('Lưu thông tin thành công!');
-
-            const finalUsername = username;
-            const finalAvatarUrl = selectedAvatarUrl || document.getElementById('currentAvatar').src;
-
-            // Cập nhật giao diện trang Cài đặt
-            document.getElementById('currentAvatar').src = finalAvatarUrl;
-
-            // PHÁT SỰ KIỆN CHO SIDEBAR
-            window.dispatchEvent(new CustomEvent('userInfoUpdated', {
-                detail: {
-                    username: finalUsername,
-                    avatarUrl: finalAvatarUrl
-                }
-            }));
-
-            // Cập nhật localStorage
-            localStorage.setItem("playerName", finalUsername);
-            if (finalAvatarUrl) localStorage.setItem("avatarUrl", finalAvatarUrl);
-
-            selectedAvatarUrl = null; // reset để lần sau đổi avatar vẫn được
-            await fetchAndPopulateAccountData();
+            localStorage.setItem("playerName", username);
+            if (selectedAvatarUrl) localStorage.setItem("avatarUrl", selectedAvatarUrl);
+            
+            // Cập nhật avatar hiển thị ngay lập tức
+            const avatarImg = document.getElementById('currentAvatar');
+            if (avatarImg && selectedAvatarUrl) {
+                avatarImg.src = selectedAvatarUrl;
+            }
+            selectedAvatarUrl = null; // Reset
+        } else {
+            alert('Lưu thông tin thất bại: ' + (result.error || 'Lỗi không xác định'));
         }
     } catch (err) {
         alert('Lỗi kết nối!');
     }
 }
 
-// ========== AVATAR MODAL ==========
+// --- AVATAR MODAL ---
 function generateAvatarGrid() {
     const grid = document.getElementById('avatarGrid');
     if (!grid) return;
@@ -167,7 +148,6 @@ function generateAvatarGrid() {
 
 function openAvatarModal() {
     generateAvatarGrid();
-    // Highlight avatar hiện tại nếu nó nằm trong danh sách preset
     const currentSrc = document.getElementById('currentAvatar').src;
     const currentOption = Array.from(document.querySelectorAll('.avatar-option')).find(img => img.src === currentSrc);
     if (currentOption) {
@@ -180,19 +160,45 @@ function openAvatarModal() {
 function closeAvatarModal() {
     document.getElementById('avatarModal').classList.remove('active');
     selectedAvatarUrl = null;
-    document.querySelectorAll('.avatar-option').forEach(i => i.classList.remove('selected'));
 }
 
-// Khi bấm "Xác nhận" trong modal → lưu avatar ngay
 function confirmAvatarSelection() {
     if (selectedAvatarUrl) {
-        saveAvatarOnly(); // Lưu luôn, không cần chờ "Lưu thay đổi"
+        // Chỉ cập nhật biến tạm, chưa lưu lên server cho đến khi bấm "Lưu thay đổi"
+        // Hoặc có thể lưu ngay nếu muốn (như code cũ)
+        // Ở đây tôi chọn cách lưu ngay để giống logic cũ
+        saveAvatarOnly();
     } else {
         alert('Vui lòng chọn một ảnh đại diện!');
     }
 }
 
-// ========== ĐỔI MẬT KHẨU ==========
+async function saveAvatarOnly() {
+    if (!selectedAvatarUrl) return;
+
+    const playerId = localStorage.getItem("playerId");
+    const updateData = { playerId, avatarUrl: selectedAvatarUrl };
+
+    try {
+        const res = await fetch(`${API_URL}/api/account/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        });
+        const result = await res.json();
+
+        if (result.success) {
+            alert('Đổi ảnh đại diện thành công!');
+            document.getElementById('currentAvatar').src = selectedAvatarUrl;
+            localStorage.setItem("avatarUrl", selectedAvatarUrl);
+            closeAvatarModal();
+        }
+    } catch (err) {
+        alert('Lỗi kết nối!');
+    }
+}
+
+// --- ĐỔI MẬT KHẨU ---
 async function handlePasswordChange(e) {
     e.preventDefault();
     const oldPassword = document.getElementById('oldPassword').value;
@@ -221,30 +227,26 @@ async function handlePasswordChange(e) {
             document.getElementById('passwordModal').classList.remove('active');
             document.getElementById('passwordForm').reset();
         } else {
-            alert(data.message || 'Đổi mật khẩu thất bại');
+            alert(data.error || 'Đổi mật khẩu thất bại');
         }
     } catch (err) {
         alert('Lỗi kết nối!');
     }
 }
 
-// ========== GẮN SỰ KIỆN ==========
-function attachEventListeners() {
-    // Click avatar để mở modal
-    const avatarImg = document.getElementById('currentAvatar');
-    if (avatarImg) {
-        avatarImg.style.cursor = 'pointer';
-        avatarImg.title = 'Click để đổi ảnh đại diện';
-        avatarImg.onclick = openAvatarModal;
+// --- GẮN SỰ KIỆN ---
+function attachAccountEventListeners() {
+    const currentAvatar = document.getElementById('currentAvatar');
+    if (currentAvatar) {
+        currentAvatar.style.cursor = 'pointer';
+        currentAvatar.onclick = openAvatarModal;
     }
 
-    // Các nút trong modal
     document.getElementById('btnSaveAvatar')?.addEventListener('click', confirmAvatarSelection);
     document.getElementById('btnCancelAvatar')?.addEventListener('click', closeAvatarModal);
-
-    // Nút chính
-    document.getElementById('btnCancel')?.addEventListener('click', showBoard);
+    
     document.getElementById('btnSaveChanges')?.addEventListener('click', saveAllChanges);
+    
     document.getElementById('btnChangePassword')?.addEventListener('click', () => {
         document.getElementById('passwordModal').classList.add('active');
     });
@@ -253,50 +255,4 @@ function attachEventListeners() {
         document.getElementById('passwordForm').reset();
     });
     document.getElementById('passwordForm')?.addEventListener('submit', handlePasswordChange);
-}
-
-// ========== LOAD TRANG ==========
-async function loadAccountSettings() {
-    try {
-        const response = await fetch('Account_setting.html');
-        const html = await response.text();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-
-        const accountContent = tempDiv.querySelector('.settings-page');
-        const avatarModal = tempDiv.querySelector('#avatarModal');
-        const passwordModal = tempDiv.querySelector('#passwordModal');
-
-        if (!accountContent) throw new Error('Không tìm thấy .settings-page');
-
-        centerContent.innerHTML = accountContent.outerHTML;
-        centerContent.classList.add('account-view');
-        if (avatarModal) centerContent.appendChild(avatarModal);
-        if (passwordModal) centerContent.appendChild(passwordModal);
-
-        // Load CSS
-        if (!document.querySelector('link[href*="Account_setting.css"]')) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = '../css/Account_setting.css';
-            document.head.appendChild(link);
-        }
-
-        attachEventListeners();        // Gắn event NGAY, đặc biệt là click avatar
-        await fetchAndPopulateAccountData();
-
-    } catch (error) {
-        console.error('Lỗi load trang:', error);
-        alert('Lỗi tải trang tài khoản: ' + error.message);
-    }
-}
-
-// ========== KHỞI TẠO ==========
-if (accountLink && centerContent) {
-    originalBoardContent = centerContent.innerHTML;
-    accountLink.addEventListener('click', e => {
-        e.preventDefault();
-        loadAccountSettings();
-    });
-    console.log('Account feature ready!');
 }
