@@ -1,8 +1,7 @@
 let mainSocket = null;
 const SOCKET_URL = "ws://localhost:8080";
-const messageHandlers = {}; // ✅ Dùng cái này
+const messageHandlers = {};
 let pendingMessages = [];
-
 
 export function connectMainSocket(token, playerId) {
     if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
@@ -29,6 +28,11 @@ export function connectMainSocket(token, playerId) {
     mainSocket.onmessage = (event) => {
         try {
             const msg = JSON.parse(event.data);
+            // Xử lý ping/pong trước khi log và handle
+            if (msg.type === 'ping') {
+                sendMessage({ type: 'pong' });
+                return; // Không cần xử lý thêm
+            }
             console.log('Received:', msg);
             handleMessage(msg);
         } catch (e) {
@@ -47,7 +51,9 @@ export function connectMainSocket(token, playerId) {
 export function sendMessage(messageObject) {
     if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
         mainSocket.send(JSON.stringify(messageObject));
-        console.log(" Gửi tới server:", messageObject);
+        if (messageObject.type !== 'pong') { // Không log pong để tránh nhiễu
+             console.log(" Gửi tới server:", messageObject);
+        }
         return true;
     }
     if (!mainSocket || mainSocket.readyState === WebSocket.CLOSED) {

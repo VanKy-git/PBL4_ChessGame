@@ -1,6 +1,5 @@
 package com.database.server.Controller;
 
-import com.database.server.DAO.friendsDAO;
 import com.database.server.Entity.friends;
 import com.database.server.Service.friendsService;
 import com.database.server.Utils.GsonUtils;
@@ -23,8 +22,7 @@ public class friendsController {
 
     public friendsController(EntityManagerFactory emf) {
         emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
-        friendsDAO dao = new friendsDAO(emf.createEntityManager());
-        this.service = new friendsService(dao);
+        this.service = new friendsService(emf);
         this.gson = GsonUtils.gson;
     }
 
@@ -56,28 +54,20 @@ public class friendsController {
      * Gửi lời mời kết bạn
      * Request: { "senderId": 1, "receiverId": 2 }
      */
-//    public String sendFriendRequest(String requestJson) {
-//        try {
-//            Map<String, Number> request = gson.fromJson(requestJson, Map.class);
-//            int senderId = request.get("senderId").intValue();
-//            int receiverId = request.get("receiverId").intValue();
-//
-//            // Lấy user từ DAO
-//            user sender = service.dao.em.find(user.class, senderId);
-//            user receiver = service.dao.em.find(user.class, receiverId);
-//
-//            if (sender == null || receiver == null) {
-//                return errorResponse("User không tồn tại");
-//            }
-//
-//            service.sendFriendRequest(sender, receiver);
-//            return successResponse("Gửi lời mời kết bạn thành công");
-//        } catch (RuntimeException e) {
-//            return errorResponse(e.getMessage());
-//        } catch (Exception e) {
-//            return errorResponse("Lỗi: " + e.getMessage());
-//        }
-//    }
+    public String sendFriendRequest(String requestJson) {
+        try {
+            Map<String, Number> request = gson.fromJson(requestJson, Map.class);
+            int senderId = request.get("senderId").intValue();
+            int receiverId = request.get("receiverId").intValue();
+
+            service.sendFriendRequest(senderId, receiverId);
+            return successResponse("Gửi lời mời kết bạn thành công");
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
 
     /**
      * Lấy danh sách bạn bè hoặc lời mời của một user
@@ -149,8 +139,8 @@ public class friendsController {
     // ========================= ROUTE HANDLER =========================
     public String handleRequest(String action, String requestJson) {
         switch (action) {
-//            case "sendFriendRequest":
-//                return sendFriendRequest(requestJson);
+            case "sendFriendRequest":
+                return sendFriendRequest(requestJson);
             case "getFriendsOfUser":
                 return getFriendsOfUser(requestJson);
             case "acceptFriendRequest":

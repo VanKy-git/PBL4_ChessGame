@@ -7,6 +7,7 @@
         <class>com.database.server.Entity.user</class>
         <class>com.database.server.Entity.matches</class>
         <class>com.database.server.Entity.chat_message</class>
+        <class>com.database.server.Entity.friends</class>
 
         <!-- Cấu hình kết nối DB -->
         <properties>

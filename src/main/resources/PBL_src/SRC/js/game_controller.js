@@ -47,6 +47,11 @@ const acceptDrawBtn = document.getElementById('acceptDrawBtn');
 const declineDrawBtn = document.getElementById('declineDrawBtn');
 const drawCountdownEl = document.getElementById('draw-countdown');
 
+// ✅ Biến cho popup phong cấp
+let pendingPromotionMove = null;
+const promotionPopupEl = document.getElementById('promotion-overlay');
+const cancelPromotionBtn = document.getElementById('cancelPromotionBtn');
+
 // ==========================
 // 2. DOM ELEMENTS & HTML TEMPLATES
 // ==========================
@@ -223,6 +228,9 @@ function resetGameLocalState() {
     const moveListEl = document.getElementById('moveList');
     if (moveListEl) moveListEl.innerHTML = '';
 
+    const chatMessages = document.getElementById('chatMessagesEl');
+    if (chatMessages) chatMessages.innerHTML = '';
+
     // Reset hiển thị trạng thái (tùy chọn, có thể để onEndGame làm)
     updateStatus();
     renderGame(); // Render lại bàn cờ ban đầu
@@ -271,8 +279,12 @@ function updateTimerDisplay() {
 function updateCapturedPieces(capturingColor, capturedPieceChar) {
     if (!capturedPieceChar || capturedPieceChar === '.') return; // Bỏ qua nếu không có quân bị ăn
 
-    const capturedIcon = PIECES[capturedPieceChar]; // Lấy icon Unicode
-    if (!capturedIcon) return;
+    let fileName = '';
+    if (capturedPieceChar === capturedPieceChar.toUpperCase()) {
+        fileName = capturedPieceChar; // Quân trắng
+    } else {
+        fileName = 'b' + capturedPieceChar.toUpperCase(); // Quân đen
+    }
 
     let targetArea;
     // Nếu Trắng ăn -> thêm vào khu vực của Trắng (player 2)
@@ -292,14 +304,21 @@ function updateCapturedPieces(capturingColor, capturedPieceChar) {
     }
 
     if (targetArea) {
-        const span = document.createElement('span');
-        span.textContent = capturedIcon;
-        targetArea.appendChild(span);
-        // Có thể sắp xếp lại các quân cờ bị ăn theo thứ tự giá trị nếu muốn
+        const img = document.createElement('img');
+        img.src = `../../PBL4_imgs/image/${fileName}.png`;
+        img.alt = capturedPieceChar;
+        img.classList.add('captured-piece-icon');
+        targetArea.appendChild(img);
     }
 }
 
 function onGameStart(msg) {
+    // Reset chat và lịch sử
+    const chatMessages = document.getElementById('chatMessagesEl');
+    if (chatMessages) chatMessages.innerHTML = '';
+    const moveListEl = document.getElementById('moveList');
+    if (moveListEl) moveListEl.innerHTML = '';
+
     isKingInCheckState = false;
     gameActive = true;
     if (msg.playerWhite && msg.playerBlack) {
@@ -728,20 +747,50 @@ function updatePlayerBars() {
     const p2Bar = document.getElementById('player2Bar');
     if (!p1Bar || !p2Bar) return;
 
-    const p1NameEl = p1Bar.querySelector('.player-name');
-    const p2NameEl = p2Bar.querySelector('.player-name');
+    // Hàm helper để cập nhật avatar
+    const updateAvatar = (avatarEl, avatarUrl) => {
+        if (!avatarEl) return;
+        avatarEl.innerHTML = ''; // Xóa nội dung cũ
+        if (avatarUrl && avatarUrl !== "null" && avatarUrl !== "") {
+            const img = document.createElement('img');
+            img.src = avatarUrl;
+            img.alt = "Avatar";
+            avatarEl.appendChild(img);
+        } else {
+            const icon = document.createElement('i');
+            icon.className = "fa-solid fa-user";
+            avatarEl.appendChild(icon);
+        }
+    };
 
-    // Cập nhật tên Player 2 (Mình)
-    if (player2Info && p2NameEl) {
-        p2NameEl.textContent = playerName;
-    } else if (p2NameEl) {
-        p2NameEl.textContent = "Bạn";
+    // Cập nhật Player 2 (Mình)
+    const p2NameEl = p2Bar.querySelector('.player-name');
+    const p2EloEl = p2Bar.querySelector('.player-elo');
+    const p2Avatar = p2Bar.querySelector('.player-avatar');
+
+    if (player2Info) {
+        if (p2NameEl) p2NameEl.textContent = player2Info.name || playerName;
+        if (p2EloEl) p2EloEl.textContent = `Elo: ${player2Info.elo || 1200}`;
+        updateAvatar(p2Avatar, player2Info.avatar);
+    } else {
+        if (p2NameEl) p2NameEl.textContent = "Bạn";
+        if (p2EloEl) p2EloEl.textContent = "Elo: 1200";
+        updateAvatar(p2Avatar, null);
     }
 
-    if (player1Info && p1NameEl) {
-        p1NameEl.textContent = player1Info.name || "Đối thủ";
-    } else if (p1NameEl) {
-        p1NameEl.textContent = "Đối thủ"; // Mặc định
+    // Cập nhật Player 1 (Đối thủ)
+    const p1NameEl = p1Bar.querySelector('.player-name');
+    const p1EloEl = p1Bar.querySelector('.player-elo');
+    const p1Avatar = p1Bar.querySelector('.player-avatar');
+
+    if (player1Info) {
+        if (p1NameEl) p1NameEl.textContent = player1Info.name || "Đối thủ";
+        if (p1EloEl) p1EloEl.textContent = `Elo: ${player1Info.elo || 1200}`;
+        updateAvatar(p1Avatar, player1Info.avatar);
+    } else {
+        if (p1NameEl) p1NameEl.textContent = "Đối thủ";
+        if (p1EloEl) p1EloEl.textContent = "Elo: ???";
+        updateAvatar(p1Avatar, null);
     }
 
     // Xóa quân cờ bị ăn cũ khi cập nhật (sẽ được thêm lại bởi updateCapturedPieces)
@@ -820,7 +869,15 @@ window.handleBoardInput = function(fromR, fromC, toR, toC) {
             // Click vào ô đích khi đã có quân chọn -> MOVE
             const fromAlg = window.coordToAlg(selectedSquare.r, selectedSquare.c);
             const toAlg = window.coordToAlg(fromR, fromC);
-            window.sendMove(fromAlg, toAlg);
+
+            // KIỂM TRA PHONG CẤP
+            const movingPiece = window.renderChessBoard.currentBoardState[selectedSquare.r][selectedSquare.c];
+            if (checkPromotion(movingPiece, fromR)) { // fromR ở đây là hàng đích
+                showPromotionPopup(fromAlg, toAlg);
+            } else {
+                window.sendMove(fromAlg, toAlg);
+            }
+
             selectedSquare = null;
         } else {
             selectedSquare = null;
@@ -832,12 +889,60 @@ window.handleBoardInput = function(fromR, fromC, toR, toC) {
         window.validMoveSquares = [];
         const fromAlg = window.coordToAlg(fromR, fromC);
         const toAlg = window.coordToAlg(toR, toC);
-        window.sendMove(fromAlg, toAlg);
+
+        // KIỂM TRA PHONG CẤP
+        const movingPiece = window.renderChessBoard.currentBoardState[fromR][fromC];
+        if (checkPromotion(movingPiece, toR)) { // toR là hàng đích
+            showPromotionPopup(fromAlg, toAlg);
+        } else {
+            window.sendMove(fromAlg, toAlg);
+        }
+
         selectedSquare = null;
     }
 
     renderGame();
 };
+
+function checkPromotion(piece, toRow) {
+    if (piece === 'P' && toRow === 0) return true;
+    if (piece === 'p' && toRow === 7) return true;
+    return false;
+}
+
+function showPromotionPopup(fromAlg, toAlg) {
+    pendingPromotionMove = { from: fromAlg, to: toAlg };
+
+    // Cập nhật hình ảnh quân cờ trong popup dựa trên màu
+    const options = document.querySelectorAll('.promo-option img');
+    options.forEach(img => {
+        const pieceType = img.parentElement.dataset.piece; // q, r, b, n
+        const fileName = yourColor === 'white' ? pieceType.toUpperCase() : 'b' + pieceType.toUpperCase();
+        img.src = `../../PBL4_imgs/image/${fileName}.png`;
+    });
+
+    if (promotionPopupEl) promotionPopupEl.classList.remove('hidden');
+}
+
+function hidePromotionPopup() {
+    if (promotionPopupEl) promotionPopupEl.classList.add('hidden');
+    pendingPromotionMove = null;
+}
+
+// Gắn sự kiện cho các lựa chọn phong cấp
+document.querySelectorAll('.promo-option').forEach(option => {
+    option.addEventListener('click', () => {
+        if (pendingPromotionMove) {
+            const piece = option.dataset.piece; // q, r, b, n
+            window.sendMove(pendingPromotionMove.from, pendingPromotionMove.to, piece);
+            hidePromotionPopup();
+        }
+    });
+});
+
+if (cancelPromotionBtn) {
+    cancelPromotionBtn.addEventListener('click', hidePromotionPopup);
+}
 
 function onValidMovesReceived(msg) {
     // Lưu lại danh sách ô đích hợp lệ
@@ -847,14 +952,18 @@ function onValidMovesReceived(msg) {
 }
 
 // NHƯNG SỬA sendMove ĐỂ DÙNG sendMessage
-window.sendMove = function(fromAlg, toAlg) {
+window.sendMove = function(fromAlg, toAlg, promotionPiece = null) {
     if (roomId) {
-        sendMessage({
+        const msg = {
             type: 'move_request',
             from: fromAlg,
             to: toAlg,
             roomId: roomId
-        });
+        };
+        if (promotionPiece) {
+            msg.promotion = promotionPiece;
+        }
+        sendMessage(msg);
     }
 };
 
