@@ -14,7 +14,7 @@ public class DBConnection {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:postgresql://localhost:5432/DataBase_PBL4");
         config.setUsername("postgres");
-        config.setPassword("300325");
+        config.setPassword("01112005");
 
         config.setMaximumPoolSize(10);
         config.setMinimumIdle(2);

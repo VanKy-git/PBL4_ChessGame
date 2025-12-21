@@ -4,7 +4,7 @@ const leaderboardPopup = document.getElementById('leaderboardPopup');
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 const leaderboardClose = document.getElementById('leaderboardClose');
 
-const API_URL = "http://localhost:8910";
+const API_URL = "http://localhost:8910/api"; // Sửa lại đường dẫn API
 
 function renderLeaderboard(list) {
     if (!list || list.length === 0) {
@@ -15,6 +15,11 @@ function renderLeaderboard(list) {
     leaderboardContainer.innerHTML = list.map((player, index) => {
         const rankColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'transparent';
         
+        // Xử lý dữ liệu trả về từ API (khớp với user entity)
+        const name = player.userName || player.playerName || "Unknown";
+        const elo = player.eloRating || player.elo || 1200;
+        const wins = player.winCount || player.wins || 0;
+
         return `
             <div class="leaderboard-item" style="
               background:rgba(0, 0, 0, 0.6);padding:12px;border-radius:6px;margin:10px 0;
@@ -23,16 +28,21 @@ function renderLeaderboard(list) {
               border-left: 4px solid ${rankColor};
             ">
                 <span class="rank" style="font-weight: bold; width: 30px;">#${index + 1}</span>
-                <strong style="flex-grow: 1;">${player.playerName}</strong> 
-                <span class="rating" style="color: #88ff88; font-weight: bold;">ELO: ${player.elo}</span>
-                <span class="wins" style="margin-left: 15px; color: #bbb;">${player.wins} Thắng</span>
+                <strong style="flex-grow: 1;">${name}</strong> 
+                <span class="rating" style="color: #88ff88; font-weight: bold;">ELO: ${elo}</span>
+                <span class="wins" style="margin-left: 15px; color: #bbb;">${wins} Thắng</span>
             </div>
         `;
     }).join("");
 }
 
 function handleLeaderboardData(data) {
-    renderLeaderboard(data.leaderboard);
+    // API trả về { success: true, data: [...] }
+    if (data.success && Array.isArray(data.data)) {
+        renderLeaderboard(data.data);
+    } else {
+        leaderboardContainer.innerHTML = "<p>Không thể tải dữ liệu bảng xếp hạng.</p>";
+    }
 }
 
 // Hàm fetch dữ liệu từ API

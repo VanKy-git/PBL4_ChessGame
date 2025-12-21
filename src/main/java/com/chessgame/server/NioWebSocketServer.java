@@ -5,7 +5,6 @@ import com.database.server.MainApiServer;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 import java.io.IOException;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
@@ -25,7 +24,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-
+import com.database.server.Service.userService;
 
 
 public class NioWebSocketServer implements Runnable {
@@ -40,6 +39,7 @@ public class NioWebSocketServer implements Runnable {
     private final Map<Long, ConcurrentLinkedQueue<Player>> waitingQueuesByTime = new ConcurrentHashMap<>();
     private final Map<SocketChannel, Object> writeLocks = new ConcurrentHashMap<>();
     private final Queue<SocketChannel> disconnectQueue = new ConcurrentLinkedQueue<>();
+    private static userService userService;
 
     public NioWebSocketServer(int port) throws IOException {
         this.port = port;
@@ -1020,6 +1020,20 @@ public class NioWebSocketServer implements Runnable {
             Player player = connectionPlayerMap.remove(client);
             if (player != null) {
                 System.out.println("Player disconnected: " + player.getPlayerName());
+
+                // CẬP NHẬT TRẠNG THÁI OFFLINE
+                if (!player.getPlayerId().startsWith("guest_")) {
+                    try {
+                        int userId = Integer.parseInt(player.getPlayerId());
+                        userService.updateStatus(userId, "Offline");
+                        System.out.println("Updated status to Offline for user: " + userId);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Invalid user ID format: " + player.getPlayerId());
+                    } catch (Exception e) {
+                        System.err.println("Error updating offline status: " + e.getMessage());
+                    }
+                }
+
                 if (player.getPreferredTimeMs() != null) {
                     ConcurrentLinkedQueue<Player> queue = waitingQueuesByTime.get(player.getPreferredTimeMs());
                     if (queue != null) {
@@ -1111,16 +1125,17 @@ public class NioWebSocketServer implements Runnable {
 
         EntityManagerFactory ENTITY_MANAGER_FACTORY = null;
         try {
-            NioWebSocketServer server = new NioWebSocketServer(8080);
-            new Thread(server).start();
-        } catch (IOException e) {
-            System.err.println("  Cannot start server: " + e.getMessage());
-        }
-
-        try {
             // Lỗi ban đầu: FATAL: password authentication failed xảy ra tại đây!
             ENTITY_MANAGER_FACTORY = Persistence.createEntityManagerFactory("PBL4_ChessPU");
             System.out.println("✅ JPA/Hibernate đã khởi tạo thành công.");
+            
+            // Khởi tạo userService
+            userService = new userService(ENTITY_MANAGER_FACTORY);
+            
+            // ĐÃ XÓA: userService.resetAllUserStatus();
+
+            NioWebSocketServer server = new NioWebSocketServer(8080);
+            new Thread(server).start();
         } catch (Exception e) {
             System.err.println("❌ LỖI KHỞI TẠO CƠ SỞ DỮ LIỆU. Đang thoát: " + e.getMessage());
             e.printStackTrace();

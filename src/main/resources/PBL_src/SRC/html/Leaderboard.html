@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Xếp Hạng - Chess World</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #262421; /* Màu nền giống Home_page */
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #f1c40f;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .leaderboard-container {
+            width: 95%; /* Chiếm 95% chiều rộng màn hình */
+            max-width: 1400px; /* Tăng max-width lên 1400px */
+            background-color: #302e2b; /* Màu nền container */
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            overflow: hidden; /* Ẩn thanh cuộn nếu có */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed; /* Cố định layout bảng để chia cột đều hơn */
+        }
+
+        thead {
+            background-color: #262421;
+            border-bottom: 2px solid #403d39;
+        }
+
+        th, td {
+            padding: 15px 20px;
+            text-align: left;
+            white-space: nowrap; /* Ngăn xuống dòng */
+            overflow: hidden;
+            text-overflow: ellipsis; /* Thêm dấu ... nếu quá dài */
+        }
+
+        /* Điều chỉnh độ rộng cột */
+        th:nth-child(1) { width: 80px; text-align: center; } /* Cột Hạng */
+        th:nth-child(2) { width: 40%; } /* Cột Người chơi (Rộng nhất) */
+        th:nth-child(3) { width: 25%; } /* Cột Thành tích */
+        th:nth-child(4) { width: 15%; } /* Cột ELO */
+
+        th {
+            color: #999;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9em;
+        }
+
+        td {
+            border-bottom: 1px solid #403d39;
+            color: #ccc;
+            font-size: 1.1em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #3a3835; /* Hiệu ứng hover */
+        }
+
+        /* Rank Styles */
+        .rank {
+            font-weight: bold;
+            text-align: center;
+        }
+        .rank-1 { color: #f1c40f; font-size: 1.3em; } /* Gold */
+        .rank-2 { color: #bdc3c7; font-size: 1.3em; } /* Silver */
+        .rank-3 { color: #e67e22; font-size: 1.3em; } /* Bronze */
+
+        /* User Info Styles */
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #403d39;
+            flex-shrink: 0; /* Ngăn avatar bị co lại */
+        }
+
+        .username {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .elo {
+            font-weight: bold;
+            color: #81b64c; /* Màu xanh lá giống chess.com */
+        }
+
+        .stats {
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        .win { color: #81b64c; }
+        .loss { color: #e74c3c; }
+
+        /* Button Styles */
+        .btn-back {
+            background-color: #403d39;
+            color: #ccc;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 30px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-back:hover {
+            background-color: #555350;
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        /* Loading Spinner */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #81b64c;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1><i class="fa-solid fa-trophy" style="color: #f1c40f; margin-right: 10px;"></i>Bảng Xếp Hạng</h1>
+
+    <div class="leaderboard-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align: center;">#</th>
+                    <th>Người Chơi</th>
+                    <th>Thành Tích</th>
+                    <th>ELO</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+                <tr>
+                    <td colspan="4" class="loading">
+                        <div class="spinner"></div>
+                        Đang tải dữ liệu...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <button class="btn-back" onclick="window.location.href='Home_page.html'">
+        <i class="fa-solid fa-arrow-left"></i> Quay lại Trang Chủ
+    </button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('http://localhost:8910/api/leaderboard')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const leaderboardBody = document.getElementById('leaderboard-body');
+
+                    if (data.success && Array.isArray(data.data)) {
+                        leaderboardBody.innerHTML = ''; // Xóa loading
+
+                        if (data.data.length === 0) {
+                            leaderboardBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px;">Chưa có dữ liệu xếp hạng</td></tr>';
+                            return;
+                        }
+
+                        data.data.forEach((user, index) => {
+                            const row = document.createElement('tr');
+                            const rank = index + 1;
+
+                            // Xử lý class cho Top 3
+                            let rankClass = 'rank';
+                            if (rank === 1) rankClass += ' rank-1';
+                            else if (rank === 2) rankClass += ' rank-2';
+                            else if (rank === 3) rankClass += ' rank-3';
+
+                            // Avatar mặc định nếu null
+                            const avatarUrl = user.avatarUrl || '../../PBL4_imgs/icon/man.png';
+
+                            row.innerHTML = `
+                                <td class="${rankClass}">
+                                    ${rank <= 3 ? '<i class="fa-solid fa-medal"></i>' : rank}
+                                </td>
+                                <td>
+                                    <div class="user-cell">
+                                        <img src="${avatarUrl}" alt="Avatar" class="avatar">
+                                        <span class="username">${user.userName || 'Unknown'}</span>
+                                    </div>
+                                </td>
+                                <td class="stats">
+                                    <span class="win"><i class="fa-solid fa-check"></i> ${user.winCount || 0}</span> /
+                                    <span class="loss"><i class="fa-solid fa-xmark"></i> ${user.lossCount || 0}</span>
+                                </td>
+                                <td class="elo">${user.eloRating || 1200}</td>
+                            `;
+
+                            leaderboardBody.appendChild(row);
+                        });
+                    } else {
+                        leaderboardBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #e74c3c;">Không thể tải dữ liệu.</td></tr>';
+                        console.error('Failed to load leaderboard data:', data.error || 'Unknown error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching leaderboard:', error);
+                    const leaderboardBody = document.getElementById('leaderboard-body');
+                    leaderboardBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #e74c3c;">Lỗi kết nối server. Vui lòng thử lại sau.</td></tr>';
+                });
+        });
+    </script>
+
+</body>
+</html>

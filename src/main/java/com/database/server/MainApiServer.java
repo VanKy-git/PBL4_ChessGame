@@ -301,11 +301,11 @@ server.createContext("/api/leaderboard", exchange -> {
         setCorsHeaders(exchange);
         
         try {
-            // Leaderboard thường không cần playerId
-            // String responseJson = userController.getLeaderboard();
+            // Gọi controller để lấy bảng xếp hạng
+            String responseJson = userController.handleRequest("getLeaderboard", "{}");
 
-            // // Trả về JSON
-            // sendResponse(exchange, 200, responseJson);
+            // Trả về JSON
+            sendResponse(exchange, 200, responseJson);
 
         } catch (Exception e) {
             e.printStackTrace();
