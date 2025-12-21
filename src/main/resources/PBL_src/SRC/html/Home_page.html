@@ -8,6 +8,70 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
     <link rel="icon" href="../../PBL4_imgs/icon/logo.png">
     <title>Trang chủ</title>
+    <style>
+        /* CSS cho popup bảng xếp hạng */
+        #leaderboardPopup .popup-content {
+            width: 95%;
+            max-width: 1200px; /* Tăng chiều rộng tối đa lên 1200px */
+            padding: 20px;
+            overflow-x: hidden; /* Ẩn thanh cuộn ngang của popup */
+        }
+
+        /* CSS cho container bảng xếp hạng bên trong popup */
+        #leaderboardContainer {
+            width: 100%;
+            overflow-x: auto; /* Cho phép cuộn ngang nếu màn hình quá nhỏ */
+        }
+
+        /* CSS cho các item trong bảng xếp hạng (được tạo bởi JS) */
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+            color: #eee;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s;
+        }
+
+        .leaderboard-item:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .leaderboard-item .rank {
+            font-weight: bold;
+            width: 50px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+
+        .leaderboard-item strong {
+            flex-grow: 1;
+            margin-left: 15px;
+            font-size: 1.1em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .leaderboard-item .rating {
+            color: #88ff88;
+            font-weight: bold;
+            width: 100px;
+            text-align: right;
+        }
+
+        .leaderboard-item .wins {
+            margin-left: 20px;
+            color: #bbb;
+            width: 100px;
+            text-align: right;
+        }
+    </style>
 </head>
 <body>
     <div class="layout">
@@ -37,7 +101,7 @@
                 
                 <a href="#" id="friendsLink"><i class="fa-solid fa-user-group"></i> Bạn bè</a>
                 
-                <a href="Leaderboard.html" id="leaderboardLink"><i class="fa-solid fa-ranking-star"></i> Bảng xếp hạng</a>
+                <a href="#" id="leaderboardLink"><i class="fa-solid fa-ranking-star"></i> Bảng xếp hạng</a>
                 
                 <a href="Setting.html"><i class="fa-solid fa-gear"></i> Cài đặt</a>
             </nav>
