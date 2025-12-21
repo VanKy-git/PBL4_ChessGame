@@ -142,14 +142,30 @@
 
 /* --- THEMES --- */
 
+/* Theme: Default (sử dụng biến root) */
+.board .white { background-color: var(--white-square); }
+.board .black { background-color: var(--black-square); }
+
 /* Theme: Wood */
 .board.theme-wood .white { background-color: #e3c16f; }
 .board.theme-wood .black { background-color: #b78962; }
 
-/* Theme: Dark */
+/* Theme: Dark (Than Chì) */
 .board.theme-dark .white { background-color: #6f6f6f; }
 .board.theme-dark .black { background-color: #4e4e4e; }
 
-/* Theme: Light */
+/* Theme: Light (Bạc) */
 .board.theme-light .white { background-color: #eeeeee; }
 .board.theme-light .black { background-color: #cccccc; }
+
+/* Theme: Ocean (Đại Dương) */
+.board.theme-ocean .white { background-color: #c4d7e0; }
+.board.theme-ocean .black { background-color: #7b9fac; }
+
+/* Theme: Forest (Rừng Rậm) */
+.board.theme-forest .white { background-color: #c8e6c9; }
+.board.theme-forest .black { background-color: #66bb6a; }
+
+/* Theme: Cherry (Anh Đào) */
+.board.theme-cherry .white { background-color: #f8bbd0; }
+.board.theme-cherry .black { background-color: #ec407a; }

@@ -11,8 +11,8 @@ function applyBoardTheme(theme) {
     const board = document.getElementById('chessBoard');
     if (!board) return;
     
-    // Xóa các class theme cũ
-    board.classList.remove('theme-wood', 'theme-dark', 'theme-light');
+    // Xóa tất cả các class theme cũ
+    board.classList.remove('theme-wood', 'theme-dark', 'theme-light', 'theme-ocean', 'theme-forest', 'theme-cherry');
 
     if (theme !== 'default') {
         board.classList.add(`theme-${theme}`);
@@ -29,9 +29,8 @@ function applySoundVolume(volume) {
 function saveSettings() {
     const theme = document.getElementById('theme-select').value;
     const sound = document.getElementById('sound-slider').value;
-    const language = document.getElementById('language-select').value;
 
-    const settings = { theme, sound, language };
+    const settings = { theme, sound }; // Xóa language
     localStorage.setItem('chessGameSettings', JSON.stringify(settings));
 
     // Áp dụng ngay
@@ -53,12 +52,10 @@ function loadSettings() {
         // Cập nhật UI trong popup (nếu popup đang mở)
         const themeSelect = document.getElementById('theme-select');
         const soundSlider = document.getElementById('sound-slider');
-        const languageSelect = document.getElementById('language-select');
         const soundValue = document.getElementById('sound-value');
 
         if (themeSelect) themeSelect.value = settings.theme;
         if (soundSlider) soundSlider.value = settings.sound;
-        if (languageSelect) languageSelect.value = settings.language;
         if (soundValue) soundValue.textContent = settings.sound;
     }
 }
