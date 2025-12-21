@@ -1,3 +1,5 @@
+import { playSound } from './sounds.js';
+
 // File: chessboard_render.js
 // Nhiệm vụ: Chỉ hiển thị bàn cờ (rendering) và chuyển giao input (clicks/drops).
 
@@ -100,6 +102,7 @@ window.renderChessBoard = function(boardArray, state) {
                     (currentTurn === 'black' && isBlackKing)))
             {
                 square.classList.add('in-check'); // Thêm class cho ô Vua
+                playSound('check'); // Phát âm thanh chiếu tướng
             }
 
             // TRONG chessboard_render.js, bên trong hàm window.renderChessBoard, thay thế logic tạo IMG:
@@ -221,6 +224,13 @@ boardElement.addEventListener("drop", (e) => {
     console.log(toCol, "  ",toRow);
     const fromRow = dragStartPos.r;
     const fromCol = dragStartPos.c;
+
+    // Phát âm thanh dựa trên việc có ăn quân hay không
+    if (square.querySelector('img')) {
+        playSound('capture');
+    } else {
+        playSound('move');
+    }
 
     if (typeof window.handleBoardInput === "function") {
         window.handleBoardInput(fromRow, fromCol, toRow, toCol); 

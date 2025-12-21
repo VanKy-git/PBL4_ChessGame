@@ -139,4 +139,17 @@
   font-weight:600;
   margin:10px 0;
 }
-  
+
+/* --- THEMES --- */
+
+/* Theme: Wood */
+.board.theme-wood .white { background-color: #e3c16f; }
+.board.theme-wood .black { background-color: #b78962; }
+
+/* Theme: Dark */
+.board.theme-dark .white { background-color: #6f6f6f; }
+.board.theme-dark .black { background-color: #4e4e4e; }
+
+/* Theme: Light */
+.board.theme-light .white { background-color: #eeeeee; }
+.board.theme-light .black { background-color: #cccccc; }

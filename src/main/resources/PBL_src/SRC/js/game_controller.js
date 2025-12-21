@@ -1,4 +1,4 @@
-// File: game_controller.js
+import { playSound } from './sounds.js';
 import { sendMessage, registerHandler } from "./Connect_websocket.js";
 
 // ==========================
@@ -428,68 +428,48 @@ function stopTimer() {
 }
 
 function onMoveResult(msg) {
-    // ✅ SỬA LẠI: Kiểm tra msg.lastMove là object và có from/to
+    if (msg.result === false) {
+        alert("Nước đi không hợp lệ: " + (msg.message || ''));
+        selectedSquare = null;
+        validMoveSquares = [];
+        window.validMoveSquares = [];
+        renderGame();
+        return;
+    }
+
     if (msg.fen && msg.lastMove && typeof msg.lastMove === 'object' && msg.lastMove.from && msg.lastMove.to && window.algToCoord) {
-
-        const fromCoord = window.algToCoord(msg.lastMove.from); // Đọc từ object lastMove
-        const toCoord = window.algToCoord(msg.lastMove.to);     // Đọc từ object lastMove
-
-        // Lấy bàn cờ TRƯỚC KHI cập nhật FEN
+        const fromCoord = window.algToCoord(msg.lastMove.from);
+        const toCoord = window.algToCoord(msg.lastMove.to);
         const oldGameData = decodeFEN(currentFEN);
         const oldBoardArray = oldGameData.board;
-        const turnBeforeMove = oldGameData.turn; // Lượt đi trước đó
+        const turnBeforeMove = oldGameData.turn;
 
-        // Lấy ký tự quân cờ TỪ BÀN CỜ CŨ
-        let movedPieceChar = '';
-        if (fromCoord && oldBoardArray[fromCoord.r] !== undefined && oldBoardArray[fromCoord.r][fromCoord.c] !== undefined) {
-            movedPieceChar = oldBoardArray[fromCoord.r][fromCoord.c];
-        } else {
-            console.warn("Cannot get moved piece char from 'from' coord:", fromCoord);
-        }
+        let movedPieceChar = oldBoardArray[fromCoord.r]?.[fromCoord.c] || '';
+        let capturedPieceChar = oldBoardArray[toCoord.r]?.[toCoord.c] || null;
 
-        // ✅ KIỂM TRA ĂN QUÂN
-        let capturedPieceChar = null;
-        if (toCoord && oldBoardArray[toCoord.r]?.[toCoord.c]) {
-            capturedPieceChar = oldBoardArray[toCoord.r][toCoord.c];
-        }
-        // Xử lý ăn Tốt qua đường (nếu có)
         const movedPieceLower = movedPieceChar.toLowerCase();
-        if (movedPieceLower === 'p' && fromCoord.c !== toCoord.c && capturedPieceChar === '') {
-            // Đây có thể là en passant, quân bị ăn là tốt đối phương ở cùng cột đích, khác hàng
-            const capturedPawnRow = turnBeforeMove === 'white' ? toCoord.r + 1 : toCoord.r - 1;
-            capturedPieceChar = turnBeforeMove === 'white' ? 'p' : 'P'; // Xác định màu tốt bị ăn
+        if (movedPieceLower === 'p' && fromCoord.c !== toCoord.c && !capturedPieceChar) {
+            capturedPieceChar = turnBeforeMove === 'white' ? 'p' : 'P';
         }
 
-        // Cập nhật trạng thái mới
+        if (capturedPieceChar) {
+            playSound('capture');
+            updateCapturedPieces(turnBeforeMove, capturedPieceChar);
+        } else {
+            playSound('move');
+        }
+
         currentFEN = msg.fen;
         isKingInCheckState = msg.isCheck || false;
         const newGameData = decodeFEN(currentFEN);
-        currentTurn = newGameData.turn; // Cập nhật lượt đi MỚI
-        lastMove = { from: fromCoord, to: toCoord }; // Lưu dạng {r, c} cho renderGame
-        console.log('Updated lastMove variable:', lastMove);
+        currentTurn = newGameData.turn;
+        lastMove = { from: fromCoord, to: toCoord };
 
-        // Gọi addMoveToHistory với dữ liệu từ msg.lastMove
         addMoveToHistory(msg.lastMove.from, msg.lastMove.to, turnBeforeMove, movedPieceChar);
-
-        if (capturedPieceChar) {
-            updateCapturedPieces(turnBeforeMove, capturedPieceChar);
-        }
-        // Render và cập nhật status
         renderGame();
         updateStatus();
-
     } else {
-        // Log chi tiết hơn nếu thiếu dữ liệu
-        console.warn("Received move_result with missing/invalid data (fen, lastMove.from, lastMove.to):", msg);
-        if (msg.result === false) {
-            alert("Nước đi không hợp lệ: " + (msg.message || ''));
-        }
-        // Thêm dòng này để render lại trạng thái cũ nếu nước đi không hợp lệ nhưng có fen (hiếm gặp)
-        else if (msg.fen) {
-            currentFEN = msg.fen; // Cập nhật FEN nếu có, dù lastMove thiếu
-            renderGame();
-            updateStatus();
-        }
+        console.warn("Received move_result with missing/invalid data:", msg);
     }
 }
 
@@ -500,6 +480,7 @@ function onChat(msg) {
 function onEndGame(msg) {
     gameActive = false; // Dừng game
     stopTimer(); // Dừng đồng hồ
+    playSound('gameEnd');
 
     const winner = msg.winner; // "white", "black", "draw"
     const reason = msg.reason || null; // Lý do từ server
