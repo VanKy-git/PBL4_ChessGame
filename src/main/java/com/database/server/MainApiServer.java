@@ -110,14 +110,17 @@ public class MainApiServer implements Runnable {
     // =========================================================
 
     private void registerEndpoints() {
-        
+
         // --- 1. LOGIN & REGISTER ENDPOINTS (POST) ---
         server.createContext("/api/login", exchange -> {
-            if ("OPTIONS".equals(exchange.getRequestMethod())) { handleOptions(exchange); return; }
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
             if ("POST".equals(exchange.getRequestMethod())) {
                 setCorsHeaders(exchange);
                 String requestBody = readRequestBody(exchange);
-                String responseJson = userController.handleRequest("login" ,requestBody);
+                String responseJson = userController.handleRequest("login", requestBody);
                 // 401 Unauthorized nếu login thất bại
                 sendResponse(exchange, responseJson.contains("\"success\": false") ? 401 : 200, responseJson);
             } else {
@@ -126,7 +129,10 @@ public class MainApiServer implements Runnable {
         });
 
         server.createContext("/api/register", exchange -> {
-            if ("OPTIONS".equals(exchange.getRequestMethod())) { handleOptions(exchange); return; }
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
+            }
             if ("POST".equals(exchange.getRequestMethod())) {
                 setCorsHeaders(exchange);
                 String requestBody = readRequestBody(exchange);
@@ -177,150 +183,150 @@ public class MainApiServer implements Runnable {
         });
 
         // --- 2. DATA ENDPOINTS (GET) ---
-        
+
         // --- Endpoint Lịch sử (GET /api/history)
-server.createContext("/api/history", exchange -> {
-    if ("OPTIONS".equals(exchange.getRequestMethod())) { 
-        handleOptions(exchange); 
-        return; 
-    }
-
-    if ("GET".equals(exchange.getRequestMethod())) {
-        setCorsHeaders(exchange);
-
-        try {
-            // Lấy query từ URL
-            String query = exchange.getRequestURI().getQuery();
-            Map<String, String> params = parseQuery(query);
-
-            // Lấy playerId từ query
-            String userId = params.getOrDefault("playerId", null);
-
-            if (userId == null) {
-                sendResponse(exchange, 400, """
-                {
-                  "success": false,
-                  "message": "Thiếu tham số playerId!"
-                }
-                """);
+        server.createContext("/api/history", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
                 return;
             }
 
-            // Gọi controller
-            String responseJson = matchesController.getHistoryByUserId(userId);
+            if ("GET".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
 
-            // Trả về JSON
-            sendResponse(exchange, 200, responseJson);
+                try {
+                    // Lấy query từ URL
+                    String query = exchange.getRequestURI().getQuery();
+                    Map<String, String> params = parseQuery(query);
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi xử lý /api/history!"
-            }
-            """);
-        }
+                    // Lấy playerId từ query
+                    String userId = params.getOrDefault("playerId", null);
 
-    } else {
-        sendResponse(exchange, 405, """
-        {
-          "success": false,
-          "message": "Method Not Allowed"
-        }
-        """);
-    }
-});
+                    if (userId == null) {
+                        sendResponse(exchange, 400, """
+                                {
+                                  "success": false,
+                                  "message": "Thiếu tham số playerId!"
+                                }
+                                """);
+                        return;
+                    }
 
+                    // Gọi controller
+                    String responseJson = matchesController.getHistoryByUserId(userId);
 
-    // --- Endpoint Bạn bè (GET /api/friends)
-server.createContext("/api/friends", exchange -> {
-    if ("OPTIONS".equals(exchange.getRequestMethod())) { 
-        handleOptions(exchange); 
-        return; 
-    }
+                    // Trả về JSON
+                    sendResponse(exchange, 200, responseJson);
 
-    if ("GET".equals(exchange.getRequestMethod())) {
-        setCorsHeaders(exchange);
-
-        try {
-            // Lấy query từ URL (để tìm playerId)
-            String query = exchange.getRequestURI().getQuery();
-            Map<String, String> params = parseQuery(query);
-            
-            // Lấy playerId từ query (thay vì Header như code cũ)
-            String userId = params.getOrDefault("playerId", null);
-
-            if (userId == null) {
-                sendResponse(exchange, 400, """
-                {
-                  "success": false,
-                  "message": "Thiếu tham số playerId!"
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sendResponse(exchange, 500, """
+                            {
+                              "success": false,
+                              "message": "Lỗi Server khi xử lý /api/history!"
+                            }
+                            """);
                 }
-                """);
+
+            } else {
+                sendResponse(exchange, 405, """
+                        {
+                          "success": false,
+                          "message": "Method Not Allowed"
+                        }
+                        """);
+            }
+        });
+
+
+        // --- Endpoint Bạn bè (GET /api/friends)
+        server.createContext("/api/friends", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
                 return;
             }
 
-            // Gọi controller
-            System.out.println("🔍 [DEBUG] Received playerId: " + userId); // ✅ Log
-            
-            String getFriendsJson = String.format("""
-                { "userId": %s }
-            """, userId);
-            System.out.println("🔍 [DEBUG] Sending to controller: " + getFriendsJson); // ✅ Log
-            
-            String responseJson = friendsController.handleRequest("getFriendsOfUser", getFriendsJson);
-            System.out.println("🔍 [DEBUG] Controller response: " + responseJson);
+            if ("GET".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
 
-            // Trả về JSON
-            sendResponse(exchange, 200, responseJson);
+                try {
+                    // Lấy query từ URL (để tìm playerId)
+                    String query = exchange.getRequestURI().getQuery();
+                    Map<String, String> params = parseQuery(query);
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi xử lý /api/friends!"
+                    // Lấy playerId từ query (thay vì Header như code cũ)
+                    String userId = params.getOrDefault("playerId", null);
+
+                    if (userId == null) {
+                        sendResponse(exchange, 400, """
+                                {
+                                  "success": false,
+                                  "message": "Thiếu tham số playerId!"
+                                }
+                                """);
+                        return;
+                    }
+
+                    // Gọi controller
+                    System.out.println("🔍 [DEBUG] Received playerId: " + userId); // ✅ Log
+
+                    String getFriendsJson = String.format("""
+                                { "userId": %s }
+                            """, userId);
+                    System.out.println("🔍 [DEBUG] Sending to controller: " + getFriendsJson); // ✅ Log
+
+                    String responseJson = friendsController.handleRequest("getFriendsOfUser", getFriendsJson);
+                    System.out.println("🔍 [DEBUG] Controller response: " + responseJson);
+
+                    // Trả về JSON
+                    sendResponse(exchange, 200, responseJson);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sendResponse(exchange, 500, """
+                            {
+                              "success": false,
+                              "message": "Lỗi Server khi xử lý /api/friends!"
+                            }
+                            """);
+                }
+
+            } else {
+                sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
             }
-            """);
-        }
-
-    } else {
-        sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
-    }
-});
+        });
 
 // --- Endpoint Bảng xếp hạng (GET /api/leaderboard)
-server.createContext("/api/leaderboard", exchange -> {
-    if ("OPTIONS".equals(exchange.getRequestMethod())) { 
-        handleOptions(exchange); 
-        return; 
-    }
-
-    if ("GET".equals(exchange.getRequestMethod())) {
-        setCorsHeaders(exchange);
-        
-        try {
-            // Leaderboard thường không cần playerId
-            // String responseJson = userController.getLeaderboard();
-
-            // // Trả về JSON
-            // sendResponse(exchange, 200, responseJson);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi xử lý /api/leaderboard!"
+        server.createContext("/api/leaderboard", exchange -> {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                handleOptions(exchange);
+                return;
             }
-            """);
-        }
 
-    } else {
-        sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
-    }
-});
+            if ("GET".equals(exchange.getRequestMethod())) {
+                setCorsHeaders(exchange);
+
+                try {
+                    // Leaderboard thường không cần playerId
+                    // String responseJson = userController.getLeaderboard();
+
+                    // // Trả về JSON
+                    // sendResponse(exchange, 200, responseJson);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sendResponse(exchange, 500, """
+                            {
+                              "success": false,
+                              "message": "Lỗi Server khi xử lý /api/leaderboard!"
+                            }
+                            """);
+                }
+
+            } else {
+                sendResponse(exchange, 405, "{\"success\": false, \"message\": \"Method Not Allowed\"}");
+            }
+        });
 
 // --- Endpoint Tài khoản (GET /api/account?playerId=xxx)
         server.createContext("/api/account", exchange -> {
@@ -342,18 +348,18 @@ server.createContext("/api/leaderboard", exchange -> {
 
                     if (userId == null) {
                         sendResponse(exchange, 400, """
-                {
-                  "success": false,
-                  "message": "Thiếu tham số playerId!"
-                }
-                """);
+                                {
+                                  "success": false,
+                                  "message": "Thiếu tham số playerId!"
+                                }
+                                """);
                         return;
                     }
 
                     // Gọi controller để lấy thông tin user
                     String getUserJson = String.format("""
-                { "userId": %s }
-            """, userId);
+                                { "userId": %s }
+                            """, userId);
 
                     String responseJson = userController.handleRequest("getUserById", getUserJson);
 
@@ -363,20 +369,20 @@ server.createContext("/api/leaderboard", exchange -> {
                 } catch (Exception e) {
                     e.printStackTrace();
                     sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi xử lý /api/account!"
-            }
-            """);
+                            {
+                              "success": false,
+                              "message": "Lỗi Server khi xử lý /api/account!"
+                            }
+                            """);
                 }
 
             } else {
                 sendResponse(exchange, 405, """
-        {
-          "success": false,
-          "message": "Method Not Allowed"
-        }
-        """);
+                        {
+                          "success": false,
+                          "message": "Method Not Allowed"
+                        }
+                        """);
             }
         });
 
@@ -402,20 +408,20 @@ server.createContext("/api/leaderboard", exchange -> {
                 } catch (Exception e) {
                     e.printStackTrace();
                     sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi cập nhật tài khoản!"
-            }
-            """);
+                            {
+                              "success": false,
+                              "message": "Lỗi Server khi cập nhật tài khoản!"
+                            }
+                            """);
                 }
 
             } else {
                 sendResponse(exchange, 405, """
-        {
-          "success": false,
-          "message": "Method Not Allowed"
-        }
-        """);
+                        {
+                          "success": false,
+                          "message": "Method Not Allowed"
+                        }
+                        """);
             }
         });
 
@@ -441,21 +447,112 @@ server.createContext("/api/leaderboard", exchange -> {
                 } catch (Exception e) {
                     e.printStackTrace();
                     sendResponse(exchange, 500, """
-            {
-              "success": false,
-              "message": "Lỗi Server khi đổi mật khẩu!"
-            }
-            """);
+                            {
+                              "success": false,
+                              "message": "Lỗi Server khi đổi mật khẩu!"
+                            }
+                            """);
                 }
 
             } else {
                 sendResponse(exchange, 405, """
-        {
-          "success": false,
-          "message": "Method Not Allowed"
-        }
-        """);
+                        {
+                          "success": false,
+                          "message": "Method Not Allowed"
+                        }
+                        """);
             }
+        });
+
+        // Thay thế endpoint /api/updateStatus trong registerEndpoints()
+        // THAY THẾ HOÀN TOÀN endpoint /api/updateStatus trong registerEndpoints()
+
+        server.createContext("/api/updateStatus", exchange -> {
+            System.out.println("========================================");
+            System.out.println("📥 [API] Received request to /api/updateStatus");
+            System.out.println("   Method: " + exchange.getRequestMethod());
+            System.out.println("   Headers: " + exchange.getRequestHeaders());
+
+            // ✅ SET CORS HEADERS NGAY TỪ ĐẦU
+            Headers headers = exchange.getResponseHeaders();
+            headers.set("Access-Control-Allow-Origin", "*");
+            headers.set("Access-Control-Allow-Methods", "POST, OPTIONS, GET");
+            headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            headers.set("Access-Control-Max-Age", "3600");
+
+            // ✅ XỬ LÝ OPTIONS REQUEST (PREFLIGHT)
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                System.out.println("✅ [API] Handling OPTIONS preflight request");
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+
+            // ✅ XỬ LÝ POST REQUEST
+            if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                try {
+                    // Đọc request body
+                    String requestBody = readRequestBody(exchange);
+                    System.out.println("📥 [API] Request body: " + requestBody);
+
+                    // Kiểm tra requestBody có rỗng không
+                    if (requestBody == null || requestBody.trim().isEmpty()) {
+                        System.err.println("❌ [API] Empty request body!");
+                        String errorJson = "{\"success\": false, \"message\": \"Request body is empty\"}";
+                        sendResponse(exchange, 400, errorJson);
+                        return;
+                    }
+
+                    // Gọi controller
+                    String responseJson = userController.handleRequest("updateStatus", requestBody);
+                    System.out.println("📤 [API] Response: " + responseJson);
+
+                    // Gửi response
+                    headers.set("Content-Type", "application/json; charset=UTF-8");
+                    byte[] responseBytes = responseJson.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, responseBytes.length);
+
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(responseBytes);
+                    }
+
+                    System.out.println("✅ [API] Response sent successfully");
+                    System.out.println("========================================");
+
+                } catch (Exception e) {
+                    System.err.println("❌ [API] Error processing request: " + e.getMessage());
+                    e.printStackTrace();
+
+                    String errorJson = "{\"success\": false, \"message\": \"Server error: " +
+                            e.getMessage().replace("\"", "'") + "\"}";
+
+                    headers.set("Content-Type", "application/json; charset=UTF-8");
+                    byte[] errorBytes = errorJson.getBytes(StandardCharsets.UTF_8);
+
+                    try {
+                        exchange.sendResponseHeaders(500, errorBytes.length);
+                        try (OutputStream os = exchange.getResponseBody()) {
+                            os.write(errorBytes);
+                        }
+                    } catch (IOException ioEx) {
+                        System.err.println("❌ [API] Failed to send error response: " + ioEx.getMessage());
+                    }
+
+                    System.out.println("========================================");
+                }
+                return;
+            }
+
+            // ✅ XỬ LÝ METHODS KHÁC (GET, PUT, DELETE...)
+            System.err.println("❌ [API] Method not allowed: " + exchange.getRequestMethod());
+            String errorJson = "{\"success\": false, \"message\": \"Method Not Allowed\"}";
+            headers.set("Content-Type", "application/json; charset=UTF-8");
+            byte[] errorBytes = errorJson.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(405, errorBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(errorBytes);
+            }
+            System.out.println("========================================");
         });
     }
 

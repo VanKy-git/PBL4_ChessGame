@@ -501,23 +501,52 @@ public class userDAO {
         return true;
     }
 
+//    public boolean updateStatus(int userId, String status) {
+//        EntityTransaction tx = em.getTransaction();
+//        try {
+//            tx.begin();
+//            user u = em.find(user.class, userId);
+//            if (u != null) {
+//                u.setStatus(status);
+//                em.merge(u);
+//                tx.commit();
+//                return true;
+//            }
+//            tx.rollback();
+//        } catch (Exception e) {
+//            if (tx.isActive()) tx.rollback();
+//            e.printStackTrace();
+//        }
+//        return false;
+//    }
+// Thay thế hàm updateStatus trong userDAO.java
+    // ✅ COPY ĐOẠN CODE NÀY VÀO userDAO.java
+// THAY THẾ hàm updateStatus() CŨ (khoảng dòng 507)
+
     public boolean updateStatus(int userId, String status) {
-        EntityTransaction tx = em.getTransaction();
+        System.out.println("🔍 [DAO] updateStatus - User ID: " + userId + ", Status: " + status);
+
         try {
-            tx.begin();
             user u = em.find(user.class, userId);
-            if (u != null) {
-                u.setStatus(status);
-                em.merge(u);
-                tx.commit();
-                return true;
+
+            if (u == null) {
+                System.err.println("❌ [DAO] User not found: " + userId);
+                return false;
             }
-            tx.rollback();
+
+            System.out.println("✅ [DAO] Found user: " + u.getUserName() + " (current: " + u.getStatus() + ")");
+
+            u.setStatus(status);
+            em.merge(u);
+
+            System.out.println("✅ [DAO] Updated to: " + status);
+            return true;
+
         } catch (Exception e) {
-            if (tx.isActive()) tx.rollback();
+            System.err.println("❌ [DAO] Error: " + e.getMessage());
             e.printStackTrace();
+            throw e;
         }
-        return false;
     }
 
     public boolean updateEloRating(int userId, int newElo) {

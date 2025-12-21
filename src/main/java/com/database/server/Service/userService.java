@@ -191,56 +191,145 @@ public class userService {
 
     // ========== ĐĂNG NHẬP / ĐĂNG KÝ LOCAL ==========
 
+//    public Map<String, Object> login(String username, String password) {
+//        EntityManager em = emf.createEntityManager();
+//        userDAO dao = new userDAO(em);
+//        try {
+//            // 1. Lấy user từ DB (sử dụng hàm DAO mới)
+//            user dbUser = dao.findByUsername(username);
+//
+//            // 2. Kiểm tra User có tồn tại không
+//            if (dbUser == null) {
+//                throw new RuntimeException("Sai tên đăng nhập hoặc mật khẩu");
+//            }
+//
+//            // 3. (Logic cũ của bạn) Kiểm tra status
+//            if (!"Offline".equals(dbUser.getStatus())) {
+//                throw new RuntimeException("Tài khoản đang online ở nơi khác");
+//            }
+//
+//            // 4. KIỂM TRA MẬT KHẨU (Quan trọng nhất)
+//            // Giả sử dbUser.getPassword() trả về chuỗi HASH từ BCrypt
+//            boolean passwordMatch = BCrypt.checkpw(password, dbUser.getPassword());
+//
+//            if (!passwordMatch) {
+//                // Nếu mật khẩu không khớp -> ném lỗi
+//                throw new RuntimeException("Sai tên đăng nhập hoặc mật khẩu");
+//            }
+//
+//            // 5. Mật khẩu ĐÚNG -> TẠO TOKEN
+//            long nowMillis = System.currentTimeMillis();
+//            Date now = new Date(nowMillis);
+//            Date exp = new Date(nowMillis + JwtConfig.JWT_EXPIRATION_MS);
+//
+//            String token = Jwts.builder()
+//                    .setSubject(String.valueOf(dbUser.getUserId())) // Lưu ID user
+//                    .claim("username", dbUser.getUserName()) // Lưu username
+//                    .setIssuedAt(now)
+//                    .setExpiration(exp)
+//                    .signWith(JwtConfig.JWT_SECRET_KEY, SignatureAlgorithm.HS256)
+//                    .compact();
+//            System.out.println(token + " " + JwtConfig.JWT_SECRET_KEY);
+//            // 6. Cập nhật trạng thái user thành "Online"
+//            dao.updateStatus(dbUser.getUserId(), "Online");
+//
+//            // 7. Trả về kết quả
+//            Map<String, Object> loginResult = new HashMap<>();
+//            loginResult.put("token", token);
+//            loginResult.put("userId", dbUser.getUserId());
+//            loginResult.put("username", dbUser.getUserName());
+//
+//            return loginResult;
+//
+//        } finally {
+//            em.close();
+//        }
+//    }
+    // ✅ THAY THẾ HÀM login() TRONG userService.java
+
     public Map<String, Object> login(String username, String password) {
         EntityManager em = emf.createEntityManager();
         userDAO dao = new userDAO(em);
+
         try {
-            // 1. Lấy user từ DB (sử dụng hàm DAO mới)
+            System.out.println("========================================");
+            System.out.println("🔍 [LOGIN] Attempting login for: " + username);
+
+            // 1. Tìm user theo username
             user dbUser = dao.findByUsername(username);
 
-            // 2. Kiểm tra User có tồn tại không
             if (dbUser == null) {
+                System.err.println("❌ [LOGIN] User not found: " + username);
                 throw new RuntimeException("Sai tên đăng nhập hoặc mật khẩu");
             }
 
-            // 3. (Logic cũ của bạn) Kiểm tra status
-            if (!"Offline".equals(dbUser.getStatus())) {
-                throw new RuntimeException("Tài khoản đang online ở nơi khác");
-            }
+            System.out.println("✅ [LOGIN] User found: " + dbUser.getUserName());
+            System.out.println("   User ID: " + dbUser.getUserId());
+            System.out.println("   Current Status: " + dbUser.getStatus());
 
-            // 4. KIỂM TRA MẬT KHẨU (Quan trọng nhất)
-            // Giả sử dbUser.getPassword() trả về chuỗi HASH từ BCrypt
+            // 2. Kiểm tra password
             boolean passwordMatch = BCrypt.checkpw(password, dbUser.getPassword());
 
             if (!passwordMatch) {
-                // Nếu mật khẩu không khớp -> ném lỗi
+                System.err.println("❌ [LOGIN] Wrong password for: " + username);
                 throw new RuntimeException("Sai tên đăng nhập hoặc mật khẩu");
             }
 
-            // 5. Mật khẩu ĐÚNG -> TẠO TOKEN
+            System.out.println("✅ [LOGIN] Password correct");
+
+            // 3. Tạo JWT Token
             long nowMillis = System.currentTimeMillis();
             Date now = new Date(nowMillis);
             Date exp = new Date(nowMillis + JwtConfig.JWT_EXPIRATION_MS);
 
             String token = Jwts.builder()
-                    .setSubject(String.valueOf(dbUser.getUserId())) // Lưu ID user
-                    .claim("username", dbUser.getUserName()) // Lưu username
+                    .setSubject(String.valueOf(dbUser.getUserId()))
+                    .claim("username", dbUser.getUserName())
                     .setIssuedAt(now)
                     .setExpiration(exp)
                     .signWith(JwtConfig.JWT_SECRET_KEY, SignatureAlgorithm.HS256)
                     .compact();
-            System.out.println(token + " " + JwtConfig.JWT_SECRET_KEY);
-            // 6. Cập nhật trạng thái user thành "Online"
-            dao.updateStatus(dbUser.getUserId(), "Online");
 
-            // 7. Trả về kết quả
+            System.out.println("✅ [LOGIN] JWT token created");
+
+            // 4. ✅ CẬP NHẬT STATUS THÀNH "Online"
+            System.out.println("🔍 [LOGIN] Updating status to Online...");
+
+            em.getTransaction().begin();
+
+            dbUser.setStatus("Online");
+            em.merge(dbUser);  // ✅ Trực tiếp merge vào EntityManager
+
+            em.getTransaction().commit();
+
+            System.out.println("✅ [LOGIN] Status updated to Online");
+
+            // 5. Trả về kết quả
             Map<String, Object> loginResult = new HashMap<>();
             loginResult.put("token", token);
             loginResult.put("userId", dbUser.getUserId());
             loginResult.put("username", dbUser.getUserName());
 
+            System.out.println("✅ [LOGIN] Login successful!");
+            System.out.println("========================================");
+
             return loginResult;
 
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            System.err.println("❌ [LOGIN] Failed: " + e.getMessage());
+            System.out.println("========================================");
+            throw e;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            System.err.println("❌ [LOGIN] Unexpected error: " + e.getMessage());
+            e.printStackTrace();
+            System.out.println("========================================");
+            throw new RuntimeException("Lỗi đăng nhập: " + e.getMessage());
         } finally {
             em.close();
         }
@@ -329,7 +418,7 @@ public class userService {
 
             // Tạo user mới bằng data từ Google
             user newUser = dao.createUserWithGoogle(email, googleId, name, picture);
-            newUser.setStatus("Offline");
+            newUser.setStatus("Online");
             em.getTransaction().commit();
             return newUser;
         } catch (RuntimeException e) {
@@ -347,10 +436,15 @@ public class userService {
      * Login by Google token — chỉ chấp nhận khi user đã tồn tại và liên kết Google
      * Trả về user nếu thành công, ngược lại trả null (hoặc ném exception)
      */
+    // ✅ CHỈ THAY THẾ HÀM loginWithGoogle() trong userService.java
+// Tìm hàm này và thay thế toàn bộ
+
     public user loginWithGoogle(String idTokenString) {
         EntityManager em = emf.createEntityManager();
         userDAO dao = new userDAO(em);
+
         try {
+            // Xác thực token
             GoogleIdToken.Payload payload = verifyIdToken(idTokenString);
             if (payload == null) {
                 throw new RuntimeException("Invalid Google ID token");
@@ -359,10 +453,10 @@ public class userService {
             String googleId = payload.getSubject();
             String email = payload.getEmail();
 
-            // Ưu tiên tìm theo googleId
+            // Tìm user theo googleId
             user existing = dao.getUserByGoogleId(googleId);
 
-            // Nếu chưa tìm theo googleId, có thể tìm theo email + provider == google
+            // Nếu chưa có, tìm theo email
             if (existing == null && email != null) {
                 user byEmail = dao.getUserByEmail(email);
                 if (byEmail != null && "google".equals(byEmail.getProvider())) {
@@ -371,25 +465,33 @@ public class userService {
             }
 
             if (existing == null) {
-                // Không tồn tại => trả null (frontend sẽ yêu cầu register)
-                return null;
+                return null; // User chưa đăng ký
             }
 
-            // Cập nhật avatar nếu thay đổi, set status online nếu bạn muốn
-            boolean changed = false;
+            // ✅ CẬP NHẬT STATUS THÀNH "Online" + AVATAR
+            em.getTransaction().begin();
+
+            existing.setStatus("Online");
+
             String picture = (String) payload.get("picture");
             if (picture != null && !picture.equals(existing.getAvatarUrl())) {
-                em.getTransaction().begin();
                 existing.setAvatarUrl(picture);
-                dao.updateUser(existing);
-                em.getTransaction().commit();
-                changed = true;
             }
 
+            em.merge(existing);
+            em.getTransaction().commit();
+
             return existing;
+
         } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             throw e;
         } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             throw new RuntimeException("Error logging in with Google: " + e.getMessage(), e);
         } finally {
             em.close();
@@ -616,19 +718,58 @@ public class userService {
 
     // ========== CẬP NHẬT TRẠNG THÁI ==========
 
+//    public boolean updateStatus(int userId, String status) {
+//        EntityManager em = emf.createEntityManager();
+//        userDAO dao = new userDAO(em);
+//        try {
+//            em.getTransaction().begin();
+//            boolean updated = dao.updateStatus(userId, status);
+//            em.getTransaction().commit();
+//            return updated;
+//        } catch (Exception e) {
+//            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+//            throw e;
+//        } finally {
+//            em.close();
+//        }
+//    }
+// Thay thế hàm updateStatus trong userService.java
+    // ✅ COPY ĐOẠN CODE NÀY VÀO userService.java
+// THAY THẾ hàm updateStatus() CŨ (khoảng dòng 624)
+
     public boolean updateStatus(int userId, String status) {
+        System.out.println("🔍 [SERVICE] updateStatus - User ID: " + userId + ", Status: " + status);
+
         EntityManager em = emf.createEntityManager();
         userDAO dao = new userDAO(em);
+
         try {
+            // ✅ QUAN TRỌNG: Service quản lý transaction
             em.getTransaction().begin();
+            System.out.println("✅ [SERVICE] Transaction started");
+
             boolean updated = dao.updateStatus(userId, status);
-            em.getTransaction().commit();
-            return updated;
+
+            if (updated) {
+                em.getTransaction().commit();
+                System.out.println("✅ [SERVICE] Transaction committed");
+                return true;
+            } else {
+                em.getTransaction().rollback();
+                System.err.println("❌ [SERVICE] User not found, rolled back");
+                return false;
+            }
+
         } catch (Exception e) {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            throw e;
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+                System.err.println("❌ [SERVICE] Error, rolled back: " + e.getMessage());
+            }
+            e.printStackTrace();
+            throw new RuntimeException("Không thể cập nhật status: " + e.getMessage());
         } finally {
             em.close();
+            System.out.println("🔍 [SERVICE] EntityManager closed");
         }
     }
 

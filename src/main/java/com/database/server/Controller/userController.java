@@ -539,19 +539,73 @@ public class userController {
 
     // ========================= CẬP NHẬT TRẠNG THÁI =========================
 
+//    public String updateStatus(String requestJson) {
+//        try {
+//            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+//            int userId = ((Number) request.get("userId")).intValue();
+//            String status = (String) request.get("status");
+//
+//            boolean success = userService.updateStatus(userId, status);
+//            if (success) {
+//                return successResponse("Cập nhật trạng thái thành công");
+//            } else {
+//                return errorResponse("Cập nhật trạng thái thất bại");
+//            }
+//        } catch (Exception e) {
+//            return errorResponse("Lỗi: " + e.getMessage());
+//        }
+//    }
+// Thay thế hàm updateStatus trong userController.java
     public String updateStatus(String requestJson) {
         try {
+            System.out.println("🔍 [CONTROLLER DEBUG] updateStatus called");
+            System.out.println("   Request JSON: " + requestJson);
+
+            // Parse JSON request
             Map<String, Object> request = gson.fromJson(requestJson, Map.class);
-            int userId = ((Number) request.get("userId")).intValue();
+
+            if (!request.containsKey("userId")) {
+                return errorResponse("Thiếu tham số userId!");
+            }
+
+            if (!request.containsKey("status")) {
+                return errorResponse("Thiếu tham số status!");
+            }
+
+            // Lấy userId (có thể là Double từ JSON)
+            Object userIdObj = request.get("userId");
+            int userId;
+            if (userIdObj instanceof Double) {
+                userId = ((Double) userIdObj).intValue();
+            } else if (userIdObj instanceof Integer) {
+                userId = (Integer) userIdObj;
+            } else {
+                userId = Integer.parseInt(userIdObj.toString());
+            }
+
             String status = (String) request.get("status");
 
+            System.out.println("✅ [CONTROLLER DEBUG] Parsed data:");
+            System.out.println("   User ID: " + userId);
+            System.out.println("   Status: " + status);
+
+            // Gọi Service
             boolean success = userService.updateStatus(userId, status);
+
             if (success) {
+                System.out.println("✅ [CONTROLLER DEBUG] Update successful");
                 return successResponse("Cập nhật trạng thái thành công");
             } else {
-                return errorResponse("Cập nhật trạng thái thất bại");
+                System.err.println("❌ [CONTROLLER DEBUG] Update failed");
+                return errorResponse("Cập nhật trạng thái thất bại - User không tồn tại");
             }
+
+        } catch (NumberFormatException e) {
+            System.err.println("❌ [CONTROLLER DEBUG] Invalid userId format: " + e.getMessage());
+            return errorResponse("userId phải là số nguyên!");
         } catch (Exception e) {
+            System.err.println("❌ [CONTROLLER DEBUG] Error: " + e.getMessage());
+            e.printStackTrace();
             return errorResponse("Lỗi: " + e.getMessage());
         }
     }
