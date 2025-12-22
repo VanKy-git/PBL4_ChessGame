@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng nhập / Đăng ký bằng Google</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f5f7fb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 400px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            padding: 30px;
+            text-align: center;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .login-btn { background: #4285F4; color: white; }
+        .register-btn { background: #34A853; color: white; }
+        button:hover { opacity: 0.9; }
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #555;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #f2f5ff;
+            padding: 10px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Đăng nhập bằng Google</h2>
+<!--     quan trong data-client-id lấy trong gg auth-->
+    <div id="g_id_onload"
+         data-client_id="660085540047-jc210st32m11fil9rp7n5lck025jfc67.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="rectangular"
+         data-theme="outline"
+         data-text="continue_with"
+         data-size="large"
+         data-logo_alignment="left">
+    </div>
+
+    <!-- Ẩn nút này vì đã tự động xử lý -->
+    <!-- <button class="register-btn" id="registerBtn">Đăng ký bằng Google</button> -->
+
+    <div id="status">Vui lòng chọn tài khoản Google để tiếp tục...</div>
+</div>
+
+<script>
+    // 🟢 URL API backend - SỬA LẠI CHO ĐÚNG VỚI SERVER CỦA BẠN
+    const API_URL = "http://localhost:8910"; // Giống với MainLogin
+    const LOGIN_API = `${API_URL}/api/loginWithGoogle`;
+    const REGISTER_API = `${API_URL}/api/registerWithGoogle`;
+
+    let latestToken = null;
+
+    // Kiểm tra xem user muốn login hay register (từ trang trước)
+    const authMode = localStorage.getItem("googleAuthMode") || "login";
+
+    // Cập nhật tiêu đề
+    document.querySelector('h2').textContent =
+        authMode === "signup" ? "Đăng ký bằng Google" : "Đăng nhập bằng Google";
+
+    // Hàm callback khi Google trả idToken
+    function handleCredentialResponse(response) {
+        latestToken = response.credential;
+
+        // TỰ ĐỘNG GỬI TOKEN ĐẾN SERVER NGAY
+        if (authMode === "signup") {
+            sendTokenToServer(REGISTER_API);
+        } else {
+            sendTokenToServer(LOGIN_API);
+        }
+    }
+
+    // Hàm gửi token tới server
+    async function sendTokenToServer(apiUrl) {
+        if (!latestToken) {
+            alert("Bạn cần đăng nhập Google trước!");
+            return;
+        }
+
+        document.getElementById('status').innerText = "🔄 Đang xử lý...";
+
+        try {
+            const res = await fetch(apiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: latestToken })
+            });
+
+            const result = await res.json();
+
+            if (res.ok && result.success) {
+                // LƯU THÔNG TIN GIỐNG NHƯ LOGIN BÌNH THƯỜNG
+                localStorage.setItem("token", result.data.token);
+                localStorage.setItem("playerId", result.data.userId);
+                localStorage.setItem("playerName", result.data.username || result.data.name);
+                localStorage.setItem("avatarUrl", result.data.avatar || result.data.picture || "../../PBL4_imgs/icon/man.png");
+
+                // Cache thêm userData
+                localStorage.setItem("userData", JSON.stringify({
+                    playerId: result.data.userId,
+                    username: result.data.username || result.data.name,
+                    email: result.data.email,
+                    avatarUrl: result.data.avatar || result.data.picture || "../../PBL4_imgs/icon/man.png"
+                }));
+
+                // Xóa authMode
+                localStorage.removeItem("googleAuthMode");
+
+                // Hiển thị thông báo thành công
+                document.getElementById('status').innerText = "✅ Thành công! Đang chuyển hướng...";
+
+                // CHUYỂN ĐẾN TRANG HOME SAU 1 GIÂY
+                setTimeout(() => {
+                    window.location.href = "Home_page.html";
+                }, 1000);
+
+            } else {
+                document.getElementById('status').innerText =
+                    "⚠️ Lỗi: " + (result.error || result.message || "Không xác định");
+            }
+
+        } catch (err) {
+            document.getElementById('status').innerText =
+                "❌ Lỗi kết nối server: " + err.message;
+        }
+    }
+
+    // Gán sự kiện cho nút Register (nếu user click thủ công)
+    document.getElementById("registerBtn").addEventListener("click", () => {
+        sendTokenToServer(REGISTER_API);
+    });
+</script>
+</body>
+</html>
