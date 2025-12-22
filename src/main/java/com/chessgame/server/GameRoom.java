@@ -12,6 +12,7 @@ import java.util.concurrent.*;
 public class GameRoom {
     private String roomId;
     private List<Player> players;
+    private List<Player> spectators; // Danh sách người xem
     private String status; // "waiting", "playing", "finished"
     private String currentTurn; // "white" or "black"
     private long createdAt;
@@ -20,15 +21,19 @@ public class GameRoom {
     private long initialTimeMs;
     private long whiteTimeMs;
     private long blackTimeMs;
-    // ✅ THÊM CÁC THUỘC TÍNH TIMER
-    private final NioWebSocketServer serverRef; // Tham chiếu đến ChessServer để gửi tin nhắn
-    private transient ScheduledExecutorService timerService; // transient vì không cần serialize
+    private StockfishEngine stockfishEngine;
+    private final NioWebSocketServer serverRef; 
+    private transient ScheduledExecutorService timerService;
     private transient ScheduledFuture<?> timerTask;
     private String rematchRequestedByColor = null;
+    private final List<Map<String, Object>> moveHistory = new CopyOnWriteArrayList<>();
+    private final List<String> fenHistory = new CopyOnWriteArrayList<>();
+
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
         this.roomId = roomId;
         this.players = new CopyOnWriteArrayList<>(); // Thread-safe list
+        this.spectators = new CopyOnWriteArrayList<>(); // Thread-safe list for spectators
         this.status = "waiting";
         this.currentTurn = "white";
         this.createdAt = System.currentTimeMillis();
@@ -38,23 +43,21 @@ public class GameRoom {
         this.whiteTimeMs = initialTimeMs;
         this.blackTimeMs = initialTimeMs;
         this.serverRef = serverRef;
+        this.fenHistory.add(this.validator.toFen()); // Add initial FEN
     }
 
-    //HÀM BẮT ĐẦU TIMER (trong GameRoom)
     public synchronized void startTimer() {
-        stopTimer(); // Dừng timer cũ (nếu có) trước khi bắt đầu mới
-        if (!"playing".equals(status)) return; // Chỉ chạy khi đang chơi
+        stopTimer(); 
+        if (!"playing".equals(status)) return; 
 
-        // Khởi tạo service nếu chưa có
         if (timerService == null || timerService.isShutdown()) {
             timerService = Executors.newSingleThreadScheduledExecutor();
         }
 
-        System.out.println("Starting timer for room " + roomId); // DEBUG
+        System.out.println("Starting timer for room " + roomId); 
 
         timerTask = timerService.scheduleAtFixedRate(() -> {
             try {
-                // Kiểm tra lại trạng thái phòng trong task
                 if (!"playing".equals(status) || serverRef == null) {
                     stopTimer();
                     return;
@@ -62,7 +65,7 @@ public class GameRoom {
 
                 long timeDecrement = 1000;
                 long newTime;
-                String playerWithTurn = getCurrentTurn(); // Dùng getter
+                String playerWithTurn = getCurrentTurn(); 
 
                 if ("white".equals(playerWithTurn)) {
                     newTime = getWhiteTimeMs() - timeDecrement;
@@ -72,67 +75,70 @@ public class GameRoom {
                     setBlackTimeMs(newTime);
                 }
 
-                // Kiểm tra hết giờ
                 if (newTime <= 0) {
                     System.out.println("Time out detected in GameRoom task for " + playerWithTurn);
-                    stopTimer(); // Dừng timer ngay
+                    stopTimer(); 
 
                     String winnerColor = "white".equals(playerWithTurn) ? "black" : "white";
-
-                    // Gọi hàm xử lý hết giờ trên ChessServer
-//                    serverRef.handleTimeout(this, winnerColor);
+                    serverRef.handleTimeout(this, winnerColor);
                 }
             } catch (Exception e) {
                 System.err.println("Lỗi trong timer task (GameRoom) phòng " + roomId + ": " + e.getMessage());
                 e.printStackTrace();
-                stopTimer(); // Dừng timer nếu có lỗi nghiêm trọng
+                stopTimer(); 
             }
         }, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
-    // HÀM DỪNG TIMER (trong GameRoom)
     public synchronized void stopTimer() {
         if (timerTask != null && !timerTask.isDone()) {
-            timerTask.cancel(false); // false để task hiện tại chạy xong nếu đang chạy
-            System.out.println("Timer stopped for room " + roomId); // DEBUG
+            timerTask.cancel(false);
+            System.out.println("Timer stopped for room " + roomId);
         }
-        timerTask = null; // Reset task
-        // Không shutdown service ngay nếu muốn dùng lại
-        // if (timerService != null && !timerService.isShutdown()) {
-        //     timerService.shutdown();
-        // }
+        timerTask = null;
     }
 
-    // HÀM DỌN DẸP HOÀN TOÀN TIMER SERVICE KHI PHÒNG BỊ HỦY
     public void shutdownTimerService() {
-        stopTimer(); // Đảm bảo task đã dừng
+        stopTimer(); 
         if (timerService != null && !timerService.isShutdown()) {
             timerService.shutdown();
-            System.out.println("Timer service shut down for room " + roomId); // DEBUG
+            System.out.println("Timer service shut down for room " + roomId);
+        }
+        if (stockfishEngine != null) {
+            stockfishEngine.close();
+            System.out.println("Đã tắt Stockfish cho phòng " + roomId);
         }
     }
 
     public void addPlayer(Player player) {
         if (players.size() < 2) {
             players.add(player);
-
-            // Assign color based on position
-            if (players.size() == 1) {
-                player.setColor("white");
-            } else if (players.size() == 2) {
-                player.setColor("black");
-            }
         }
     }
+
+    public void addSpectator(Player player) {
+        spectators.add(player);
+    }
+
+    public void removeSpectator(Player player) {
+        spectators.remove(player);
+    }
+
+    public List<Player> getSpectators() {
+        return new ArrayList<>(spectators);
+    }
+
     public void resetForRematch() {
-        stopTimer(); // Dừng timer cũ trước khi reset
+        stopTimer(); 
         validator.resetBoard();
         this.currentTurn = "white";
         this.status = "playing";
         this.isDrawOffered = null;
         this.whiteTimeMs = initialTimeMs;
         this.blackTimeMs = initialTimeMs;
-        // Timer sẽ được start lại bởi ChessServer sau khi gửi game_start
+        this.moveHistory.clear();
+        this.fenHistory.clear();
+        this.fenHistory.add(this.validator.toFen());
     }
 
     public synchronized void swapPlayerColors() {
@@ -185,7 +191,49 @@ public class GameRoom {
                 .orElse(null);
     }
 
+    public void addMoveToHistory(Map<String, Object> moveData) {
+        this.moveHistory.add(moveData);
+        this.fenHistory.add((String) moveData.get("fen"));
+    }
+
+    public List<Map<String, Object>> getMoveHistory() {
+        return this.moveHistory;
+    }
+
+    public boolean takeBackMove() {
+        // Can only take back if it's a game against AI and there are at least 2 moves (player + AI)
+        if (stockfishEngine == null || fenHistory.size() < 3) {
+            return false;
+        }
+
+        // Remove last 2 FENs (player's move and AI's move)
+        fenHistory.remove(fenHistory.size() - 1);
+        fenHistory.remove(fenHistory.size() - 1);
+        
+        // Remove last 2 moves from move history
+        moveHistory.remove(moveHistory.size() - 1);
+        moveHistory.remove(moveHistory.size() - 1);
+
+        // Restore the board to the state before the player's last move
+        String previousFen = fenHistory.get(fenHistory.size() - 1);
+        validator.setFromFen(previousFen);
+        
+        // Update current turn from the restored FEN
+        this.currentTurn = validator.getCurrentTurn();
+
+        return true;
+    }
+
     // Getters and Setters
+
+
+    public StockfishEngine getStockfishEngine() {
+        return stockfishEngine;
+    }
+
+    public void setStockfishEngine(StockfishEngine stockfishEngine) {
+        this.stockfishEngine = stockfishEngine;
+    }
 
     public synchronized long getInitialTimeMs() { return initialTimeMs; }
 

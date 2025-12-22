@@ -3,96 +3,121 @@ package com.database.server.Service;
 import com.database.server.DAO.friendsDAO;
 import com.database.server.Entity.friends;
 import com.database.server.Entity.user;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * friendsService - Xử lý nghiệp vụ bạn bè (friendship).
- *
- * 💡 Tầng này KHÔNG làm việc trực tiếp với EntityManager.
- * 💡 Không commit / rollback transaction.
- * 💡 Chỉ chứa logic xử lý nghiệp vụ (kiểm tra, xác thực, trạng thái...).
- */
 public class friendsService {
 
-    public final friendsDAO dao;
+    private final EntityManagerFactory emf;
 
-    public friendsService(friendsDAO dao) {
-        this.dao = dao;
+    public friendsService(EntityManagerFactory emf) {
+        this.emf = emf;
     }
 
-    /**
-     * Gửi lời mời kết bạn
-     * @param sender người gửi
-     * @param receiver người nhận
-     */
-    public boolean sendFriendRequest(user sender, user receiver) {
-        // Không thể tự gửi lời mời cho chính mình
-        if (sender.getUserId() == receiver.getUserId()) {
-            throw new IllegalArgumentException("Không thể tự kết bạn với chính mình!");
+    public boolean sendFriendRequest(int senderId, int receiverId) {
+        EntityManager em = emf.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            friendsDAO dao = new friendsDAO(em);
+            user sender = em.find(user.class, senderId);
+            user receiver = em.find(user.class, receiverId);
+
+            if (sender == null || receiver == null) {
+                throw new IllegalArgumentException("Sender or receiver not found");
+            }
+            if (senderId == receiverId) {
+                throw new IllegalArgumentException("Cannot send friend request to yourself");
+            }
+
+            List<friends> existing = dao.getFriendsOfUser(senderId);
+            boolean alreadyExists = existing.stream().anyMatch(f ->
+                    (f.getUser1().getUserId() == senderId && f.getUser2().getUserId() == receiverId) ||
+                    (f.getUser1().getUserId() == receiverId && f.getUser2().getUserId() == senderId)
+            );
+            if (alreadyExists) {
+                throw new RuntimeException("Friend request already exists or you are already friends.");
+            }
+
+            dao.addFriendRequest(senderId, receiverId);
+            em.getTransaction().commit();
+            return true;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-
-        // Kiểm tra đã có quan hệ bạn bè hoặc yêu cầu chờ trước đó chưa
-        List<friends> existing = dao.getFriendsOfUser(sender.getUserId());
-        boolean alreadyExists = existing.stream().anyMatch(f ->
-                (f.getUser1().equals(sender) && f.getUser2().equals(receiver)) ||
-                        (f.getUser1().equals(receiver) && f.getUser2().equals(sender))
-        );
-        if (alreadyExists) {
-            throw new RuntimeException("Yêu cầu kết bạn đã tồn tại hoặc hai người đã là bạn bè!");
-        }
-
-        // Tạo lời mời mới
-        friends f = new friends();
-        f.setUser1(sender);
-        f.setUser2(receiver);
-        f.setStatus("PENDING");
-        f.setCreatedAt(LocalDateTime.now());
-
-        dao.addFriendRequest(sender.getUserId(), receiver.getUserId());
-        return true;
     }
 
-    /**
-     * Lấy danh sách bạn bè hoặc yêu cầu của một người
-     */
     public List<friends> getFriendsOfUser(int userId) {
-        return dao.getFriendsOfUser(userId);
+        EntityManager em = emf.createEntityManager();
+        try {
+            friendsDAO dao = new friendsDAO(em);
+            return dao.getFriendsOfUser(userId);
+        } finally {
+            em.close();
+        }
     }
 
-    /**
-     * Chấp nhận lời mời kết bạn
-     */
     public boolean acceptFriendRequest(int friendshipId) {
-        friends f = dao.getFriendById(friendshipId);
-        if (f == null || !"PENDING".equals(f.getStatus())) return false;
-
-        f.setStatus("ACCEPTED");
-        dao.updateFriend(f);
-        return true;
+        EntityManager em = emf.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            friendsDAO dao = new friendsDAO(em);
+            friends f = dao.getFriendById(friendshipId);
+            if (f == null || !"pending".equalsIgnoreCase(f.getStatus())) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            f.setStatus("accepted");
+            dao.updateFriend(f);
+            em.getTransaction().commit();
+            return true;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 
-    /**
-     * Từ chối lời mời kết bạn
-     */
     public boolean rejectFriendRequest(int friendshipId) {
-        friends f = dao.getFriendById(friendshipId);
-        if (f == null || !"PENDING".equals(f.getStatus())) return false;
-
-        f.setStatus("REJECTED");
-        dao.updateFriend(f);
-        return true;
+        EntityManager em = emf.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            friendsDAO dao = new friendsDAO(em);
+            friends f = dao.getFriendById(friendshipId);
+            if (f == null || !"pending".equalsIgnoreCase(f.getStatus())) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            dao.deleteFriendship(friendshipId); // Or update status to REJECTED
+            em.getTransaction().commit();
+            return true;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 
-    /**
-     * Xóa bạn bè
-     */
     public boolean deleteFriendship(int friendshipId) {
-        friends f = dao.getFriendById(friendshipId);
-        if (f == null) return false;
-
-        dao.deleteFriendship(friendshipId);
-        return true;
+        EntityManager em = emf.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            friendsDAO dao = new friendsDAO(em);
+            boolean result = dao.deleteFriendship(friendshipId);
+            em.getTransaction().commit();
+            return result;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 }

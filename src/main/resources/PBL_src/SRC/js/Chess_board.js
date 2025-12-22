@@ -6,26 +6,6 @@
 // ==========================
 
 const boardElement = document.getElementById("chessBoard");
-// let currentBoardState = null; // Lưu trữ mảng 8x8 cuối cùng được render
-
-// Các themes ĐÃ ĐƯỢC ĐIỀN ĐẦY ĐỦ
-const themes = [ 
-    { white: "#f0d9b5", black: "#b58863" }, // Mặc định
-    { white: "#e0f7fa", black: "#006064" }, // Xanh nhạt/Xanh đậm
-    { white: "#f3e5f5", black: "#6a1b9a" }, // Tím nhạt/Tím đậm
-    { white: "#eeeeee", black: "#424242" }, // Xám sáng/Xám tối
-    { white: "#fff3e0", black: "#e65100" }, // Vàng nhạt/Cam
-    { white: "#e3f2fd", black: "#1565c0" }, // Xanh dương nhạt/Xanh đậm
-    { white: "#f1f8e9", black: "#558b2f" }, // Xanh lá nhạt/Xanh lá đậm
-    { white: "#fafafa", black: "#37474f" }, // Trắng/Đen than
-    { white: "#fff9c4", black: "#f57f17" }, // Vàng chanh/Cam vàng
-    { white: "#fce4ec", black: "#880e4f" }, // Hồng nhạt/Đỏ tía
-    { white: "#e0f2f1", black: "#00695c" }, // Xanh ngọc nhạt/Xanh ngọc đậm
-    { white: "#fff8e1", black: "#ff6f00" }, // Trắng kem/Cam gắt
-    { white: "#ede7f6", black: "#4527a0" }, // Tím Oải Hương/Tím đậm
-    { white: "#efebe9", black: "#5d4037" }, // Nâu kem/Nâu đậm
-    { white: "#eceff1", black: "#263238" }  // Bạc/Đen
-]; 
 
 // ===================== Helper functions (Exposed) =====================
 
@@ -52,7 +32,7 @@ window.renderChessBoard = function(boardArray, state) {
     window.renderChessBoard.currentBoardState = boardArray;
     
     boardElement.innerHTML = '';
-    const { selected, lastMove, flipped,currentTurn, isCheck } = state;
+    const { selected, lastMove, flipped, currentTurn, isCheck } = state;
     const currentValidMoves = window.validMoveSquares || [];
     if (flipped) boardElement.classList.add('flipped');
     else boardElement.classList.remove('flipped');
@@ -83,50 +63,51 @@ window.renderChessBoard = function(boardArray, state) {
                 square.classList.add('last-move');
             }
             if (currentValidMoves.includes(squareAlg)) {
-                // Phân biệt ăn quân và đi thường (tùy chọn)
                 const targetPiece = boardArray[rr][cc];
                 if (targetPiece && targetPiece !== '') {
-                    square.classList.add('capture-move'); // Ô ăn quân
+                    square.classList.add('capture-move');
                 } else {
-                    square.classList.add('valid-move'); // Ô di chuyển thường
+                    square.classList.add('valid-move');
                 }
             }
-            // ✅ THÊM LOGIC HIGHLIGHT CHIẾU TƯỚNG
             const isWhiteKing = piece === 'K';
             const isBlackKing = piece === 'k';
-            // Kiểm tra xem có phải Vua đang đến lượt VÀ đang bị chiếu không
             if (isCheck &&
                 ((currentTurn === 'white' && isWhiteKing) ||
                     (currentTurn === 'black' && isBlackKing)))
             {
-                square.classList.add('in-check'); // Thêm class cho ô Vua
+                square.classList.add('in-check');
             }
 
-            // TRONG chessboard_render.js, bên trong hàm window.renderChessBoard, thay thế logic tạo IMG:
+            // Thêm tọa độ
+            if (c === 0) {
+                const rank = document.createElement('div');
+                rank.classList.add('coordinate', 'rank');
+                rank.textContent = flipped ? r + 1 : 8 - r;
+                square.appendChild(rank);
+            }
+            if (r === 7) {
+                const file = document.createElement('div');
+                file.classList.add('coordinate', 'file');
+                file.textContent = String.fromCharCode('a'.charCodeAt(0) + (flipped ? 7 - c : c));
+                square.appendChild(file);
+            }
 
-// const piece = boardArray[rr][cc]; // Ví dụ: 'R' (Trắng) hoặc 'r' (Đen)
+            if (piece && piece !== '') {
+                let fileName = '';
+                if (piece === piece.toUpperCase()) {
+                    fileName = piece; 
+                } else {
+                    fileName = 'b' + piece.toUpperCase();
+                }
+                const img = document.createElement("img");
+                img.src = `../../PBL4_imgs/image/${fileName}.png`; 
+                img.alt = piece;
+                img.draggable = true;
+                img.dataset.piece = piece;
+                square.appendChild(img);
+            }
 
-if (piece && piece !== '') {
-    let fileName = '';
-
-    if (piece === piece.toUpperCase()) {
-        fileName = piece; 
-        
-    } else {fileName = 'b' + piece.toUpperCase();
-    }
-
-    const img = document.createElement("img");
-    
-    // Tạo đường dẫn cuối cùng: [R, K, bN, bR, bQ, etc.].png
-    img.src = `../../PBL4_imgs/image/${fileName}.png`; 
-    
-    img.alt = piece;
-    img.draggable = true;
-    img.dataset.piece = piece;
-    square.appendChild(img);
-}
-
-            // Gắn sự kiện click
             square.addEventListener('click', handleInputClick);
             
             boardElement.appendChild(square);
@@ -149,49 +130,28 @@ function handleInputClick(e) {
 let dragStartPos = null;
 
 boardElement.addEventListener("dragstart", (e) => {
-    console.log("--- DRAG START ---");
-    const img = e.target.closest('img'); // Lấy thẻ <img> gốc
-
+    const img = e.target.closest('img');
     if (img) {
         const parentSquare = img.parentElement;
         if (parentSquare && parentSquare.dataset.r !== undefined && parentSquare.dataset.c !== undefined) {
             dragStartPos = { r: parseInt(parentSquare.dataset.r), c: parseInt(parentSquare.dataset.c) };
-            console.log("Drag started from:", dragStartPos);
-
-            // --- SỬA LẠI PHẦN NÀY ---
-            // 1. Tạo bản sao
+            
             const clone = img.cloneNode(true);
-
-            // 2. Lấy kích thước thực tế của ảnh gốc (sau khi CSS áp dụng)
             const computedStyle = window.getComputedStyle(img);
-            const originalWidth = computedStyle.width;
-            const originalHeight = computedStyle.height;
-            console.log(`Original img rendered size: ${originalWidth} x ${originalHeight}`); // DEBUG
-
-            // 3. Áp dụng kích thước thực tế cho bản sao
-            clone.style.width = originalWidth;
-            clone.style.height = originalHeight;
+            clone.style.width = computedStyle.width;
+            clone.style.height = computedStyle.height;
             clone.style.position = "absolute";
-            clone.style.left = "-9999px"; // Vẫn ẩn đi
+            clone.style.left = "-9999px";
             clone.style.opacity = 0.7;
             document.body.appendChild(clone);
-
-            // 4. Đặt ghost image (giờ đã đúng kích thước)
             e.dataTransfer.setDragImage(clone, img.offsetWidth / 2, img.offsetHeight / 2);
-
-            // 5. Xóa bản sao
             setTimeout(() => {
-                if (clone.parentNode === document.body) { // Kiểm tra trước khi xóa
+                if (clone.parentNode === document.body) {
                     document.body.removeChild(clone);
                 }
             }, 0);
-            // --- KẾT THÚC SỬA ĐỔI ---
-
-            // Làm mờ ảnh gốc
             setTimeout(() => { if(img) img.style.opacity = 0.5; }, 0);
-
         } else {
-            console.error("Could not get start coordinates:", parentSquare);
             dragStartPos = null;
             e.preventDefault();
         }
@@ -202,23 +162,19 @@ boardElement.addEventListener("dragstart", (e) => {
 });
 
 boardElement.addEventListener("dragend", (e) => {
-    // Luôn cho ảnh gốc hiện lại rõ ràng khi kết thúc kéo
     const img = e.target.closest('img');
     if (img) img.style.opacity = 1;
-    // Không cần reset dragStartPos ở đây, drop sẽ làm
 });
 
 boardElement.addEventListener("dragover", (e) => e.preventDefault());
 
 boardElement.addEventListener("drop", (e) => {
     e.preventDefault();
-    console.log("--- drop ---");
     const square = e.target.closest(".square");
     if (!square || !dragStartPos) return;
 
     const toRow = parseInt(square.dataset.r);
     const toCol = parseInt(square.dataset.c);
-    console.log(toCol, "  ",toRow);
     const fromRow = dragStartPos.r;
     const fromCol = dragStartPos.c;
 
@@ -232,4 +188,3 @@ boardElement.addEventListener("drop", (e) => {
 
 // ===================== EXPOSE API =====================
 window.renderChessBoard = window.renderChessBoard;
-// Các hàm coordToAlg và algToCoord đã được expose dưới dạng window.function
