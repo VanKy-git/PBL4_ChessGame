@@ -1249,7 +1249,7 @@ border: 1px solid rgba(255, 165, 0, 0.3);
 
 /* Settings Popup Styles */
 .settings-popup-content {
-    width: 400px;
+    width: 500px; /* Tăng chiều rộng cho nhiều theme hơn */
     max-width: 90vw;
     text-align: left;
 }
@@ -1303,7 +1303,7 @@ border: 1px solid rgba(255, 165, 0, 0.3);
 
 .board-theme-options {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* 2 cột hoặc hơn */
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* Cho phép nhiều item hơn trên 1 hàng */
     gap: 15px;
 }
 

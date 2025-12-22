@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
         green:   { '--white-square-bg': '#eeeed2', '--black-square-bg': '#769656' },
         blue:    { '--white-square-bg': '#dee3e6', '--black-square-bg': '#8ca2ad' },
         wood:    { '--white-square-bg': '#e8cba0', '--black-square-bg': '#a67c52' },
+        walnut:  { '--white-square-bg': '#c2a386', '--black-square-bg': '#7d5b3f' },
+        icy_sea: { '--white-square-bg': '#c9d6de', '--black-square-bg': '#788c9c' },
+        bubblegum: { '--white-square-bg': '#f7d4e8', '--black-square-bg': '#a680b8' },
     };
 
     // 1. Mở/Đóng Popup
