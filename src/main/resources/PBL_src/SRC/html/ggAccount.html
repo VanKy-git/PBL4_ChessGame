@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Đăng nhập / Đăng ký bằng Google</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../../PBL4_imgs/icon/logo.png">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <style>
@@ -15,12 +16,14 @@
             justify-content: center;
             min-height: 100vh;
             margin: 0;
+            background:url(../../PBL4_imgs/image/background5.png);
+            background-size: cover;
         }
         .container {
             width: 400px;
             background: white;
             border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
             padding: 30px;
             text-align: center;
         }
@@ -37,10 +40,17 @@
             border-radius: 6px;
             cursor: pointer;
             transition: 0.2s;
+            font-weight: bold;
         }
-        .login-btn { background: #4285F4; color: white; }
-        .register-btn { background: #34A853; color: white; }
-        button:hover { opacity: 0.9; }
+
+        /* Style cho nút Quay lại */
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            margin-top: 15px;
+        }
+        .back-btn:hover { background: #5a6268; }
+
         #status {
             margin-top: 20px;
             font-size: 14px;
@@ -57,7 +67,7 @@
 <body>
 <div class="container">
     <h2>Đăng nhập bằng Google</h2>
-<!--     quan trong data-client-id lấy trong gg auth-->
+
     <div id="g_id_onload"
          data-client_id="660085540047-jc210st32m11fil9rp7n5lck025jfc67.apps.googleusercontent.com"
          data-callback="handleCredentialResponse"
@@ -73,26 +83,34 @@
          data-logo_alignment="left">
     </div>
 
-    <!-- Ẩn nút này vì đã tự động xử lý -->
-    <!-- <button class="register-btn" id="registerBtn">Đăng ký bằng Google</button> -->
-
     <div id="status">Vui lòng chọn tài khoản Google để tiếp tục...</div>
+
+    <button class="back-btn" id="backBtn">Quay lại</button>
 </div>
 
 <script>
-    // 🟢 URL API backend - SỬA LẠI CHO ĐÚNG VỚI SERVER CỦA BẠN
-    const API_URL = "http://localhost:8910"; // Giống với MainLogin
+    // 🟢 URL API backend
+    const API_URL = "http://localhost:8910";
     const LOGIN_API = `${API_URL}/api/loginWithGoogle`;
     const REGISTER_API = `${API_URL}/api/registerWithGoogle`;
 
     let latestToken = null;
 
-    // Kiểm tra xem user muốn login hay register (từ trang trước)
+    // Kiểm tra xem user muốn login hay register
     const authMode = localStorage.getItem("googleAuthMode") || "login";
 
     // Cập nhật tiêu đề
     document.querySelector('h2').textContent =
         authMode === "signup" ? "Đăng ký bằng Google" : "Đăng nhập bằng Google";
+
+    // ✅ SỰ KIỆN CHO NÚT QUAY LẠI
+    document.getElementById("backBtn").addEventListener("click", () => {
+        // Xóa chế độ authMode để lần sau vào lại mặc định là login (hoặc giữ nguyên tùy bạn)
+        localStorage.removeItem("googleAuthMode");
+
+        // Chuyển hướng về trang MainLogin.html
+        window.location.href = "MainLogin.html";
+    });
 
     // Hàm callback khi Google trả idToken
     function handleCredentialResponse(response) {
@@ -114,6 +132,8 @@
         }
 
         document.getElementById('status').innerText = "🔄 Đang xử lý...";
+        // Ẩn nút quay lại khi đang xử lý để tránh lỗi
+        document.getElementById('backBtn').style.display = 'none';
 
         try {
             const res = await fetch(apiUrl, {
@@ -125,13 +145,13 @@
             const result = await res.json();
 
             if (res.ok && result.success) {
-                // LƯU THÔNG TIN GIỐNG NHƯ LOGIN BÌNH THƯỜNG
+                // LƯU THÔNG TIN
                 localStorage.setItem("token", result.data.token);
                 localStorage.setItem("playerId", result.data.userId);
                 localStorage.setItem("playerName", result.data.username || result.data.name);
                 localStorage.setItem("avatarUrl", result.data.avatar || result.data.picture || "../../PBL4_imgs/icon/man.png");
 
-                // Cache thêm userData
+                // Cache userData
                 localStorage.setItem("userData", JSON.stringify({
                     playerId: result.data.userId,
                     username: result.data.username || result.data.name,
@@ -139,13 +159,10 @@
                     avatarUrl: result.data.avatar || result.data.picture || "../../PBL4_imgs/icon/man.png"
                 }));
 
-                // Xóa authMode
                 localStorage.removeItem("googleAuthMode");
 
-                // Hiển thị thông báo thành công
                 document.getElementById('status').innerText = "✅ Thành công! Đang chuyển hướng...";
 
-                // CHUYỂN ĐẾN TRANG HOME SAU 1 GIÂY
                 setTimeout(() => {
                     window.location.href = "Home_page.html";
                 }, 1000);
@@ -153,18 +170,16 @@
             } else {
                 document.getElementById('status').innerText =
                     "⚠️ Lỗi: " + (result.error || result.message || "Không xác định");
+                // Hiện lại nút back nếu lỗi
+                document.getElementById('backBtn').style.display = 'block';
             }
 
         } catch (err) {
             document.getElementById('status').innerText =
                 "❌ Lỗi kết nối server: " + err.message;
+            document.getElementById('backBtn').style.display = 'block';
         }
     }
-
-    // Gán sự kiện cho nút Register (nếu user click thủ công)
-    document.getElementById("registerBtn").addEventListener("click", () => {
-        sendTokenToServer(REGISTER_API);
-    });
 </script>
 </body>
 </html>
