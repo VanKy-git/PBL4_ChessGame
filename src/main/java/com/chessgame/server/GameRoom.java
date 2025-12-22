@@ -12,6 +12,7 @@ import java.util.concurrent.*;
 public class GameRoom {
     private String roomId;
     private List<Player> players;
+    private List<Player> spectators; // Danh sách người xem
     private String status; // "waiting", "playing", "finished"
     private String currentTurn; // "white" or "black"
     private long createdAt;
@@ -31,6 +32,7 @@ public class GameRoom {
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
         this.roomId = roomId;
         this.players = new CopyOnWriteArrayList<>(); // Thread-safe list
+        this.spectators = new CopyOnWriteArrayList<>(); // Thread-safe list for spectators
         this.status = "waiting";
         this.currentTurn = "white";
         this.createdAt = System.currentTimeMillis();
@@ -111,6 +113,19 @@ public class GameRoom {
             players.add(player);
         }
     }
+
+    public void addSpectator(Player player) {
+        spectators.add(player);
+    }
+
+    public void removeSpectator(Player player) {
+        spectators.remove(player);
+    }
+
+    public List<Player> getSpectators() {
+        return new ArrayList<>(spectators);
+    }
+
     public void resetForRematch() {
         stopTimer(); 
         validator.resetBoard();

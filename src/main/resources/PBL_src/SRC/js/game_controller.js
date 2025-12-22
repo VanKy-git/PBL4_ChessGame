@@ -22,6 +22,7 @@ let blackTimeMs;
 let timerIntervalId = null;
 let rematchOfferedByOpponent = false; // Cờ báo đối thủ đã mời tái đấu
 let rematchRequestedByMe = false; // Cờ báo mình đã yêu cầu tái đấu
+let isSpectator = false; // Trạng thái người xem
 window.validMoveSquares = validMoveSquares;
 
 // Nếu chưa có, hãy thêm vào đầu file này:
@@ -115,14 +116,19 @@ function joinRoom() {
     const id = document.getElementById('joinRoomIdInput').value.trim();
     if (id) sendMessage({ type: "join_room", roomId: id });
 }
+function watchRoom(id) {
+    if (id) sendMessage({ type: "watch_room", roomId: id });
+}
+window.watchRoom = watchRoom;
+
 function findNewGame() {
     gameActive = false;
     currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     renderGame();
     sendMessage({type: "join", playerName: playerName});
 }
-function requestDraw() { if (gameActive) sendMessage({ type: "draw_request", roomId: roomId }); }
-function resignGame() { if (gameActive) sendMessage({ type: "resign", roomId: roomId }); }
+function requestDraw() { if (gameActive && !isSpectator) sendMessage({ type: "draw_request", roomId: roomId }); }
+function resignGame() { if (gameActive && !isSpectator) sendMessage({ type: "resign", roomId: roomId }); }
 
 function sendChat() {
     const inputElement = document.getElementById('chatInputEl');
@@ -146,11 +152,18 @@ function leaveRoom() {
 
 function onPlayerLeft(msg)
 {
-    onEndGame(msg);
+    if (isSpectator) {
+        addChatMessage("System", `${msg.leftPlayer} đã rời phòng.`);
+        if (msg.winner) {
+            onEndGame({winner: msg.winner, reason: msg.reason});
+        }
+    } else {
+        onEndGame(msg);
+    }
 }
 
 function requestRematch() {
-    if (roomId && !gameActive) {
+    if (roomId && !gameActive && !isSpectator) {
         sendMessage({ type: "rematch_request", roomId: roomId });
         rematchRequestedByMe = true;
         console.log("Da gui rematch");
@@ -192,10 +205,94 @@ function onRoomCreatedOrJoined(msg) {
     }
     if(msg.color)
     yourColor = msg.color;
+    isSpectator = false; // Reset spectator status
     if (window.hideMatchmakingPopup) window.hideMatchmakingPopup();
     window.showGameControlsView();
     updateStatus()
     renderGame();
+}
+
+function onRoomWatched(msg) {
+    console.log("Watching room:", msg);
+    roomId = msg.roomId;
+    currentFEN = msg.gameState;
+    currentTurn = msg.currentTurn;
+    whiteTimeMs = msg.whiteTime;
+    blackTimeMs = msg.blackTime;
+    isSpectator = true;
+    yourColor = null; // Spectators don't have a color
+
+    if (msg.playerWhite && msg.playerBlack) {
+        // For spectator: White at bottom (player2), Black at top (player1)
+        player2Info = msg.playerWhite;
+        player1Info = msg.playerBlack;
+    }
+
+    gameActive = true;
+    window.showGameControlsView();
+    
+    // Disable controls for spectator
+    const drawBtn = document.getElementById('drawRequestBtn');
+    const resignBtn = document.getElementById('resignBtn');
+    if (drawBtn) drawBtn.disabled = true;
+    if (resignBtn) resignBtn.disabled = true;
+    
+    // Load history
+    const moveListEl = document.getElementById('moveList');
+    if (moveListEl) {
+        moveListEl.innerHTML = '';
+        if (msg.moveHistory && Array.isArray(msg.moveHistory)) {
+            msg.moveHistory.forEach(moveData => {
+                // moveData: { type: "move_result", result: true, fen: "...", lastMove: {from: "e2", to: "e4"}, isCheck: false }
+                // Cần tái tạo lịch sử từ dữ liệu này
+                // Tuy nhiên, moveData hiện tại chỉ có lastMove (from, to) và FEN, không có thông tin quân cờ và màu
+                // Để hiển thị đúng, ta cần biết ai đi và quân gì.
+                // Tạm thời hiển thị đơn giản hoặc cần server gửi thêm thông tin.
+                // Với cấu trúc hiện tại, ta có thể suy luận màu từ lượt đi (dựa vào FEN trước đó hoặc đếm số nước)
+                // Nhưng đơn giản nhất là hiển thị text from -> to
+                
+                // Cách tốt hơn: Server nên gửi full history với notation chuẩn hoặc đủ thông tin
+                // Ở đây ta sẽ cố gắng hiển thị cơ bản:
+                if (moveData.lastMove && moveData.lastMove.from && moveData.lastMove.to) {
+                    // Giả sử ta không biết quân cờ, chỉ hiện tọa độ
+                    // Để biết màu, ta có thể nhìn vào FEN của nước đi đó (lượt đi tiếp theo là của đối thủ)
+                    // Hoặc đơn giản là xen kẽ.
+                    // Nhưng moveHistory là danh sách tuần tự.
+                    
+                    // Để hiển thị đúng vào bảng lịch sử (addMoveToHistory cần movedColor và pieceChar)
+                    // Ta cần parse FEN hoặc server gửi thêm.
+                    // Tạm thời bỏ qua việc hiển thị chi tiết quân cờ trong lịch sử khi xem lại,
+                    // hoặc chỉ hiển thị tọa độ.
+                    
+                    // Hack: Lấy màu từ FEN (FEN chứa lượt đi TIẾP THEO -> người vừa đi là màu ngược lại)
+                    const fenParts = moveData.fen.split(' ');
+                    const nextTurn = fenParts[1]; // 'w' or 'b'
+                    const movedColor = nextTurn === 'w' ? 'black' : 'white';
+                    
+                    // Quân cờ: Không có thông tin, tạm để trống hoặc mặc định tốt
+                    // Nếu muốn chính xác, server cần gửi kèm pieceChar trong moveHistory
+                    const pieceChar = movedColor === 'white' ? 'P' : 'p'; // Placeholder
+                    
+                    addMoveToHistory(window.coordToAlg(window.algToCoord(moveData.lastMove.from).r, window.algToCoord(moveData.lastMove.from).c), 
+                                     window.coordToAlg(window.algToCoord(moveData.lastMove.to).r, window.algToCoord(moveData.lastMove.to).c), 
+                                     movedColor, pieceChar);
+                }
+            });
+        }
+    }
+
+    // Hiển thị player bars
+    const p1Bar = document.getElementById('player1Bar');
+    const p2Bar = document.getElementById('player2Bar');
+    if (p1Bar) p1Bar.classList.remove('hidden');
+    if (p2Bar) p2Bar.classList.remove('hidden');
+
+    renderGame();
+    updatePlayerBars(); // Cập nhật thông tin người chơi lên thanh
+    updateStatus();
+    updateTimerDisplay();
+    startTimer();
+    showToast("Đang xem trận đấu!", "info");
 }
 
 function resetGameLocalState() {
@@ -224,6 +321,7 @@ function resetGameLocalState() {
     window.validMoveSquares = [];
     rematchOfferedByOpponent = false;
     rematchRequestedByMe = false;
+    isSpectator = false;
 
     const moveListEl = document.getElementById('moveList');
     if (moveListEl) moveListEl.innerHTML = '';
@@ -255,7 +353,8 @@ function updateTimerDisplay() {
     };
 
     // Hiển thị thời gian
-    if (yourColor === 'white') {
+    // Spectator view: White bottom (player2), Black top (player1)
+    if (isSpectator || yourColor === 'white') {
         p2TimeEl.textContent = formatTime(whiteTimeMs);
         p1TimeEl.textContent = formatTime(blackTimeMs);
         // Thêm/Xóa class low-time
@@ -264,7 +363,7 @@ function updateTimerDisplay() {
         // Thêm/Xóa class active-turn
         p2Bar.classList.toggle('active-turn', currentTurn === 'white');
         p1Bar.classList.toggle('active-turn', currentTurn === 'black');
-    } else { // yourColor là 'black' hoặc null
+    } else { // yourColor là 'black'
         p2TimeEl.textContent = formatTime(blackTimeMs);
         p1TimeEl.textContent = formatTime(whiteTimeMs);
         // Thêm/Xóa class low-time
@@ -287,20 +386,21 @@ function updateCapturedPieces(capturingColor, capturedPieceChar) {
     }
 
     let targetArea;
-    // Nếu Trắng ăn -> thêm vào khu vực của Trắng (player 2)
-    if (capturingColor === 'white' && yourColor === 'white') {
-        targetArea = document.querySelector('#player2Bar .captured-pieces');
+    // Nếu Trắng ăn -> thêm vào khu vực của Trắng (player 2 nếu spectator/white)
+    if (capturingColor === 'white') {
+        if (isSpectator || yourColor === 'white') {
+            targetArea = document.querySelector('#player2Bar .captured-pieces');
+        } else {
+            targetArea = document.querySelector('#player1Bar .captured-pieces');
+        }
     }
-    // Nếu Đen ăn -> thêm vào khu vực của Đen (player 1)
-    else if (capturingColor === 'black' && yourColor === 'white') {
-        targetArea = document.querySelector('#player1Bar .captured-pieces');
-    }
-    // Nếu bạn là Đen:
-    else if (capturingColor === 'white' && yourColor === 'black') {
-        targetArea = document.querySelector('#player1Bar .captured-pieces');
-    }
-    else if (capturingColor === 'black' && yourColor === 'black') {
-        targetArea = document.querySelector('#player2Bar .captured-pieces');
+    // Nếu Đen ăn -> thêm vào khu vực của Đen (player 1 nếu spectator/white)
+    else if (capturingColor === 'black') {
+        if (isSpectator || yourColor === 'white') {
+            targetArea = document.querySelector('#player1Bar .captured-pieces');
+        } else {
+            targetArea = document.querySelector('#player2Bar .captured-pieces');
+        }
     }
 
     if (targetArea) {
@@ -321,6 +421,7 @@ function onGameStart(msg) {
 
     isKingInCheckState = false;
     gameActive = true;
+    isSpectator = false;
     if (msg.playerWhite && msg.playerBlack) {
         const whitePlayer = msg.playerWhite;
         const blackPlayer = msg.playerBlack;
@@ -406,6 +507,7 @@ function onColorAssigned(msg) {
 
 // ✅ Handler khi đối thủ mời tái đấu
 function onRematchOffer(msg) {
+    if (isSpectator) return;
     console.log("Rematch offer received from:", msg.offeringPlayer);
     rematchOfferedByOpponent = true; // Đánh dấu đối thủ đã mời
 
@@ -426,6 +528,7 @@ function onRematchOffer(msg) {
 }
 
 function onRematchUnavailable(msg) {
+    if (isSpectator) return;
     console.log("Rematch unavailable:", msg.reason);
     rematchOfferedByOpponent = false; // Reset cờ
     // Vô hiệu hóa và cập nhật nút Tái đấu trên popup Game Over
@@ -529,15 +632,27 @@ function onEndGame(msg) {
     } else if (winner !== 'draw') {
         result = 'loss';
     }
+    
+    if (isSpectator) {
+        result = 'draw'; // Spectators don't win or lose
+        if (winner === 'white') result = 'Trắng thắng';
+        else if (winner === 'black') result = 'Đen thắng';
+        else result = 'Hòa';
+    }
 
     // Gọi hàm hiển thị popup từ Home_page.js
     if (window.showGameOverPopup) {
         window.showGameOverPopup(result, reason);
         const rematchBtn = document.getElementById('gameOverRematchBtn');
         if(rematchBtn) {
-            rematchBtn.disabled = false;
-            rematchBtn.textContent = "Tái đấu";
-            rematchBtn.classList.remove('rematch-offer-pulse');
+            if (isSpectator) {
+                rematchBtn.style.display = 'none'; // Hide rematch for spectators
+            } else {
+                rematchBtn.style.display = 'inline-block';
+                rematchBtn.disabled = false;
+                rematchBtn.textContent = "Tái đấu";
+                rematchBtn.classList.remove('rematch-offer-pulse');
+            }
         }
     } else {
         // Fallback nếu hàm chưa sẵn sàng
@@ -629,16 +744,21 @@ function updateStatus() {
     // ✅ SỬA LỖI 3: Thêm kiểm tra null/undefined
     roomInfoEl.textContent = roomId ? roomId : '-';
 
-    // ✅ SỬA LỖI 1 & 4: Dùng style.color và so sánh trực tiếp
-    if (yourColor === "white") {
-        colorInfoEl.textContent = "Trắng";
-        colorInfoEl.style.color = "white"; // Hoặc màu trắng: "#DDDDDD" để nổi bật trên nền tối
-    } else if (yourColor === "black") {
-        colorInfoEl.textContent = "Đen";
-        colorInfoEl.style.color = "black";
+    if (isSpectator) {
+        colorInfoEl.textContent = "Khán giả";
+        colorInfoEl.style.color = "#aaa";
     } else {
-        colorInfoEl.textContent = '-'; // Trường hợp chưa có màu
-        colorInfoEl.style.color = ''; // Reset màu
+        // ✅ SỬA LỖI 1 & 4: Dùng style.color và so sánh trực tiếp
+        if (yourColor === "white") {
+            colorInfoEl.textContent = "Trắng";
+            colorInfoEl.style.color = "white"; // Hoặc màu trắng: "#DDDDDD" để nổi bật trên nền tối
+        } else if (yourColor === "black") {
+            colorInfoEl.textContent = "Đen";
+            colorInfoEl.style.color = "black";
+        } else {
+            colorInfoEl.textContent = '-'; // Trường hợp chưa có màu
+            colorInfoEl.style.color = ''; // Reset màu
+        }
     }
 
     // Tạo text hiển thị lượt đi
@@ -665,7 +785,7 @@ function closeDrawOfferPopup() {
 
 // ✅ Handler khi nhận lời cầu hòa
 function onDrawOfferReceived(msg) {
-    if (!gameActive || !drawPopupEl) return; // Chỉ hiển thị khi đang chơi game
+    if (!gameActive || !drawPopupEl || isSpectator) return; // Chỉ hiển thị khi đang chơi game
 
     console.log("Draw Offer received.");
     closeDrawOfferPopup(); // Đóng popup cũ nếu có (đề phòng)
@@ -727,6 +847,7 @@ registerHandler('player_info', onPlayerInfo);
 registerHandler('room_info', onRoomCreatedOrJoined)
 registerHandler('room_created', onRoomCreatedOrJoined);
 registerHandler('room_joined', onRoomCreatedOrJoined);
+registerHandler('room_watched', onRoomWatched);
 registerHandler('game_start', onGameStart);
 registerHandler('move_result', onMoveResult);
 registerHandler('chat', onChat);
@@ -843,6 +964,8 @@ function renderGame() {
 
 // Hàm xử lý input từ chessboard_render.js (ĐÃ VIẾT ĐẦY ĐỦ LOGIC CHỌN/MOVE)
 window.handleBoardInput = function(fromR, fromC, toR, toC) {
+    if (isSpectator) return; // Spectators cannot interact with the board
+
     const isClickMode = toR === undefined;
 
     if (!gameActive || currentTurn !== yourColor) {
@@ -1015,7 +1138,35 @@ registerHandler('game_state_restore', (data) => {
 
     gameActive = true;
     window.showGameControlsView(); // Chuyển view
+    
+    // Khôi phục lịch sử nước đi
+    const moveListEl = document.getElementById('moveList');
+    if (moveListEl) {
+        moveListEl.innerHTML = '';
+        if (data.moveHistory && Array.isArray(data.moveHistory)) {
+            data.moveHistory.forEach(moveData => {
+                if (moveData.lastMove && moveData.lastMove.from && moveData.lastMove.to) {
+                    const fenParts = moveData.fen.split(' ');
+                    const nextTurn = fenParts[1]; 
+                    const movedColor = nextTurn === 'w' ? 'black' : 'white';
+                    const pieceChar = movedColor === 'white' ? 'P' : 'p'; 
+                    
+                    addMoveToHistory(window.coordToAlg(window.algToCoord(moveData.lastMove.from).r, window.algToCoord(moveData.lastMove.from).c), 
+                                     window.coordToAlg(window.algToCoord(moveData.lastMove.to).r, window.algToCoord(moveData.lastMove.to).c), 
+                                     movedColor, pieceChar);
+                }
+            });
+        }
+    }
+
+    // Hiển thị player bars
+    const p1Bar = document.getElementById('player1Bar');
+    const p2Bar = document.getElementById('player2Bar');
+    if (p1Bar) p1Bar.classList.remove('hidden');
+    if (p2Bar) p2Bar.classList.remove('hidden');
+
     renderGame();
+    updatePlayerBars();
     updateStatus();
     updateTimerDisplay();
     startTimer();

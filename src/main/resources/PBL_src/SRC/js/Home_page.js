@@ -1,5 +1,5 @@
 // File: Home_page.js
-import {connectMainSocket, sendMessage} from "./Connect_websocket.js";
+import {connectMainSocket, sendMessage, registerHandler} from "./Connect_websocket.js";
 
 // Lấy playerName từ localStorage
 let playerName = localStorage.getItem("playerName") || "Guest";
@@ -61,7 +61,33 @@ function getLobbyHTML() {
         <button id="matchmakingBtn" class="btnn" >Ghép trận ngẫu nhiên</button>
         
         <div id="lobbyStatus" class="status-lobby">Đang chờ kết nối...</div>
+        <div id="roomListContainer" class="room-list-container"></div>
     </div>`;
+}
+
+function updateRoomList(rooms) {
+    const container = document.getElementById('roomListContainer');
+    if (!container) return;
+
+    if (!rooms || rooms.length === 0) {
+        container.innerHTML = '<p class="muted">Không có phòng nào.</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <h3 style="margin-top: 20px;">Các phòng đang chờ</h3>
+        <ul class="room-list">
+            ${rooms.map(room => `
+                <li class="room-item">
+                    <span>Phòng #${room.roomId} (${room.playerCount}/2)</span>
+                    <div class="room-actions">
+                        ${room.status === 'waiting' ? `<button class="btn-join-list" data-roomid="${room.roomId}">Vào chơi</button>` : ''}
+                        ${room.status === 'playing' ? `<button class="btn-watch-list" data-roomid="${room.roomId}">Xem</button>` : ''}
+                    </div>
+                </li>
+            `).join('')}
+        </ul>
+    `;
 }
 
 if (aiModeBtn) {
@@ -250,6 +276,7 @@ function selectTimeControl() {
 
 function showLobbyView(selectedTimeMs = null) {
     if (rightPanel) rightPanel.innerHTML = getLobbyHTML();
+    sendMessage({ type: "get_rooms" });
 }
 
 window.showGameOverPopup = function(result, reason) {
@@ -387,6 +414,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const playerId = localStorage.getItem("playerId");
     connectMainSocket(token, playerId);
 
+    registerHandler('room_list', (msg) => updateRoomList(msg.rooms));
+    registerHandler('room_update', (msg) => updateRoomList(msg.rooms));
+
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {
 
@@ -479,6 +509,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 showModesView(); // Quay về màn hình chọn chế độ
             }
+            return;
+        }
+        
+        // 9. Click "Vào chơi" từ danh sách phòng
+        const joinListBtn = event.target.closest('.btn-join-list');
+        if (joinListBtn && window.joinRoom) {
+            const roomId = joinListBtn.dataset.roomid;
+            document.getElementById('joinRoomIdInput').value = roomId;
+            window.joinRoom();
+            return;
+        }
+
+        // 10. Click "Xem" từ danh sách phòng
+        const watchListBtn = event.target.closest('.btn-watch-list');
+        if (watchListBtn && window.watchRoom) {
+            const roomId = watchListBtn.dataset.roomid;
+            window.watchRoom(roomId);
             return;
         }
     });

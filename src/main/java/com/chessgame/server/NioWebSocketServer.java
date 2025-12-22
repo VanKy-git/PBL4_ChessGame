@@ -431,6 +431,9 @@ public class NioWebSocketServer implements Runnable {
                 case "join_room":
                     handleJoinRoom(player, data);
                     break;
+                case "watch_room":
+                    handleWatchRoom(player, data);
+                    break;
                 case "leave_room":
                     handleLeaveRoom(player, data);
                     break;
@@ -663,6 +666,11 @@ public class NioWebSocketServer implements Runnable {
                 sendMessage(player.getConnection(), message);
             }
         }
+        for (Player spectator : room.getSpectators()) {
+            if (spectator.getConnection() != null && spectator.getConnection().isOpen()) {
+                sendMessage(spectator.getConnection(), message);
+            }
+        }
     }
 
     private void startGame(GameRoom room) {
@@ -778,20 +786,56 @@ public class NioWebSocketServer implements Runnable {
         broadcastRoomsList();
     }
 
+    private void handleWatchRoom(Player player, Map<String, Object> data) {
+        if (player == null) return;
+        String roomId = (String) data.get("roomId");
+        if (roomId == null || roomId.isEmpty()) {
+            sendErrorMessage(player.getConnection(), "Room ID is required!");
+            return;
+        }
+        GameRoom room = gameRooms.get(roomId);
+        if (room == null) {
+            sendErrorMessage(player.getConnection(), "Room does not exist!");
+            return;
+        }
+        
+        room.addSpectator(player);
+        
+        Map<String, Object> watchData = new HashMap<>();
+        watchData.put("type", "room_watched");
+        watchData.put("roomId", roomId);
+        watchData.put("gameState", room.getValidator().toFen());
+        watchData.put("currentTurn", room.getCurrentTurn());
+        watchData.put("whiteTime", room.getWhiteTimeMs());
+        watchData.put("blackTime", room.getBlackTimeMs());
+        watchData.put("moveHistory", room.getMoveHistory());
+        
+        Player p1 = room.getPlayerByColor("white");
+        Player p2 = room.getPlayerByColor("black");
+        if (p1 != null) watchData.put("playerWhite", Map.of("id", p1.getPlayerId(), "name", p1.getPlayerName()));
+        if (p2 != null) watchData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
+        
+        sendMessage(player.getConnection(), watchData);
+    }
+
     private void handleLeaveRoom(Player player, Map<String, Object> data) {
         if (player == null) return;
         String roomId = (String) data.get("roomId");
         GameRoom room = gameRooms.get(roomId);
         if (room != null) {
-            room.removePlayer(player);
-            if (room.isEmpty()) {
-                gameRooms.remove(roomId);
+            if (room.getSpectators().contains(player)) {
+                room.removeSpectator(player);
             } else {
-                Map<String, Object> leftData = new HashMap<>();
-                leftData.put("leftPlayer", player.getPlayerName());
-                leftData.put("reason", "Người chơi rời khỏi phòng!");
-                leftData.put("winner", room.getOpponent(player).getColor());
-                notifyRoomPlayers(room, "player_left", leftData);
+                room.removePlayer(player);
+                if (room.isEmpty()) {
+                    gameRooms.remove(roomId);
+                } else {
+                    Map<String, Object> leftData = new HashMap<>();
+                    leftData.put("leftPlayer", player.getPlayerName());
+                    leftData.put("reason", "Người chơi rời khỏi phòng!");
+                    leftData.put("winner", room.getOpponent(player).getColor());
+                    notifyRoomPlayers(room, "player_left", leftData);
+                }
             }
             broadcastRoomsList();
         }
@@ -908,7 +952,7 @@ public class NioWebSocketServer implements Runnable {
     private void handleGetRooms(Player player) {
         List<Map<String, Object>> roomList = new ArrayList<>();
         for (GameRoom room : gameRooms.values()) {
-            if (room.getStatus().equals("waiting")) {
+            if (room.getStatus().equals("waiting") || room.getStatus().equals("playing")) {
                 roomList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size(), "status", room.getStatus()));
             }
         }
@@ -918,8 +962,8 @@ public class NioWebSocketServer implements Runnable {
     private void broadcastRoomsList() {
         List<Map<String, Object>> roomsList = new ArrayList<>();
         for (GameRoom room : gameRooms.values()) {
-            if (room.getStatus().equals("waiting")) {
-                roomsList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size()));
+            if (room.getStatus().equals("waiting") || room.getStatus().equals("playing")) {
+                roomsList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size(), "status", room.getStatus()));
             }
         }
         Map<String, Object> broadcast = Map.of("type", "room_update", "rooms", roomsList);
@@ -1063,6 +1107,9 @@ public class NioWebSocketServer implements Runnable {
         if (player == null) return null;
         for (GameRoom room : gameRooms.values()) {
             if (room.getPlayers().contains(player)) {
+                return room;
+            }
+            if (room.getSpectators().contains(player)) {
                 return room;
             }
         }
