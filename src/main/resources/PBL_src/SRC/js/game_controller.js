@@ -984,3 +984,57 @@ if (true) {
     // Nếu Chess_board.js tải chậm hơn, đợi nó
     window.addEventListener('boardLoaded', () => renderGame());
 }
+
+// --- THÊM LOGIC RECONNECT ---
+
+registerHandler('opponent_disconnect_alert', (data) => {
+    showToast("Đối thủ mất kết nối. Đang chờ...", "warning");
+});
+
+registerHandler('opponent_reconnect_alert', (data) => {
+    showToast("Đối thủ đã kết nối lại!", "success");
+});
+
+registerHandler('game_state_restore', (data) => {
+    console.log("Restoring game state...", data);
+    currentFEN = data.fen;
+    yourColor = data.color;
+    roomId = data.roomId;
+    currentTurn = data.currentTurn;
+    whiteTimeMs = data.whiteTime;
+    blackTimeMs = data.blackTime;
+    
+    // Cập nhật thông tin player
+    if (data.playerWhite && data.playerBlack) {
+        if (data.playerWhite.id === playerId) {
+            player2Info = data.playerWhite; player1Info = data.playerBlack;
+        } else {
+            player2Info = data.playerBlack; player1Info = data.playerWhite;
+        }
+    }
+
+    gameActive = true;
+    window.showGameControlsView(); // Chuyển view
+    renderGame();
+    updateStatus();
+    updateTimerDisplay();
+    startTimer();
+    showToast("Đã khôi phục ván đấu!", "info");
+});
+
+// Hàm helper hiển thị toast (cần thêm CSS)
+function showToast(message, type = "info") {
+    const toast = document.createElement("div");
+    toast.className = `toast-notification toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add("show");
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.remove("show");
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

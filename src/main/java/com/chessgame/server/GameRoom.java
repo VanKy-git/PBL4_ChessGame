@@ -21,11 +21,12 @@ public class GameRoom {
     private long whiteTimeMs;
     private long blackTimeMs;
     private StockfishEngine stockfishEngine;
-    // ✅ THÊM CÁC THUỘC TÍNH TIMER
-    private final NioWebSocketServer serverRef; // Tham chiếu đến ChessServer để gửi tin nhắn
-    private transient ScheduledExecutorService timerService; // transient vì không cần serialize
+    private final NioWebSocketServer serverRef; 
+    private transient ScheduledExecutorService timerService;
     private transient ScheduledFuture<?> timerTask;
     private String rematchRequestedByColor = null;
+    private final List<Map<String, Object>> moveHistory = new CopyOnWriteArrayList<>();
+
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
         this.roomId = roomId;
@@ -41,21 +42,18 @@ public class GameRoom {
         this.serverRef = serverRef;
     }
 
-    //HÀM BẮT ĐẦU TIMER (trong GameRoom)
     public synchronized void startTimer() {
-        stopTimer(); // Dừng timer cũ (nếu có) trước khi bắt đầu mới
-        if (!"playing".equals(status)) return; // Chỉ chạy khi đang chơi
+        stopTimer(); 
+        if (!"playing".equals(status)) return; 
 
-        // Khởi tạo service nếu chưa có
         if (timerService == null || timerService.isShutdown()) {
             timerService = Executors.newSingleThreadScheduledExecutor();
         }
 
-        System.out.println("Starting timer for room " + roomId); // DEBUG
+        System.out.println("Starting timer for room " + roomId); 
 
         timerTask = timerService.scheduleAtFixedRate(() -> {
             try {
-                // Kiểm tra lại trạng thái phòng trong task
                 if (!"playing".equals(status) || serverRef == null) {
                     stopTimer();
                     return;
@@ -63,7 +61,7 @@ public class GameRoom {
 
                 long timeDecrement = 1000;
                 long newTime;
-                String playerWithTurn = getCurrentTurn(); // Dùng getter
+                String playerWithTurn = getCurrentTurn(); 
 
                 if ("white".equals(playerWithTurn)) {
                     newTime = getWhiteTimeMs() - timeDecrement;
@@ -73,43 +71,34 @@ public class GameRoom {
                     setBlackTimeMs(newTime);
                 }
 
-                // Kiểm tra hết giờ
                 if (newTime <= 0) {
                     System.out.println("Time out detected in GameRoom task for " + playerWithTurn);
-                    stopTimer(); // Dừng timer ngay
+                    stopTimer(); 
 
                     String winnerColor = "white".equals(playerWithTurn) ? "black" : "white";
-
-                    // Gọi hàm xử lý hết giờ trên ChessServer
-//                    serverRef.handleTimeout(this, winnerColor);
+                    serverRef.handleTimeout(this, winnerColor);
                 }
             } catch (Exception e) {
                 System.err.println("Lỗi trong timer task (GameRoom) phòng " + roomId + ": " + e.getMessage());
                 e.printStackTrace();
-                stopTimer(); // Dừng timer nếu có lỗi nghiêm trọng
+                stopTimer(); 
             }
         }, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
-    // HÀM DỪNG TIMER (trong GameRoom)
     public synchronized void stopTimer() {
         if (timerTask != null && !timerTask.isDone()) {
-            timerTask.cancel(false); // false để task hiện tại chạy xong nếu đang chạy
-            System.out.println("Timer stopped for room " + roomId); // DEBUG
+            timerTask.cancel(false);
+            System.out.println("Timer stopped for room " + roomId);
         }
-        timerTask = null; // Reset task
-        // Không shutdown service ngay nếu muốn dùng lại
-        // if (timerService != null && !timerService.isShutdown()) {
-        //     timerService.shutdown();
-        // }
+        timerTask = null;
     }
 
-    // HÀM DỌN DẸP HOÀN TOÀN TIMER SERVICE KHI PHÒNG BỊ HỦY
     public void shutdownTimerService() {
-        stopTimer(); // Đảm bảo task đã dừng
+        stopTimer(); 
         if (timerService != null && !timerService.isShutdown()) {
             timerService.shutdown();
-            System.out.println("Timer service shut down for room " + roomId); // DEBUG
+            System.out.println("Timer service shut down for room " + roomId);
         }
         if (stockfishEngine != null) {
             stockfishEngine.close();
@@ -120,24 +109,17 @@ public class GameRoom {
     public void addPlayer(Player player) {
         if (players.size() < 2) {
             players.add(player);
-
-            // Assign color based on position
-            if (players.size() == 1) {
-                player.setColor("white");
-            } else if (players.size() == 2) {
-                player.setColor("black");
-            }
         }
     }
     public void resetForRematch() {
-        stopTimer(); // Dừng timer cũ trước khi reset
+        stopTimer(); 
         validator.resetBoard();
         this.currentTurn = "white";
         this.status = "playing";
         this.isDrawOffered = null;
         this.whiteTimeMs = initialTimeMs;
         this.blackTimeMs = initialTimeMs;
-        // Timer sẽ được start lại bởi ChessServer sau khi gửi game_start
+        this.moveHistory.clear();
     }
 
     public synchronized void swapPlayerColors() {
@@ -188,6 +170,14 @@ public class GameRoom {
                 .filter(p -> !p.equals(player))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public void addMoveToHistory(Map<String, Object> moveData) {
+        this.moveHistory.add(moveData);
+    }
+
+    public List<Map<String, Object>> getMoveHistory() {
+        return this.moveHistory;
     }
 
     // Getters and Setters

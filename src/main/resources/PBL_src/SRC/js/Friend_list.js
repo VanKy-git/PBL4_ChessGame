@@ -16,19 +16,29 @@ function renderFriendsList(friends) {
         friendsTabContent.innerHTML = "<p class='empty-msg'>Chưa có bạn bè.</p>";
         return;
     }
-    friendsTabContent.innerHTML = friends.map(friend => `
+    friendsTabContent.innerHTML = friends.map(friend => {
+        // Chỉ cho phép mời nếu Online. Nếu đang In Game hoặc Offline thì disable
+        const isOnline = friend.friend_status === 'Online';
+        const btnText = isOnline ? "Mời đấu" : (friend.friend_status === 'In Game' ? "Đang chơi" : "Mời đấu");
+        
+        return `
         <div class="friend-item" data-id="${friend.friend_id}">
+            <img src="${friend.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
             <div class="friend-info">
                 <strong>${friend.friend_name}</strong>
-                <span class="status-badge ${friend.friend_status === 'Online' ? 'online' : 'offline'}">
+                <span class="status-badge ${isOnline ? 'online' : 'offline'}">
                     ${friend.friend_status || 'Offline'}
                 </span>
             </div>
-            <button class="btn-action invite-btn" data-id="${friend.friend_id}" data-name="${friend.friend_name}" ${friend.friend_status !== 'Online' ? 'disabled' : ''}>
-                Mời đấu
+            <button class="btn-action invite-btn" 
+                id="btn-invite-${friend.friend_id}"
+                data-id="${friend.friend_id}" 
+                data-name="${friend.friend_name}" 
+                ${!isOnline ? 'disabled' : ''}>
+                ${btnText}
             </button>
         </div>
-    `).join("");
+    `}).join("");
 }
 
 function renderSearchResults(users) {
@@ -40,6 +50,7 @@ function renderSearchResults(users) {
         <div id="searchResults" class="results-list">
             ${users && users.length > 0 ? users.map(user => `
                 <div class="user-item" data-id="${user.userId}">
+                    <img src="${user.avatarUrl || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
                     <div class="user-info">
                         <strong>${user.userName}</strong>
                         <span class="elo-rating">Elo: ${user.elo}</span>
@@ -58,6 +69,7 @@ function renderFriendRequests(requests) {
     }
     friendsTabContent.innerHTML = requests.map(req => `
         <div class="request-item" data-id="${req.friendship_id}">
+            <img src="${req.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
             <div class="request-info">
                 <strong>${req.friend_name}</strong>
                 <span class="request-msg">muốn kết bạn với bạn</span>
@@ -166,8 +178,18 @@ document.querySelectorAll('#invite-popup .time-btn').forEach(btn => {
         if (pendingInvite) {
             const timeControl = parseInt(btn.dataset.time);
             sendMessage({ type: 'invite_friend', friendId: pendingInvite.friendId, timeControl: timeControl });
+            
+            // Cập nhật nút thành "Đã mời" và disable
+            const inviteBtn = document.getElementById(`btn-invite-${pendingInvite.friendId}`);
+            if (inviteBtn) {
+                inviteBtn.textContent = "Đã mời";
+                inviteBtn.disabled = true;
+            }
+
             document.getElementById('invite-popup').classList.add('hidden');
-            pendingInvite = null;
+            // Không set pendingInvite = null ngay, để giữ ref nếu cần xử lý thêm, 
+            // nhưng ở đây ta dùng ID để tìm lại nút nên có thể null cũng được.
+            // pendingInvite = null; 
         }
     });
 });
@@ -223,11 +245,9 @@ registerHandler('search_results', (data) => {
 
 registerHandler('friend_request_sent', (data) => {
     // alert('Đã gửi lời mời kết bạn!');
-    // Không cần alert, nút đã đổi trạng thái
 });
 
 registerHandler('friend_request_accepted', (data) => {
-    // Refresh list nếu đang ở tab requests
     if (currentTab === 'requests') {
         sendMessage({ type: 'get_friends' });
     }
@@ -249,12 +269,25 @@ registerHandler('game_invite', (data) => {
 });
 
 registerHandler('invite_sent', (data) => {
-    alert('Đã gửi lời mời thách đấu! Đang chờ phản hồi...');
+    // Không alert nữa, vì nút đã đổi trạng thái
 });
 
 registerHandler('invite_rejected', (data) => {
     alert('Người chơi đã từ chối lời mời.');
+    
+    // Tìm nút mời của người chơi này và enable lại
+    // data.fromPlayerId là ID của người TỪ CHỐI (người mình đã mời)
+    // Nhưng server gửi về: type: invite_rejected, fromPlayerId: <ID người từ chối>
+    
+    // Cần đảm bảo server gửi đúng ID người từ chối về
+    if (data.fromPlayerId) {
+        const inviteBtn = document.getElementById(`btn-invite-${data.fromPlayerId}`);
+        if (inviteBtn) {
+            inviteBtn.textContent = "Mời đấu";
+            inviteBtn.disabled = false;
+        }
+    }
 });
 
 // --- INIT ---
-// connectMainSocket(); // Đã được gọi ở nơi khác hoặc khi cần thiết
+// connectMainSocket();

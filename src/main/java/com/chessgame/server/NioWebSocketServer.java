@@ -44,6 +44,8 @@ public class NioWebSocketServer implements Runnable {
     private final EntityManagerFactory emf;
     private final userService userService;
     private final friendsService friendsService;
+    private final Map<String, ScheduledFuture<?>> disconnectionTimers = new ConcurrentHashMap<>();
+
 
     public NioWebSocketServer(int port) throws IOException {
         this.port = port;
@@ -574,6 +576,60 @@ public class NioWebSocketServer implements Runnable {
             String userId = payload.getSubject();
             String username = payload.get("username", String.class);
 
+            // Reconnection logic
+            if (disconnectionTimers.containsKey(userId)) {
+                ScheduledFuture<?> task = disconnectionTimers.remove(userId);
+                if (task != null) task.cancel(false);
+                
+                System.out.println("Player " + username + " reconnected!");
+
+                Player oldPlayer = null;
+                SocketChannel oldSocket = null;
+                for (Map.Entry<SocketChannel, Player> entry : connectionPlayerMap.entrySet()) {
+                    if (entry.getValue().getPlayerId().equals(userId)) {
+                        oldPlayer = entry.getValue();
+                        oldSocket = entry.getKey();
+                        break;
+                    }
+                }
+
+                if (oldPlayer != null) {
+                    connectionPlayerMap.remove(oldSocket);
+                    connectionPlayerMap.put(client, oldPlayer);
+                    oldPlayer.setConnection(client);
+                    attachment.player = oldPlayer;
+
+                    sendMessage(client, Map.of("type", "player_info", "playerId", oldPlayer.getPlayerId(), "playerName", oldPlayer.getPlayerName(), "isGuest", false));
+
+                    GameRoom room = findRoomByPlayer(oldPlayer);
+                    if (room != null) {
+                        Map<String, Object> restoreData = new HashMap<>();
+                        restoreData.put("type", "game_state_restore");
+                        restoreData.put("fen", room.getValidator().toFen());
+                        restoreData.put("color", oldPlayer.getColor());
+                        restoreData.put("roomId", room.getRoomId());
+                        restoreData.put("whiteTime", room.getWhiteTimeMs());
+                        restoreData.put("blackTime", room.getBlackTimeMs());
+                        restoreData.put("currentTurn", room.getCurrentTurn());
+                        restoreData.put("moveHistory", room.getMoveHistory());
+                        
+                        Player p1 = room.getPlayerByColor("white");
+                        Player p2 = room.getPlayerByColor("black");
+                        restoreData.put("playerWhite", Map.of("id", p1.getPlayerId(), "name", p1.getPlayerName()));
+                        restoreData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
+
+                        sendMessage(client, restoreData);
+
+                        Player opponent = room.getOpponent(oldPlayer);
+                        if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
+                            sendMessage(opponent.getConnection(), Map.of("type", "opponent_reconnect_alert"));
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // Normal authentication
             Player authenticatedPlayer = new Player(userId, username, client);
             connectionPlayerMap.put(client, authenticatedPlayer);
             attachment.player = authenticatedPlayer;
@@ -798,6 +854,8 @@ public class NioWebSocketServer implements Runnable {
         fenData.put("fen", fen);
         fenData.put("lastMove", Map.of("from", from, "to", to));
         fenData.put("isCheck", isNextPlayerInCheck);
+        
+        room.addMoveToHistory(fenData);
 
         notifyRoomPlayers(room, "move_result", fenData);
 
@@ -1032,33 +1090,46 @@ public class NioWebSocketServer implements Runnable {
         if (client == null) {
             return;
         }
+        
+        Player player = connectionPlayerMap.get(client);
+        if (player != null) {
+            GameRoom room = findRoomByPlayer(player);
+            if (room != null && "playing".equals(room.getStatus())) {
+                System.out.println("Player " + player.getPlayerName() + " disconnected during game. Waiting 60s...");
+                
+                Player opponent = room.getOpponent(player);
+                if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
+                    sendMessage(opponent.getConnection(), Map.of("type", "opponent_disconnect_alert"));
+                }
+
+                ScheduledFuture<?> task = scheduler.schedule(() -> {
+                    System.out.println("Player " + player.getPlayerName() + " timed out. Ending game.");
+                    handlePlayerDisconnectInRoom(room, player);
+                    connectionPlayerMap.remove(client);
+                    disconnectionTimers.remove(player.getPlayerId());
+                    if (!player.getPlayerId().startsWith("guest_")) {
+                        userService.updateStatus(Integer.parseInt(player.getPlayerId()), "Offline");
+                    }
+                }, 60, TimeUnit.SECONDS);
+                
+                disconnectionTimers.put(player.getPlayerId(), task);
+                
+            } else {
+                connectionPlayerMap.remove(client);
+                if (!player.getPlayerId().startsWith("guest_")) {
+                    userService.updateStatus(Integer.parseInt(player.getPlayerId()), "Offline");
+                }
+            }
+        }
+
         try {
             sendCloseFrame(client);
-
             SelectionKey key = client.keyFor(selector);
             if (key != null) {
                 key.cancel();
             }
-
-            Player player = connectionPlayerMap.remove(client);
-            if (player != null) {
-                if (!player.getPlayerId().startsWith("guest_")) {
-                    userService.updateStatus(Integer.parseInt(player.getPlayerId()), "Offline");
-                }
-                if (player.getPreferredTimeMs() != null) {
-                    ConcurrentLinkedQueue<Player> queue = waitingQueuesByTime.get(player.getPreferredTimeMs());
-                    if (queue != null) {
-                        queue.remove(player);
-                    }
-                }
-                GameRoom room = findRoomByPlayer(player);
-                if (room != null) {
-                    handlePlayerDisconnectInRoom(room, player);
-                }
-            }
             writeLocks.remove(client);
             client.close();
-
         } catch (IOException e) {
             // ignore
         }
