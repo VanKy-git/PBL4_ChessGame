@@ -253,6 +253,7 @@ import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -366,25 +367,45 @@ public class userController {
     public String loginWithGoogle(String requestJson) {
         try {
             Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+
+            // 1. Kiểm tra key (đề phòng client gửi 'credential' thay vì 'idToken')
             String idToken = (String) request.get("idToken");
+            if (idToken == null) {
+                idToken = (String) request.get("credential");
+            }
 
             if (idToken == null || idToken.isEmpty()) {
                 return errorResponse("ID token is required");
             }
 
-            // Gọi service để tìm user
+            // 2. Gọi service để tìm user
             user existingUser = userService.loginWithGoogle(idToken);
 
             if (existingUser == null) {
                 return errorResponse("Tài khoản không tồn tại. Vui lòng đăng ký trước!");
             }
 
-            // Tạo Map response đầy đủ thông tin (Giống hệt register)
+            // 3. 🔥 QUAN TRỌNG: TẠO TOKEN JWT TẠI ĐÂY 🔥
+            // (Hoặc lấy từ Service nếu Service của bạn đã trả về Map)
+            long nowMillis = System.currentTimeMillis();
+            Date now = new Date(nowMillis);
+            Date exp = new Date(nowMillis + com.database.server.Utils.JwtConfig.JWT_EXPIRATION_MS);
+
+            String token = io.jsonwebtoken.Jwts.builder()
+                    .setSubject(String.valueOf(existingUser.getUserId()))
+                    .claim("username", existingUser.getUserName())
+                    .setIssuedAt(now)
+                    .setExpiration(exp)
+                    .signWith(com.database.server.Utils.JwtConfig.JWT_SECRET_KEY, io.jsonwebtoken.SignatureAlgorithm.HS256)
+                    .compact();
+
+            // 4. Tạo Map response đầy đủ (Đã có Token)
             Map<String, Object> responseData = new HashMap<>();
+            responseData.put("token", token); // <--- BẮT BUỘC PHẢI CÓ DÒNG NÀY
             responseData.put("userId", existingUser.getUserId());
             responseData.put("username", existingUser.getUserName());
             responseData.put("email", existingUser.getEmail());
-            responseData.put("avatar", existingUser.getAvatarUrl()); // Hoặc existingUser.getAvatarUrl()
+            responseData.put("avatar", existingUser.getAvatarUrl());
             responseData.put("status", existingUser.getStatus());
             responseData.put("elo", existingUser.getEloRating());
 
@@ -396,6 +417,8 @@ public class userController {
             return errorResponse("Lỗi khi đăng nhập bằng Google: " + e.getMessage());
         }
     }
+
+
 
 //    public String loginWithGoogle(String requestJson) {
 //        try {
