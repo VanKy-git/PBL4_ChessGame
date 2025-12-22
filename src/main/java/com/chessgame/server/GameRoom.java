@@ -28,6 +28,7 @@ public class GameRoom {
     private String rematchRequestedByColor = null;
     private final List<Map<String, Object>> moveHistory = new CopyOnWriteArrayList<>();
     private final List<String> fenHistory = new CopyOnWriteArrayList<>();
+    private String visibility; // "public" or "private"
 
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
@@ -44,6 +45,7 @@ public class GameRoom {
         this.blackTimeMs = initialTimeMs;
         this.serverRef = serverRef;
         this.fenHistory.add(this.validator.toFen()); // Add initial FEN
+        this.visibility = "public"; // Default
     }
 
     public synchronized void startTimer() {
@@ -285,6 +287,10 @@ public class GameRoom {
     public synchronized void setWhiteTimeMs(long whiteTimeMs) { this.whiteTimeMs = whiteTimeMs; }
     public synchronized long getBlackTimeMs() { return blackTimeMs; }
     public synchronized void setBlackTimeMs(long blackTimeMs) { this.blackTimeMs = blackTimeMs; }
+    
+    public synchronized String getVisibility() { return visibility; }
+    public synchronized void setVisibility(String visibility) { this.visibility = visibility; }
+
     @Override
     public String toString() {
         return "GameRoom{" +

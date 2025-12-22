@@ -24,13 +24,13 @@
                         <span class="letter">W</span>
                         <span class="letter">O</span>
                         <span class="letter">R</span>
-                        <span class="letter">L</span>
                         <span class="letter">D</span>
                     </h1>
                 </div>
                 </div>
             </div>
             <nav class="menu">
+                <a href="#" id="roomListLink"><i class="fa-solid fa-list"></i> Phòng chơi</a>
                 <a href="#" id="historyLink"><i class="fa-solid fa-clock-rotate-left"></i> Lịch sử</a>
                 
                 <a href="#" id="account-link"><i class="fa-solid fa-user"></i> Tài khoản</a>
@@ -277,5 +277,59 @@
             </div>
         </div>
     </div>
+
+    <!-- POPUP TẠO PHÒNG MỚI -->
+    <div id="create-room-popup" class="popup-overlay hidden">
+        <div class="popup-content">
+            <h3>Tạo Phòng Mới</h3>
+            <div class="setup-section">
+                <label>Thời gian:</label>
+                <div class="time-options-ai"> <!-- Tái sử dụng class CSS -->
+                    <button class="time-btn-create selected" data-time="300000">5 Phút</button>
+                    <button class="time-btn-create" data-time="600000">10 Phút</button>
+                    <button class="time-btn-create" data-time="900000">15 Phút</button>
+                </div>
+            </div>
+            <div class="setup-section">
+                <label>Chế độ:</label>
+                <div class="elo-options"> <!-- Tái sử dụng class CSS cho layout ngang -->
+                    <button class="visibility-btn selected" data-vis="public">Công khai</button>
+                    <button class="visibility-btn" data-vis="private">Riêng tư</button>
+                </div>
+            </div>
+            <div class="confirmation-buttons">
+                <button id="confirmCreateRoomBtn" class="btn-action confirm">Tạo phòng</button>
+                <button id="cancelCreateRoomBtn" class="btn-action cancel">Hủy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERLAY CHỜ NGƯỜI CHƠI (SAU KHI TẠO PHÒNG) -->
+    <div id="waiting-room-overlay" class="popup-overlay hidden" style="z-index: 2000;">
+        <div class="popup-content matchmaking-popup">
+            <h2>Đang chờ người chơi...</h2>
+            <p>ID Phòng: <strong id="waitingRoomIdDisplay" style="color: #ffd27f; font-size: 1.2em;">---</strong></p>
+            <div class="spinner"></div>
+            <p>Màu quân sẽ được chọn ngẫu nhiên khi bắt đầu.</p>
+            <button id="cancelWaitingRoomBtn" class="btn-action btn-danger">Hủy phòng</button>
+        </div>
+    </div>
+
+    <!-- POPUP DANH SÁCH PHÒNG (BÊN TRÁI) -->
+    <div id="room-list-popup" class="popup-overlay hidden">
+        <div class="popup-content friends-popup-content"> <!-- Tái sử dụng kích thước của popup bạn bè -->
+            <h2>Danh sách phòng</h2>
+            <div class="friends-tabs">
+                <button class="tab-btn active" data-tab="waiting">Phòng chờ</button>
+                <button class="tab-btn" data-tab="playing">Đang chơi</button>
+            </div>
+            <div id="roomListTabContent" class="tab-content">
+                <!-- Nội dung list phòng sẽ được render vào đây -->
+                <p class="muted">Đang tải...</p>
+            </div>
+            <button id="closeRoomListBtn" class="close-btn">Đóng</button>
+        </div>
+    </div>
+
 </body>
 </html>

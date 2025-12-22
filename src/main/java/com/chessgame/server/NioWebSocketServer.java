@@ -437,6 +437,9 @@ public class NioWebSocketServer implements Runnable {
                 case "leave_room":
                     handleLeaveRoom(player, data);
                     break;
+                case "cancel_waiting_room":
+                    handleCancelWaitingRoom(player, data);
+                    break;
                 case "move_request":
                     handleGameMove(player, data);
                     break;
@@ -808,13 +811,31 @@ public class NioWebSocketServer implements Runnable {
 
     private void handleCreateRoom(Player player, Map<String, Object> data) {
         if (player == null) return;
+        
+        long timeControl = 600000;
+        if (data.get("timeControl") instanceof Number) {
+            timeControl = ((Number) data.get("timeControl")).longValue();
+        }
+        String visibility = (String) data.get("visibility");
+        if (visibility == null) visibility = "public";
+
         String roomId = generateUniqueRoomId();
-        GameRoom room = new GameRoom(roomId, 600000, this);
-        player.setColor("white");
+        GameRoom room = new GameRoom(roomId, timeControl, this);
+        room.setVisibility(visibility);
+        
+        // Không set màu ngay, chờ người thứ 2 vào rồi random
+        // Nhưng để hiển thị, tạm thời chưa set color cho player tạo phòng
+        // Hoặc set tạm null
+        player.setColor(null); 
+        
         room.addPlayer(player);
         gameRooms.put(roomId, room);
-        sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor()));
-        broadcastRoomsList();
+        
+        sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "visibility", visibility));
+        
+        if ("public".equals(visibility)) {
+            broadcastRoomsList();
+        }
     }
 
     private void handleJoinRoom(Player player, Map<String, Object> data) {
@@ -833,8 +854,24 @@ public class NioWebSocketServer implements Runnable {
             sendErrorMessage(player.getConnection(), "Room is already full!");
             return;
         }
-        player.setColor("black");
-        room.addPlayer(player);
+        
+        // Người thứ 2 vào -> Random màu
+        Player p1 = room.getPlayers().get(0);
+        Player p2 = player;
+        
+        if (Math.random() < 0.5) {
+            p1.setColor("white");
+            p2.setColor("black");
+        } else {
+            p1.setColor("black");
+            p2.setColor("white");
+        }
+        
+        room.addPlayer(p2);
+
+        // Gửi thông tin màu cho cả 2
+        sendMessage(p1.getConnection(), Map.of("type", "color", "color", p1.getColor()));
+        sendMessage(p2.getConnection(), Map.of("type", "color", "color", p2.getColor()));
 
         sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor(), "gameState", room.getValidator().toFen()));
 
@@ -893,11 +930,26 @@ public class NioWebSocketServer implements Runnable {
                     Map<String, Object> leftData = new HashMap<>();
                     leftData.put("leftPlayer", player.getPlayerName());
                     leftData.put("reason", "Người chơi rời khỏi phòng!");
-                    leftData.put("winner", room.getOpponent(player).getColor());
+                    leftData.put("winner", room.getOpponent(player) != null ? room.getOpponent(player).getColor() : null);
                     notifyRoomPlayers(room, "player_left", leftData);
                 }
             }
             broadcastRoomsList();
+        }
+    }
+    
+    private void handleCancelWaitingRoom(Player player, Map<String, Object> data) {
+        if (player == null) return;
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+        
+        if (room != null && "waiting".equals(room.getStatus())) {
+            // Chỉ cho phép người tạo phòng hủy (người đầu tiên trong list)
+            if (!room.getPlayers().isEmpty() && room.getPlayers().get(0).equals(player)) {
+                gameRooms.remove(roomId);
+                sendMessage(player.getConnection(), Map.of("type", "room_cancelled", "roomId", roomId));
+                broadcastRoomsList();
+            }
         }
     }
 
@@ -1012,8 +1064,20 @@ public class NioWebSocketServer implements Runnable {
     private void handleGetRooms(Player player) {
         List<Map<String, Object>> roomList = new ArrayList<>();
         for (GameRoom room : gameRooms.values()) {
-            if (room.getStatus().equals("waiting") || room.getStatus().equals("playing")) {
-                roomList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size(), "status", room.getStatus()));
+            if ("public".equals(room.getVisibility()) && (room.getStatus().equals("waiting") || room.getStatus().equals("playing"))) {
+                Map<String, Object> roomData = new HashMap<>();
+                roomData.put("roomId", room.getRoomId());
+                roomData.put("playerCount", room.getPlayers().size());
+                roomData.put("status", room.getStatus());
+                roomData.put("timeControl", room.getInitialTimeMs());
+                
+                List<String> playerNames = new ArrayList<>();
+                for(Player p : room.getPlayers()) {
+                    playerNames.add(p.getPlayerName());
+                }
+                roomData.put("players", playerNames);
+                
+                roomList.add(roomData);
             }
         }
         sendMessage(player.getConnection(), Map.of("type", "room_list", "rooms", roomList));
@@ -1022,8 +1086,20 @@ public class NioWebSocketServer implements Runnable {
     private void broadcastRoomsList() {
         List<Map<String, Object>> roomsList = new ArrayList<>();
         for (GameRoom room : gameRooms.values()) {
-            if (room.getStatus().equals("waiting") || room.getStatus().equals("playing")) {
-                roomsList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size(), "status", room.getStatus()));
+            if ("public".equals(room.getVisibility()) && (room.getStatus().equals("waiting") || room.getStatus().equals("playing"))) {
+                Map<String, Object> roomData = new HashMap<>();
+                roomData.put("roomId", room.getRoomId());
+                roomData.put("playerCount", room.getPlayers().size());
+                roomData.put("status", room.getStatus());
+                roomData.put("timeControl", room.getInitialTimeMs());
+                
+                List<String> playerNames = new ArrayList<>();
+                for(Player p : room.getPlayers()) {
+                    playerNames.add(p.getPlayerName());
+                }
+                roomData.put("players", playerNames);
+                
+                roomsList.add(roomData);
             }
         }
         Map<String, Object> broadcast = Map.of("type", "room_update", "rooms", roomsList);
@@ -1201,7 +1277,15 @@ public class NioWebSocketServer implements Runnable {
         Player player = connectionPlayerMap.get(client);
         if (player != null) {
             GameRoom room = findRoomByPlayer(player);
-            if (room != null && "playing".equals(room.getStatus())) {
+            // *** SỬA LOGIC RECONNECT ***
+            // Nếu người chơi đang trong trận và là GUEST -> xử thua ngay
+            if (room != null && "playing".equals(room.getStatus()) && player.getPlayerId().startsWith("guest_")) {
+                System.out.println("Guest player " + player.getPlayerName() + " disconnected. Ending game immediately.");
+                handlePlayerDisconnectInRoom(room, player);
+                connectionPlayerMap.remove(client);
+            } 
+            // Nếu người chơi đang trong trận và là USER đã đăng nhập -> chờ 60s
+            else if (room != null && "playing".equals(room.getStatus())) {
                 System.out.println("Player " + player.getPlayerName() + " disconnected during game. Waiting 60s...");
                 
                 Player opponent = room.getOpponent(player);
@@ -1221,7 +1305,9 @@ public class NioWebSocketServer implements Runnable {
                 
                 disconnectionTimers.put(player.getPlayerId(), task);
                 
-            } else {
+            } 
+            // Nếu không trong trận -> xóa bình thường
+            else {
                 connectionPlayerMap.remove(client);
                 if (!player.getPlayerId().startsWith("guest_")) {
                     userService.updateStatus(Integer.parseInt(player.getPlayerId()), "Offline");

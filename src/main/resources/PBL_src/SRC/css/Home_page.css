@@ -33,7 +33,7 @@ html,body{
     justify-content: center;
 }
 
-.elo-btn, .time-btn-ai {
+.elo-btn, .time-btn-ai, .time-btn-create, .visibility-btn {
     padding: 8px 15px;
     background: #3a3a3a;
     border: 1px solid #555;
@@ -43,11 +43,11 @@ html,body{
     flex: 1;
 }
 
-.elo-btn:hover, .time-btn-ai:hover {
+.elo-btn:hover, .time-btn-ai:hover, .time-btn-create:hover, .visibility-btn:hover {
     background: #555;
 }
 
-.elo-btn.selected, .time-btn-ai.selected {
+.elo-btn.selected, .time-btn-ai.selected, .time-btn-create.selected, .visibility-btn.selected {
     background: #81b64c; /* Màu xanh giống chess.com */
     border-color: #81b64c;
     font-weight: bold;
