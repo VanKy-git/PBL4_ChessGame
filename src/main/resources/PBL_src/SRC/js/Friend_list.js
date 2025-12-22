@@ -218,6 +218,10 @@ const acceptInviteBtn = document.getElementById('acceptInviteBtn');
 if (acceptInviteBtn) {
     acceptInviteBtn.addEventListener('click', () => {
         if (pendingGameInvite) {
+            // Nếu người chơi đang trong hàng đợi tìm trận, hủy nó đi
+            if (typeof handleCancelMatchmaking === 'function') {
+                handleCancelMatchmaking();
+            }
             sendMessage({ type: 'invite_response', accepted: true, opponentId: pendingGameInvite.fromPlayerId });
             document.getElementById('game-invite-popup').classList.add('hidden');
             pendingGameInvite = null;

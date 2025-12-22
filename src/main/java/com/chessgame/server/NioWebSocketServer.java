@@ -963,25 +963,37 @@ public class NioWebSocketServer implements Runnable {
 
     private void handleLeaveRoom(Player player, Map<String, Object> data) {
         if (player == null) return;
-        String roomId = (String) data.get("roomId");
-        GameRoom room = gameRooms.get(roomId);
-        if (room != null) {
-            if (room.getSpectators().contains(player)) {
-                room.removeSpectator(player);
-            } else {
-                room.removePlayer(player);
-                if (room.isEmpty()) {
-                    gameRooms.remove(roomId);
-                } else {
-                    Map<String, Object> leftData = new HashMap<>();
-                    leftData.put("leftPlayer", player.getPlayerName());
-                    leftData.put("reason", "Người chơi rời khỏi phòng!");
-                    leftData.put("winner", room.getOpponent(player) != null ? room.getOpponent(player).getColor() : null);
-                    notifyRoomPlayers(room, "player_left", leftData);
+        GameRoom room = findRoomByPlayer(player);
+
+        if (room == null) {
+            return;
+        }
+
+        boolean isPlayer = room.getPlayers().contains(player);
+
+        if (isPlayer) {
+            // BUG 2 FIX: Only end the game if it's currently 'playing'
+            if ("playing".equals(room.getStatus())) {
+                room.setStatus("finished");
+                room.stopTimer();
+                Player opponent = room.getOpponent(player);
+                if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
+                    Map<String, Object> endData = new HashMap<>();
+                    endData.put("winner", opponent.getColor());
+                    endData.put("reason", "opponent_left_game");
+                    notifyRoomPlayers(room, "end_game", endData);
                 }
             }
-            broadcastRoomsList();
+            room.removePlayer(player);
+        } else {
+            room.removeSpectator(player);
         }
+
+        if (room.isEmpty()) {
+            gameRooms.remove(room.getRoomId());
+        }
+
+        broadcastRoomsList();
     }
     
     private void handleCancelWaitingRoom(Player player, Map<String, Object> data) {
@@ -1541,6 +1553,10 @@ public class NioWebSocketServer implements Runnable {
         Player opponent = getPlayerById(opponentId);
         if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
             if (accepted) {
+                // BUG 1 FIX: Remove both players from any matchmaking queue before starting a new match.
+                hanleCancelMatchMaking(player, null);
+                hanleCancelMatchMaking(opponent, null);
+
                 startNewMatch(player, opponent, 600000); // 10 minutes default
             } else {
                 sendMessage(opponent.getConnection(), Map.of("type", "invite_rejected", "fromPlayerId", player.getPlayerId()));
