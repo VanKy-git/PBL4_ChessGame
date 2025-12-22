@@ -27,6 +27,7 @@ public class GameRoom {
     private transient ScheduledFuture<?> timerTask;
     private String rematchRequestedByColor = null;
     private final List<Map<String, Object>> moveHistory = new CopyOnWriteArrayList<>();
+    private final List<String> fenHistory = new CopyOnWriteArrayList<>();
 
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
@@ -42,6 +43,7 @@ public class GameRoom {
         this.whiteTimeMs = initialTimeMs;
         this.blackTimeMs = initialTimeMs;
         this.serverRef = serverRef;
+        this.fenHistory.add(this.validator.toFen()); // Add initial FEN
     }
 
     public synchronized void startTimer() {
@@ -135,6 +137,8 @@ public class GameRoom {
         this.whiteTimeMs = initialTimeMs;
         this.blackTimeMs = initialTimeMs;
         this.moveHistory.clear();
+        this.fenHistory.clear();
+        this.fenHistory.add(this.validator.toFen());
     }
 
     public synchronized void swapPlayerColors() {
@@ -189,10 +193,35 @@ public class GameRoom {
 
     public void addMoveToHistory(Map<String, Object> moveData) {
         this.moveHistory.add(moveData);
+        this.fenHistory.add((String) moveData.get("fen"));
     }
 
     public List<Map<String, Object>> getMoveHistory() {
         return this.moveHistory;
+    }
+
+    public boolean takeBackMove() {
+        // Can only take back if it's a game against AI and there are at least 2 moves (player + AI)
+        if (stockfishEngine == null || fenHistory.size() < 3) {
+            return false;
+        }
+
+        // Remove last 2 FENs (player's move and AI's move)
+        fenHistory.remove(fenHistory.size() - 1);
+        fenHistory.remove(fenHistory.size() - 1);
+        
+        // Remove last 2 moves from move history
+        moveHistory.remove(moveHistory.size() - 1);
+        moveHistory.remove(moveHistory.size() - 1);
+
+        // Restore the board to the state before the player's last move
+        String previousFen = fenHistory.get(fenHistory.size() - 1);
+        validator.setFromFen(previousFen);
+        
+        // Update current turn from the restored FEN
+        this.currentTurn = validator.getCurrentTurn();
+
+        return true;
     }
 
     // Getters and Setters

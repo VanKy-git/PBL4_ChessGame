@@ -38,7 +38,7 @@ public class NioWebSocketServer implements Runnable {
     private final Map<Long, ConcurrentLinkedQueue<Player>> waitingQueuesByTime = new ConcurrentHashMap<>();
     private final Map<SocketChannel, Object> writeLocks = new ConcurrentHashMap<>();
     private final Queue<SocketChannel> disconnectQueue = new ConcurrentLinkedQueue<>();
-    private static final String STOCKFISH_PATH = "D:\\Programing\\PBL4_ChessGame/src/main/resources/stockfish/stockfish-windows.exe ";
+    private static final String STOCKFISH_PATH = "D:\\Programing\\PBL4_ChessGame/src/main/resources/stockfish/stockfish-windows.exe";
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final EntityManagerFactory emf;
@@ -470,6 +470,9 @@ public class NioWebSocketServer implements Runnable {
                 case "create_ai_game":
                     handleCreateAiGame(player, data);
                     break;
+                case "take_back_request":
+                    handleTakeBackRequest(player, data);
+                    break;
                 case "search_users":
                     handleSearchUsers(player, data);
                     break;
@@ -519,6 +522,8 @@ public class NioWebSocketServer implements Runnable {
             if (data.get("elo") instanceof Number) {
                 elo = ((Number) data.get("elo")).intValue();
             }
+            
+            String preferredColor = (String) data.get("color"); // "white", "black", or "random"
 
             GameRoom room = new GameRoom(roomId, timeControl, this);
 
@@ -528,7 +533,16 @@ public class NioWebSocketServer implements Runnable {
 
             Player botPlayer = new Player("STOCKFISH_AI_" + roomId, "Stockfish (Elo " + elo + ")", null);
 
-            if (Math.random() < 0.5) {
+            boolean playerIsWhite;
+            if ("white".equals(preferredColor)) {
+                playerIsWhite = true;
+            } else if ("black".equals(preferredColor)) {
+                playerIsWhite = false;
+            } else {
+                playerIsWhite = Math.random() < 0.5;
+            }
+
+            if (playerIsWhite) {
                 player.setColor("white");
                 botPlayer.setColor("black");
             } else {
@@ -540,8 +554,8 @@ public class NioWebSocketServer implements Runnable {
             room.addPlayer(botPlayer);
             gameRooms.put(roomId, room);
 
-            sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor()));
-            sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor()));
+            sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor(), "isAiGame", true));
+            sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor(), "isAiGame", true));
 
             startGame(room);
 
@@ -551,6 +565,51 @@ public class NioWebSocketServer implements Runnable {
 
         } catch (IOException e) {
             sendErrorMessage(player.getConnection(), "Không thể khởi động AI Engine.");
+        }
+    }
+    
+    private void handleTakeBackRequest(Player player, Map<String, Object> data) {
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+        
+        if (room == null) {
+            sendErrorMessage(player.getConnection(), "Phòng không tồn tại.");
+            return;
+        }
+        
+        if (room.getStockfishEngine() == null) {
+            sendErrorMessage(player.getConnection(), "Chỉ có thể đi lại khi chơi với máy.");
+            return;
+        }
+        
+        if (!room.getStatus().equals("playing")) {
+            sendErrorMessage(player.getConnection(), "Ván đấu không đang diễn ra.");
+            return;
+        }
+        
+        // Check if it's player's turn (cannot take back while AI is thinking)
+        if (!room.getCurrentTurn().equals(player.getColor())) {
+             sendErrorMessage(player.getConnection(), "Không thể đi lại khi máy đang suy nghĩ.");
+             return;
+        }
+
+        boolean success = room.takeBackMove();
+        
+        if (success) {
+            // Sync Stockfish internal board
+            try {
+                room.getStockfishEngine().setPosition(room.getValidator().toFen());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "take_back_result");
+            response.put("success", true);
+            response.put("fen", room.getValidator().toFen());
+            sendMessage(player.getConnection(), response);
+        } else {
+            sendMessage(player.getConnection(), Map.of("type", "take_back_result", "success", false, "message", "Không thể đi lại (chưa đủ nước đi)."));
         }
     }
 
@@ -676,11 +735,12 @@ public class NioWebSocketServer implements Runnable {
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
-        room.getValidator().resetBoard();
+        // room.getValidator().resetBoard(); // Resetting is done in constructor, maybe not needed here unless for rematch
         Map<String, Object> gameStartData = new HashMap<>();
         gameStartData.put("gameState", room.getValidator().toFen());
         gameStartData.put("currentTurn", "white");
         gameStartData.put("initialTimeMs", room.getInitialTimeMs());
+        gameStartData.put("isAiGame", room.getStockfishEngine() != null); // Add isAiGame flag
 
         Player p1 = room.getPlayerByColor("white");
         Player p2 = room.getPlayerByColor("black");

@@ -23,6 +23,7 @@ let timerIntervalId = null;
 let rematchOfferedByOpponent = false; // Cờ báo đối thủ đã mời tái đấu
 let rematchRequestedByMe = false; // Cờ báo mình đã yêu cầu tái đấu
 let isSpectator = false; // Trạng thái người xem
+let isAiGame = false; // Trạng thái game AI
 window.validMoveSquares = validMoveSquares;
 
 // Nếu chưa có, hãy thêm vào đầu file này:
@@ -130,6 +131,18 @@ function findNewGame() {
 function requestDraw() { if (gameActive && !isSpectator) sendMessage({ type: "draw_request", roomId: roomId }); }
 function resignGame() { if (gameActive && !isSpectator) sendMessage({ type: "resign", roomId: roomId }); }
 
+function requestTakeBack() {
+    console.log("requestTakeBack called. Checking conditions...");
+    console.log(`isAiGame: ${isAiGame}, roomId: ${roomId}`);
+    if (isAiGame && roomId) {
+        console.log("Conditions met. Sending take_back_request...");
+        sendMessage({ type: 'take_back_request', roomId: roomId });
+    } else {
+        console.error("Cannot request take back. Conditions not met.");
+    }
+}
+window.requestTakeBack = requestTakeBack;
+
 function sendChat() {
     const inputElement = document.getElementById('chatInputEl');
 
@@ -206,8 +219,9 @@ function onRoomCreatedOrJoined(msg) {
     if(msg.color)
     yourColor = msg.color;
     isSpectator = false; // Reset spectator status
+    isAiGame = msg.isAiGame || false;
     if (window.hideMatchmakingPopup) window.hideMatchmakingPopup();
-    window.showGameControlsView();
+    window.showGameControlsView(isAiGame);
     updateStatus()
     renderGame();
 }
@@ -322,6 +336,7 @@ function resetGameLocalState() {
     rematchOfferedByOpponent = false;
     rematchRequestedByMe = false;
     isSpectator = false;
+    isAiGame = false;
 
     const moveListEl = document.getElementById('moveList');
     if (moveListEl) moveListEl.innerHTML = '';
@@ -422,6 +437,7 @@ function onGameStart(msg) {
     isKingInCheckState = false;
     gameActive = true;
     isSpectator = false;
+    isAiGame = msg.isAiGame || false;
     if (msg.playerWhite && msg.playerBlack) {
         const whitePlayer = msg.playerWhite;
         const blackPlayer = msg.playerBlack;
@@ -843,6 +859,36 @@ function onDrawRejected(msg) {
     if(drawRequestBtn) drawRequestBtn.disabled = false;
 }
 
+function onTakeBackResult(msg) {
+    if (msg.success) {
+        currentFEN = msg.fen;
+        const newGameData = decodeFEN(currentFEN);
+        currentTurn = newGameData.turn;
+        lastMove = null; // Xóa highlight nước đi cuối
+        
+        // Xóa 2 nước đi cuối khỏi lịch sử
+        const moveListEl = document.getElementById('moveList');
+        if (moveListEl) {
+            if (moveListEl.lastElementChild) {
+                const lastItem = moveListEl.lastElementChild;
+                // Nếu dòng cuối có cả 2 nước đi (trắng và đen)
+                if (lastItem.children.length > 1) {
+                    lastItem.removeChild(lastItem.lastChild); // Xóa nước đen
+                } else {
+                    // Nếu chỉ có nước trắng, xóa cả dòng
+                    moveListEl.removeChild(lastItem);
+                }
+            }
+        }
+        
+        renderGame();
+        updateStatus();
+        showToast("Đã đi lại!", "info");
+    } else {
+        showToast(msg.message || "Không thể đi lại.", "error");
+    }
+}
+
 registerHandler('player_info', onPlayerInfo);
 registerHandler('room_info', onRoomCreatedOrJoined)
 registerHandler('room_created', onRoomCreatedOrJoined);
@@ -860,6 +906,7 @@ registerHandler('valid_moves',onValidMovesReceived)
 registerHandler('color', onColorAssigned); // Quan trọng cho rematch
 registerHandler('rematch_offer', onRematchOffer);
 registerHandler('rematch_unavailable', onRematchUnavailable);
+registerHandler('take_back_result', onTakeBackResult);
 
 //LOGIC RENDER VÀ INPUT
 
