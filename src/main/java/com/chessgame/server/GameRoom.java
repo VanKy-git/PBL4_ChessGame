@@ -41,7 +41,7 @@ public class GameRoom {
     }
 
     //HÀM BẮT ĐẦU TIMER (trong GameRoom)
-    public synchronized void startTimer() {
+    public synchronized void startTimer(NioWebSocketServer server) {
         stopTimer(); // Dừng timer cũ (nếu có) trước khi bắt đầu mới
         if (!"playing".equals(status)) return; // Chỉ chạy khi đang chơi
 
@@ -80,7 +80,7 @@ public class GameRoom {
                     String winnerColor = "white".equals(playerWithTurn) ? "black" : "white";
 
                     // Gọi hàm xử lý hết giờ trên ChessServer
-//                    serverRef.handleTimeout(this, winnerColor);
+                    server.handleTimeout(this, winnerColor);
                 }
             } catch (Exception e) {
                 System.err.println("Lỗi trong timer task (GameRoom) phòng " + roomId + ": " + e.getMessage());

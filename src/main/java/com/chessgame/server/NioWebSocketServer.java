@@ -25,6 +25,9 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import com.database.server.Service.userService;
+import com.database.server.Service.matchesService;
+import com.database.server.Entity.user;
+import com.database.server.Entity.matches;
 
 
 public class NioWebSocketServer implements Runnable {
@@ -40,6 +43,7 @@ public class NioWebSocketServer implements Runnable {
     private final Map<SocketChannel, Object> writeLocks = new ConcurrentHashMap<>();
     private final Queue<SocketChannel> disconnectQueue = new ConcurrentLinkedQueue<>();
     private static userService userService;
+    private static matchesService matchesService;
 
     public NioWebSocketServer(int port) throws IOException {
         this.port = port;
@@ -614,7 +618,7 @@ public class NioWebSocketServer implements Runnable {
             gameStartData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
         }
 
-        room.startTimer();
+        room.startTimer(this);
         notifyRoomPlayers(room, "game_start", gameStartData);
     }
 
@@ -675,6 +679,29 @@ public class NioWebSocketServer implements Runnable {
                     "type", "color",
                     "color", player.getColor()
             ));
+        }
+
+        // --- LƯU TRẬN ĐẤU VÀO DATABASE ---
+        // Đảm bảo player1 là White, player2 là Black khi lưu vào DB để khớp với logic hiển thị
+        Player whitePlayer = room.getPlayerByColor("white");
+        Player blackPlayer = room.getPlayerByColor("black");
+
+        if (whitePlayer != null && blackPlayer != null && 
+            !whitePlayer.getPlayerId().startsWith("guest_") && !blackPlayer.getPlayerId().startsWith("guest_")) {
+            try {
+                int p1Id = Integer.parseInt(whitePlayer.getPlayerId());
+                int p2Id = Integer.parseInt(blackPlayer.getPlayerId());
+                user u1 = userService.getUserById(p1Id);
+                user u2 = userService.getUserById(p2Id);
+
+                if (u1 != null && u2 != null) {
+                    matches newMatch = matchesService.createMatch(u1, u2);
+                    System.out.println("Đã tạo trận đấu trong DB: ID " + newMatch.getMatchId());
+                }
+            } catch (Exception e) {
+                System.err.println("Lỗi lưu trận đấu vào DB: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
 
         startGame(room);
@@ -786,6 +813,9 @@ public class NioWebSocketServer implements Runnable {
                 notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
                 room.setStatus("finished");
                 room.stopTimer();
+                
+                // --- CẬP NHẬT KẾT QUẢ VÀO DB ---
+                updateMatchResult(room, moveResult.winner, "Checkmate/Resign");
             }
         }
     }
@@ -887,6 +917,9 @@ public class NioWebSocketServer implements Runnable {
             notifyRoomPlayers(room, "end_game", Map.of("winner", "draw", "reason", "agreement"));
             room.setStatus("finished");
             room.stopTimer();
+            
+            // --- CẬP NHẬT KẾT QUẢ VÀO DB ---
+            updateMatchResult(room, "draw", "Agreement");
         } else {
             room.setIsDrawOffered(null);
             if (offeringPlayer != null && offeringPlayer.getConnection().isOpen()) {
@@ -921,6 +954,9 @@ public class NioWebSocketServer implements Runnable {
         notifyRoomPlayers(room, "end_game", Map.of("winner", winnerColor, "reason", "resignation"));
         room.setStatus("finished");
         room.stopTimer();
+        
+        // --- CẬP NHẬT KẾT QUẢ VÀO DB ---
+        updateMatchResult(room, winnerColor, "Resignation");
     }
 
     private void handleRematchRequest(Player player, Map<String, Object> data) {
@@ -959,7 +995,24 @@ public class NioWebSocketServer implements Runnable {
             sendMessage(newWhitePlayer.getConnection(), Map.of("type", "color", "color", "white"));
             sendMessage(newBlackPlayer.getConnection(), Map.of("type", "color", "color", "black"));
             notifyRoomPlayers(room, "game_start", gameStartData);
-            room.startTimer();
+            room.startTimer(this);
+            
+            // --- TẠO TRẬN ĐẤU MỚI TRONG DB CHO TÁI ĐẤU ---
+            if (!newWhitePlayer.getPlayerId().startsWith("guest_") && !newBlackPlayer.getPlayerId().startsWith("guest_")) {
+                try {
+                    int p1Id = Integer.parseInt(newWhitePlayer.getPlayerId());
+                    int p2Id = Integer.parseInt(newBlackPlayer.getPlayerId());
+                    user u1 = userService.getUserById(p1Id);
+                    user u2 = userService.getUserById(p2Id);
+                    if (u1 != null && u2 != null) {
+                        matches newMatch = matchesService.createMatch(u1, u2);
+                        System.out.println("Đã tạo trận tái đấu trong DB: ID " + newMatch.getMatchId());
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            
         } else {
             // --- Chỉ người này yêu cầu -> Gửi lời mời cho đối thủ ---
             room.setRematchRequestedByColor(playerColor);
@@ -1002,6 +1055,42 @@ public class NioWebSocketServer implements Runnable {
         notifyRoomPlayers(room, "end_game", endData);
         room.setStatus("finished");
         room.stopTimer();
+        
+        // --- CẬP NHẬT KẾT QUẢ VÀO DB ---
+        updateMatchResult(room, winnerColor, "Timeout");
+    }
+    
+    // --- HÀM CẬP NHẬT KẾT QUẢ TRẬN ĐẤU VÀO DB ---
+    private void updateMatchResult(GameRoom room, String winnerColor, String reason) {
+        Player p1 = room.getPlayerByColor("white");
+        Player p2 = room.getPlayerByColor("black");
+        
+        if (p1 == null || p2 == null) return;
+        if (p1.getPlayerId().startsWith("guest_") || p2.getPlayerId().startsWith("guest_")) return;
+
+        try {
+            int p1Id = Integer.parseInt(p1.getPlayerId());
+            int p2Id = Integer.parseInt(p2.getPlayerId());
+            
+            // Tìm trận đấu đang diễn ra giữa 2 người này trong DB
+            matches ongoingMatch = matchesService.getOngoingMatchBetween(p1Id, p2Id);
+            
+            if (ongoingMatch != null) {
+                String pgnResult = "1/2-1/2";
+                if ("white".equals(winnerColor)) pgnResult = "1-0";
+                else if ("black".equals(winnerColor)) pgnResult = "0-1";
+                
+                // Cập nhật trạng thái và kết quả
+                matchesService.endMatch(ongoingMatch.getMatchId(), "Finished", pgnResult + " (" + reason + ")");
+                System.out.println("Đã cập nhật kết quả trận đấu " + ongoingMatch.getMatchId() + " vào DB.");
+            } else {
+                System.out.println("Không tìm thấy trận đấu đang diễn ra trong DB để cập nhật.");
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Lỗi cập nhật kết quả trận đấu: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void handleDisconnect(SocketChannel client) {
@@ -1073,6 +1162,9 @@ public class NioWebSocketServer implements Runnable {
                 endData.put("reason", "opponent_disconnected");
                 endData.put("disconnectedPlayer", player.getPlayerName());
                 sendMessage(opponent.getConnection(), Map.of("type", "end_game", "data", endData));
+                
+                // Cập nhật DB khi đối thủ disconnect
+                updateMatchResult(room, winnerColor, "Opponent Disconnected");
             }
             room.setStatus("finished");
             room.stopTimer();
@@ -1131,6 +1223,7 @@ public class NioWebSocketServer implements Runnable {
             
             // Khởi tạo userService
             userService = new userService(ENTITY_MANAGER_FACTORY);
+            matchesService = new matchesService(ENTITY_MANAGER_FACTORY);
             
             // ĐÃ XÓA: userService.resetAllUserStatus();
 

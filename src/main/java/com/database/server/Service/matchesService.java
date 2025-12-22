@@ -59,6 +59,17 @@ public class matchesService {
         }
     }
 
+    /** Tìm trận đấu đang diễn ra giữa 2 người chơi */
+    public matches getOngoingMatchBetween(int player1Id, int player2Id) {
+        EntityManager em = emf.createEntityManager();
+        matchesDAO dao = new matchesDAO(em);
+        try {
+            return dao.getOngoingMatchBetween(player1Id, player2Id);
+        } finally {
+            em.close();
+        }
+    }
+
     // ========================= THAO TÁC GHI (WRITE/TRANSACTION) =========================
 
     /** Xóa 1 trận đấu */
