@@ -17,13 +17,17 @@ function renderFriendsList(friends) {
         return;
     }
     friendsTabContent.innerHTML = friends.map(friend => {
+
+        console.log("Dữ liệu 1 người bạn:", friend);
+        console.log("Avatar URL:", friend.avatarUrl || friend.avatar_url);
+
         // Chỉ cho phép mời nếu Online. Nếu đang In Game hoặc Offline thì disable
         const isOnline = friend.friend_status === 'Online';
         const btnText = isOnline ? "Mời đấu" : (friend.friend_status === 'In Game' ? "Đang chơi" : "Mời đấu");
         
         return `
         <div class="friend-item" data-id="${friend.friend_id}">
-            <img src="${friend.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+            <img src="${friend.avatar_url || '../../PBL4_imgs/icon/user.png'}" alt="Avatar" class="user-avatar-small">
             <div class="friend-info">
                 <strong>${friend.friend_name}</strong>
                 <span class="status-badge ${isOnline ? 'online' : 'offline'}">
@@ -40,7 +44,29 @@ function renderFriendsList(friends) {
         </div>
     `}).join("");
 }
+//
+// function renderSearchResults(users) {
+//     friendsTabContent.innerHTML = `
+//         <div class="search-bar">
+//             <input type="text" id="searchInput" class="input" placeholder="Nhập tên người dùng..."/>
+//             <button id="searchBtn" class="btn-action">Tìm kiếm</button>
+//         </div>
+//         <div id="searchResults" class="results-list">
+//             ${users && users.length > 0 ? users.map(user => `
+//                 <div class="user-item" data-id="${user.userId}">
+//                     <img src="${user.avatarUrl || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+//                     <div class="user-info">
+//                         <strong>${user.userName}</strong>
+//                         <span class="elo-rating">Elo: ${user.elo}</span>
+//                     </div>
+//                     <button class="btn-action add-friend-btn" data-id="${user.userId}">Kết bạn</button>
+//                 </div>
+//             `).join("") : (users ? "<p class='empty-msg'>Không tìm thấy người dùng.</p>" : "")}
+//         </div>
+//     `;
+// }
 
+    // thay mới
 function renderSearchResults(users) {
     friendsTabContent.innerHTML = `
         <div class="search-bar">
@@ -48,19 +74,50 @@ function renderSearchResults(users) {
             <button id="searchBtn" class="btn-action">Tìm kiếm</button>
         </div>
         <div id="searchResults" class="results-list">
-            ${users && users.length > 0 ? users.map(user => `
+            ${users && users.length > 0 ? users.map(user => {
+
+        // Logic hiển thị nút bấm dựa trên quan hệ
+        let buttonHtml = '';
+
+        if (user.relationship === 'friend') {
+            // Trạng thái: Đã là bạn bè -> Disable nút
+            buttonHtml = `<button class="btn-action" disabled style="background-color: #ccc; cursor: not-allowed;">Đã kết bạn</button>`;
+        }
+        else if (user.relationship === 'pending') {
+            // Trạng thái: Đang chờ (đã gửi lời mời hoặc đang có lời mời)
+            buttonHtml = `<button class="btn-action" disabled style="background-color: #ccc; cursor: not-allowed;">Đang chờ</button>`;
+        }
+        else {
+            // Trạng thái: Chưa kết bạn -> Hiện nút Kết bạn bình thường
+            buttonHtml = `<button class="btn-action add-friend-btn" data-id="${user.userId}">Kết bạn</button>`;
+        }
+
+        return `
                 <div class="user-item" data-id="${user.userId}">
-                    <img src="${user.avatarUrl || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+                    <img src="${user.avatarUrl || user.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" 
+                         alt="Avatar" class="user-avatar-small"
+                         onerror="this.onerror=null;this.src='../../PBL4_imgs/icon/man.png';">
+                    
                     <div class="user-info">
                         <strong>${user.userName}</strong>
                         <span class="elo-rating">Elo: ${user.elo}</span>
                     </div>
-                    <button class="btn-action add-friend-btn" data-id="${user.userId}">Kết bạn</button>
+                    
+                    ${buttonHtml}
                 </div>
-            `).join("") : (users ? "<p class='empty-msg'>Không tìm thấy người dùng.</p>" : "")}
+            `}).join("") : (users ? "<p class='empty-msg'>Không tìm thấy người dùng.</p>" : "")}
         </div>
     `;
+
+    // Gán lại sự kiện click cho nút Search mới được render
+    document.getElementById('searchBtn').addEventListener('click', () => {
+        const keyword = document.getElementById('searchInput').value;
+        if (keyword.trim()) {
+            sendMessage({ type: 'search_users', keyword: keyword });
+        }
+    });
 }
+
 
 function renderFriendRequests(requests) {
     if (!requests || requests.length === 0) {
@@ -221,21 +278,55 @@ if (declineInviteBtn) {
 
 // --- WEBSOCKET HANDLERS ---
 
+// registerHandler('friends_list', (data) => {
+//     const myId = parseInt(localStorage.getItem("playerId"));
+//
+//     if (currentTab === 'list') {
+//         // Lọc bạn bè đã chấp nhận (status = 'accepted')
+//         const acceptedFriends = data.friends.filter(f => f.status && f.status.toLowerCase() === 'accepted');
+//         renderFriendsList(acceptedFriends);
+//     } else if (currentTab === 'requests') {
+//         // Lọc lời mời kết bạn ĐANG CHỜ (status = 'pending')
+//         // VÀ người gửi (sender_id) KHÁC mình (tức là mình là người nhận)
+//         const pendingRequests = data.friends.filter(f =>
+//             f.status && f.status.toLowerCase() === 'pending' &&
+//             f.sender_id !== myId
+//         );
+//         renderFriendRequests(pendingRequests);
+//     }
+// });
+
 registerHandler('friends_list', (data) => {
+    // 1. Lấy ID của bản thân (Ép kiểu về số nguyên để so sánh chuẩn)
     const myId = parseInt(localStorage.getItem("playerId"));
-    
+
+    console.log("🔥 DEBUG FRIEND LIST:");
+    console.log("My ID:", myId);
+
     if (currentTab === 'list') {
-        // Lọc bạn bè đã chấp nhận (status = 'accepted')
-        const acceptedFriends = data.friends.filter(f => f.status && f.status.toLowerCase() === 'accepted');
-        renderFriendsList(acceptedFriends);
-    } else if (currentTab === 'requests') {
-        // Lọc lời mời kết bạn ĐANG CHỜ (status = 'pending')
-        // VÀ người gửi (sender_id) KHÁC mình (tức là mình là người nhận)
-        const pendingRequests = data.friends.filter(f => 
-            f.status && f.status.toLowerCase() === 'pending' && 
-            f.sender_id !== myId
+        const acceptedFriends = data.friends.filter(f =>
+            f.status && f.status.toLowerCase() === 'accepted'
         );
-        renderFriendRequests(pendingRequests);
+        renderFriendsList(acceptedFriends);
+    }
+    else if (currentTab === 'requests') {
+        // 2. Lọc danh sách lời mời
+        const receivedRequests = data.friends.filter(f => {
+            // Debug từng dòng xem tại sao nó không ẩn
+            const isPending = f.status && f.status.toLowerCase() === 'pending';
+            const isNotSender = f.sender_id !== myId;
+
+            // In ra console để kiểm tra
+            if (isPending && !isNotSender) {
+                console.log(`Ẩn lời mời gửi tới ${f.friend_name} vì mình là người gửi (SenderID: ${f.sender_id})`);
+            }
+
+            // Giữ lại nếu: Là Pending VÀ Mình KHÔNG phải người gửi
+            return isPending && isNotSender;
+        });
+
+        console.log("Danh sách hiển thị sau khi lọc:", receivedRequests);
+        renderFriendRequests(receivedRequests);
     }
 });
 
