@@ -28,7 +28,6 @@ const timeControlOverlay = document.getElementById('time-control-overlay');
 const timeOptionsContainer = timeControlOverlay?.querySelector('.time-options');
 const cancelTimeSelectionBtn = document.getElementById('cancelTimeSelectionBtn');
 // 1. Lấy các Element
-const aiModeBtn = document.querySelector('.mode[data-mode="ai"]');
 const aiOverlay = document.getElementById('ai-setup-overlay');
 const startAiBtn = document.getElementById('startAiGameBtn');
 const cancelAiBtn = document.getElementById('cancelAiSetupBtn');
@@ -92,13 +91,6 @@ function updateRoomList(rooms) {
     `;
 }
 
-if (aiModeBtn) {
-    aiModeBtn.addEventListener('click', () => {
-        aiOverlay.classList.remove('hidden');
-        aiOverlay.style.display = 'flex'; // Đảm bảo nó hiện lên nếu CSS dùng display none
-    });
-}
-
 // 3. Sự kiện đóng Popup
 if (cancelAiBtn) {
     cancelAiBtn.addEventListener('click', () => {
@@ -131,6 +123,7 @@ aiTimeBtns.forEach(btn => {
 // Logic chọn màu quân
 colorBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
+        // SỬA LỖI: Dùng e.currentTarget để đảm bảo lấy đúng nút (kể cả khi click vào icon bên trong)
         colorBtns.forEach(b => b.classList.remove('selected'));
         e.currentTarget.classList.add('selected');
         selectedColor = e.currentTarget.dataset.color;
@@ -199,6 +192,7 @@ function handleCancelMatchmaking() {
 }
 
 function getGameControlsHTML(isAiGame = false) {
+    // Nút Cầu hòa sẽ được ẩn bằng CSS nếu là game AI
     const aiButtons = isAiGame ? `
         <button id="takeBackBtn" class="btn-action">Đi lại</button>
     ` : '';
@@ -348,7 +342,15 @@ window.showGameOverPopup = function(result, reason) {
 }
 
 window.showGameControlsView = function(isAiGame = false) {
-    if (rightPanel) rightPanel.innerHTML = getGameControlsHTML(isAiGame);
+    if (rightPanel) {
+        rightPanel.innerHTML = getGameControlsHTML(isAiGame);
+        // Thêm class để CSS có thể ẩn nút cầu hòa
+        if (isAiGame) {
+            rightPanel.classList.add('ai-game-view');
+        } else {
+            rightPanel.classList.remove('ai-game-view');
+        }
+    }
 
     const chatSendBtn = document.getElementById('chatSendBtnEl');
     if (chatSendBtn && window.sendChat) chatSendBtn.addEventListener('click', window.sendChat);
@@ -441,6 +443,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const onlineModeBtn = event.target.closest('.mode[data-mode="online"]');
         if (onlineModeBtn) {
             showLobbyView();
+        }
+
+        // SỬA LỖI: Xử lý sự kiện click cho nút "Chơi với AI" bằng Event Delegation
+        const aiModeBtn = event.target.closest('.mode[data-mode="ai"]');
+        if (aiModeBtn) {
+            if (aiOverlay) {
+                aiOverlay.classList.remove('hidden');
+                aiOverlay.style.display = 'flex';
+            }
+            return;
         }
 
         // 2. Click "Back"

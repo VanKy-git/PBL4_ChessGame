@@ -135,6 +135,11 @@ function requestTakeBack() {
     console.log("requestTakeBack called. Checking conditions...");
     console.log(`isAiGame: ${isAiGame}, roomId: ${roomId}`);
     if (isAiGame && roomId) {
+        // Kiểm tra nếu bàn cờ đang ở trạng thái ban đầu
+        if (currentFEN === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+            showToast("Không thể đi lại ở trạng thái đầu bàn cờ.", "error");
+            return;
+        }
         console.log("Conditions met. Sending take_back_request...");
         sendMessage({ type: 'take_back_request', roomId: roomId });
     } else {
