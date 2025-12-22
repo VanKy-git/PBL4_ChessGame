@@ -17,29 +17,41 @@ function renderFriendsList(friends) {
         return;
     }
     friendsTabContent.innerHTML = friends.map(friend => {
-        // Chỉ cho phép mời nếu Online. Nếu đang In Game hoặc Offline thì disable
-        const isOnline = friend.friend_status === 'Online';
-        const btnText = isOnline ? "Mời đấu" : (friend.friend_status === 'In Game' ? "Đang chơi" : "Mời đấu");
-        
+        const friendStatus = friend.friend_status;
+        let actionButton;
+
+        if (friendStatus === 'In Game') {
+            actionButton = `
+                <button class="btn-action spectate-btn" data-id="${friend.friend_id}">
+                    Xem trận
+                </button>`;
+        } else {
+            const isOnline = friendStatus === 'Online';
+            actionButton = `
+                <button class="btn-action invite-btn" 
+                    id="btn-invite-${friend.friend_id}"
+                    data-id="${friend.friend_id}" 
+                    data-name="${friend.friend_name}" 
+                    ${!isOnline ? 'disabled' : ''}>
+                    ${isOnline ? "Mời đấu" : "Offline"}
+                </button>`;
+        }
+
         return `
-        <div class="friend-item" data-id="${friend.friend_id}">
-            <img src="${friend.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
-            <div class="friend-info">
-                <strong>${friend.friend_name}</strong>
-                <span class="status-badge ${isOnline ? 'online' : 'offline'}">
-                    ${friend.friend_status || 'Offline'}
-                </span>
+            <div class="friend-item" data-id="${friend.friend_id}">
+                <img src="${friend.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+                <div class="friend-info">
+                    <strong>${friend.friend_name}</strong>
+                    <span class="status-badge ${friendStatus === 'Online' || friendStatus === 'In Game' ? 'online' : 'offline'}">
+                        ${friendStatus || 'Offline'}
+                    </span>
+                </div>
+                ${actionButton}
             </div>
-            <button class="btn-action invite-btn" 
-                id="btn-invite-${friend.friend_id}"
-                data-id="${friend.friend_id}" 
-                data-name="${friend.friend_name}" 
-                ${!isOnline ? 'disabled' : ''}>
-                ${btnText}
-            </button>
-        </div>
-    `}).join("");
+        `;
+    }).join("");
 }
+
 
 function renderSearchResults(users) {
     friendsTabContent.innerHTML = `
@@ -160,6 +172,12 @@ if (friendsTabContent) {
             
             const invitePopup = document.getElementById('invite-popup');
             if(invitePopup) invitePopup.classList.remove('hidden');
+        }
+        // Spectate Game
+        else if (target.classList.contains('spectate-btn')) {
+            const friendId = target.dataset.id;
+            sendMessage({ type: 'spectate_game', friendId: parseInt(friendId) });
+            friendsPopup.style.display = 'none';
         }
     });
 }

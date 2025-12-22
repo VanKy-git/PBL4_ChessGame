@@ -262,13 +262,28 @@ function onRoomWatched(msg) {
 
     gameActive = true;
     window.showGameControlsView();
-    
-    // Disable controls for spectator
+
+    // Hide game controls for spectator
     const drawBtn = document.getElementById('drawRequestBtn');
     const resignBtn = document.getElementById('resignBtn');
-    if (drawBtn) drawBtn.disabled = true;
-    if (resignBtn) resignBtn.disabled = true;
-    
+    const takeBackBtn = document.querySelector('[onclick="requestTakeBack()"]');
+    if (drawBtn) drawBtn.style.display = 'none';
+    if (resignBtn) resignBtn.style.display = 'none';
+    if (takeBackBtn) takeBackBtn.style.display = 'none';
+
+    // Add a status message for spectators
+    const rightPanel = document.querySelector('aside.right-panel');
+    const oldStatus = document.getElementById('spectator-status');
+    if (oldStatus) oldStatus.remove();
+
+    const statusMessage = document.createElement('div');
+    statusMessage.id = 'spectator-status';
+    statusMessage.textContent = 'Bạn đang xem trận đấu';
+    statusMessage.style.cssText = 'text-align: center; padding: 10px; background: #1a1a1a; color: #ffc107; border-bottom: 1px solid #444;';
+    if (rightPanel) {
+        rightPanel.prepend(statusMessage);
+    }
+
     // Load history
     const moveListEl = document.getElementById('moveList');
     if (moveListEl) {
@@ -280,9 +295,9 @@ function onRoomWatched(msg) {
                     const nextTurn = fenParts[1]; // 'w' or 'b'
                     const movedColor = nextTurn === 'w' ? 'black' : 'white';
                     const pieceChar = movedColor === 'white' ? 'P' : 'p'; // Placeholder
-                    
-                    addMoveToHistory(window.coordToAlg(window.algToCoord(moveData.lastMove.from).r, window.algToCoord(moveData.lastMove.from).c), 
-                                     window.coordToAlg(window.algToCoord(moveData.lastMove.to).r, window.algToCoord(moveData.lastMove.to).c), 
+
+                    addMoveToHistory(window.coordToAlg(window.algToCoord(moveData.lastMove.from).r, window.algToCoord(moveData.lastMove.from).c),
+                                     window.coordToAlg(window.algToCoord(moveData.lastMove.to).r, window.algToCoord(moveData.lastMove.to).c),
                                      movedColor, pieceChar);
                 }
             });
@@ -304,7 +319,7 @@ function onRoomWatched(msg) {
 }
 
 function resetGameLocalState() {
-    console.log("Resetting local game state..."); // DEBUG
+    console.log("Resetting local game state...");
     gameActive = false;
     currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     yourColor = null;
@@ -316,8 +331,7 @@ function resetGameLocalState() {
     stopTimer();
     whiteTimeMs = 60000;
     blackTimeMs = 60000;
-    player1Info = null;
-    const capturedAreas = document.querySelectorAll('.captured-pieces'); // ✅ Xóa quân ăn được cũ
+    const capturedAreas = document.querySelectorAll('.captured-pieces');
     capturedAreas.forEach(area => area.innerHTML = '');
     updateTimerDisplay();
     const p1Bar = document.getElementById('player1Bar');
@@ -332,15 +346,26 @@ function resetGameLocalState() {
     isSpectator = false;
     isAiGame = false;
 
+    // Remove spectator status message if it exists
+    const spectatorStatus = document.getElementById('spectator-status');
+    if (spectatorStatus) spectatorStatus.remove();
+
+    // Restore button visibility
+    const drawBtn = document.getElementById('drawRequestBtn');
+    const resignBtn = document.getElementById('resignBtn');
+    const takeBackBtn = document.querySelector('[onclick="requestTakeBack()"]');
+    if (drawBtn) drawBtn.style.display = 'inline-block';
+    if (resignBtn) resignBtn.style.display = 'inline-block';
+    if (takeBackBtn) takeBackBtn.style.display = 'inline-block';
+
     const moveListEl = document.getElementById('moveList');
     if (moveListEl) moveListEl.innerHTML = '';
 
     const chatMessages = document.getElementById('chatMessagesEl');
     if (chatMessages) chatMessages.innerHTML = '';
 
-    // Reset hiển thị trạng thái (tùy chọn, có thể để onEndGame làm)
     updateStatus();
-    renderGame(); // Render lại bàn cờ ban đầu
+    renderGame();
     updateTimerDisplay();
 }
 
@@ -630,46 +655,45 @@ function onChat(msg) {
 }
 
 function onEndGame(msg) {
-    gameActive = false; // Dừng game
-    stopTimer(); // Dừng đồng hồ
+    if (isSpectator) {
+        alert("Ván đấu đã kết thúc.");
+        resetGameLocalState();
+        if (window.showModesView) {
+            window.showModesView();
+        } else {
+            console.warn("window.showModesView() not found. Reloading page as a fallback.");
+            window.location.reload();
+        }
+        return;
+    }
 
-    const winner = msg.winner; // "white", "black", "draw"
-    const reason = msg.reason || null; // Lý do từ server
+    gameActive = false;
+    stopTimer();
 
-    let result = 'draw'; // Mặc định là hòa
+    const winner = msg.winner;
+    const reason = msg.reason || null;
+
+    let result = 'draw';
     if (winner === yourColor) {
         result = 'win';
     } else if (winner !== 'draw') {
         result = 'loss';
     }
-    
-    if (isSpectator) {
-        result = 'draw'; // Spectators don't win or lose
-        if (winner === 'white') result = 'Trắng thắng';
-        else if (winner === 'black') result = 'Đen thắng';
-        else result = 'Hòa';
-    }
 
-    // Gọi hàm hiển thị popup từ Home_page.js
     if (window.showGameOverPopup) {
         window.showGameOverPopup(result, reason);
         const rematchBtn = document.getElementById('gameOverRematchBtn');
-        if(rematchBtn) {
-            if (isSpectator) {
-                rematchBtn.style.display = 'none'; // Hide rematch for spectators
-            } else {
-                rematchBtn.style.display = 'inline-block';
-                rematchBtn.disabled = false;
-                rematchBtn.textContent = "Tái đấu";
-                rematchBtn.classList.remove('rematch-offer-pulse');
-            }
+        if (rematchBtn) {
+            rematchBtn.style.display = 'inline-block';
+            rematchBtn.disabled = false;
+            rematchBtn.textContent = "Tái đấu";
+            rematchBtn.classList.remove('rematch-offer-pulse');
         }
     } else {
-        // Fallback nếu hàm chưa sẵn sàng
         alert(`Kết quả: ${result} - Lý do: ${reason || 'Kết thúc trận'}`);
     }
+
     if (statusEl) statusEl.textContent = "Trận đấu đã kết thúc.";
-    // resetGameLocalState();
 }
 
 function addMoveToHistory(fromAlg, toAlg, movedColor, pieceChar) {

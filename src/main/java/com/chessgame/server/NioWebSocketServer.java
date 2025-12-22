@@ -498,6 +498,9 @@ public class NioWebSocketServer implements Runnable {
                 case "invite_response":
                     handleInviteResponse(player, data);
                     break;
+                case "spectate_game":
+                    handleSpectateGame(player, data);
+                    break;
                 case "pong":
                     break;
                 default:
@@ -914,6 +917,48 @@ public class NioWebSocketServer implements Runnable {
         if (p2 != null) watchData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
         
         sendMessage(player.getConnection(), watchData);
+    }
+
+    private void handleSpectateGame(Player spectator, Map<String, Object> data) {
+        if (spectator == null) return;
+
+        Object friendIdObj = data.get("friendId");
+        if (friendIdObj == null) {
+            sendErrorMessage(spectator.getConnection(), "Friend ID is required.");
+            return;
+        }
+
+        String friendId = String.valueOf(((Number) friendIdObj).intValue());
+        Player friend = getPlayerById(friendId);
+
+        if (friend == null) {
+            sendErrorMessage(spectator.getConnection(), "Friend is not online or does not exist.");
+            return;
+        }
+
+        GameRoom room = findRoomByPlayer(friend);
+        if (room == null || !"playing".equals(room.getStatus())) {
+            sendErrorMessage(spectator.getConnection(), "Friend is not currently in a game.");
+            return;
+        }
+
+        room.addSpectator(spectator);
+
+        Map<String, Object> watchData = new HashMap<>();
+        watchData.put("type", "room_watched");
+        watchData.put("roomId", room.getRoomId());
+        watchData.put("gameState", room.getValidator().toFen());
+        watchData.put("currentTurn", room.getCurrentTurn());
+        watchData.put("whiteTime", room.getWhiteTimeMs());
+        watchData.put("blackTime", room.getBlackTimeMs());
+        watchData.put("moveHistory", room.getMoveHistory());
+
+        Player p1 = room.getPlayerByColor("white");
+        Player p2 = room.getPlayerByColor("black");
+        if (p1 != null) watchData.put("playerWhite", Map.of("id", p1.getPlayerId(), "name", p1.getPlayerName()));
+        if (p2 != null) watchData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
+
+        sendMessage(spectator.getConnection(), watchData);
     }
 
     private void handleLeaveRoom(Player player, Map<String, Object> data) {
