@@ -1,59 +1,81 @@
-import { connectMainSocket, sendMessage, registerHandler } from './Connect_websocket.js';
+document.addEventListener('DOMContentLoaded', () => {
+    const leaderboardLink = document.getElementById('leaderboardLink');
+    const leaderboardPopup = document.getElementById('leaderboardPopup');
+    const leaderboardClose = document.getElementById('leaderboardClose');
+    const leaderboardContainer = document.getElementById('leaderboardContainer');
+    const API_URL = 'http://localhost:8910';
 
-// GIẢ ĐỊNH: Các phần tử này có ID:
-const leaderboardLink = document.getElementById('leaderboardLink');
-const leaderboardPopup = document.getElementById('leaderboardPopup');
-const leaderboardContainer = document.getElementById('leaderboardContainer');
-const leaderboardClose = document.getElementById('leaderboardClose');
+    leaderboardLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        leaderboardPopup.style.display = 'flex';
+        await fetchLeaderboard();
+    });
 
-// --- 1. Hàm Render ---
+    leaderboardClose.addEventListener('click', () => {
+        leaderboardPopup.style.display = 'none';
+    });
 
-function renderLeaderboard(list) {
-    if (!list || list.length === 0) {
-        leaderboardContainer.innerHTML = "<p>Bảng xếp hạng hiện đang trống.</p>";
-        return;
+    async function fetchLeaderboard() {
+        leaderboardContainer.innerHTML = '<div class="loading-spinner"></div>';
+        try {
+            const response = await fetch(`${API_URL}/api/leaderboard`);
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const result = await response.json();
+            if (result.success) {
+                renderLeaderboard(result.data);
+            } else {
+                leaderboardContainer.innerHTML = `<p class="error-message">Lỗi: ${result.error}</p>`;
+            }
+        } catch (error) {
+            leaderboardContainer.innerHTML = `<p class="error-message">Không thể tải bảng xếp hạng. Vui lòng thử lại sau.</p>`;
+            console.error('Error fetching leaderboard:', error);
+        }
     }
 
-    leaderboardContainer.innerHTML = list.map((player, index) => {
-        const rankColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'transparent';
-        
-        return `
-            <div class="leaderboard-item" style="
-              background:rgba(0, 0, 0, 0.6);padding:12px;border-radius:6px;margin:10px 0;
-              display: flex; justify-content: space-between; align-items: center;
-              color: #eee; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-              border-left: 4px solid ${rankColor};
-            ">
-                <span class="rank" style="font-weight: bold; width: 30px;">#${index + 1}</span>
-                <strong style="flex-grow: 1;">${player.playerName}</strong> 
-                <span class="rating" style="color: #88ff88; font-weight: bold;">ELO: ${player.elo}</span>
-                <span class="wins" style="margin-left: 15px; color: #bbb;">${player.wins} Thắng</span>
-            </div>
+    function renderLeaderboard(users) {
+        if (!users || users.length === 0) {
+            leaderboardContainer.innerHTML = '<p>Chưa có ai trên bảng xếp hạng.</p>';
+            return;
+        }
+
+        let tableHtml = `
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Hạng</th>
+                        <th>Người chơi</th>
+                        <th>Elo</th>
+                    </tr>
+                </thead>
+                <tbody>
         `;
-    }).join("");
-}
 
-// --- 2. Đăng ký Handler ---
+        users.forEach((user, index) => {
+            const rank = index + 1;
+            let rankClass = '';
+            if (rank === 1) rankClass = 'rank-gold';
+            if (rank === 2) rankClass = 'rank-silver';
+            if (rank === 3) rankClass = 'rank-bronze';
 
-function handleLeaderboardData(data) {
-    renderLeaderboard(data.leaderboard);
-}
+            tableHtml += `
+                <tr>
+                    <td class="rank-cell ${rankClass}">${rank}</td>
+                    <td class="player-cell">
+                        <img src="${user.avatarUrl || '../../PBL4_imgs/icon/logo.png'}" alt="avatar" class="player-avatar-small">
+                        <span>${user.userName}</span>
+                    </td>
+                    <td class="elo-cell">${user.eloRating}</td>
+                </tr>
+            `;
+        });
 
-registerHandler("leaderboard_data", handleLeaderboardData);
+        tableHtml += `
+                </tbody>
+            </table>
+        `;
 
-// --- 3. Listener ---
-
-if (leaderboardLink) {
-    leaderboardLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        leaderboardPopup.style.display = "flex";
-        leaderboardContainer.innerHTML = "Đang tải...";
-        
-        connectMainSocket();
-        sendMessage({ type: "get_leaderboard" });
-    });
-
-    leaderboardClose.addEventListener("click", () => {
-        leaderboardPopup.style.display = "none";
-    });
-}
+        leaderboardContainer.innerHTML = tableHtml;
+    }
+});

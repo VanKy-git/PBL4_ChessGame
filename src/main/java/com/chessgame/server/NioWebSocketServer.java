@@ -1,7 +1,9 @@
 package com.chessgame.server;
 
+import com.database.server.DAO.matchesDAO;
 import com.database.server.DAO.userDAO;
 import com.database.server.Entity.friends;
+import com.database.server.Entity.matches;
 import com.database.server.Entity.user;
 import com.database.server.Service.friendsService;
 import com.database.server.Service.userService;
@@ -11,6 +13,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 
@@ -26,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public class NioWebSocketServer implements Runnable {
     private final int port;
@@ -961,8 +965,6 @@ public class NioWebSocketServer implements Runnable {
         
         room.addMoveToHistory(fenData);
 
-        notifyRoomPlayers(room, "move_result", fenData);
-
         if (moveResult.winner != null) {
             notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
             room.setStatus("finished");
@@ -1159,8 +1161,29 @@ public class NioWebSocketServer implements Runnable {
     }
 
     private void handleGetHistory(Player player, Map<String, Object> data) {
-        List<Map<String, Object>> historyList = new ArrayList<>();
-        sendMessage(player.getConnection(), Map.of("type", "history_list", "history", historyList));
+        if (player == null || player.getPlayerId().startsWith("guest_")) {
+            sendMessage(player.getConnection(), Map.of("type", "history_list", "history", new ArrayList<>()));
+            return;
+        }
+
+        EntityManager em = emf.createEntityManager();
+        try {
+            matchesDAO dao = new matchesDAO(em);
+            List<matches> userMatches = dao.getMatchesByUser(Integer.parseInt(player.getPlayerId()));
+
+            List<Map<String, Object>> historyList = userMatches.stream().map(match -> {
+                Map<String, Object> matchData = new HashMap<>();
+                matchData.put("playerX", match.getPlayer1().getUserName());
+                matchData.put("playerO", match.getPlayer2().getUserName());
+                matchData.put("winner", match.getWinner() != null ? match.getWinner().getUserName() : "Hòa");
+                matchData.put("date", match.getEndTime() != null ? match.getEndTime().toString() : match.getStartTime().toString());
+                return matchData;
+            }).collect(Collectors.toList());
+
+            sendMessage(player.getConnection(), Map.of("type", "history_list", "history", historyList));
+        } finally {
+            em.close();
+        }
     }
 
     private GameRoom findRoomByPlayer(Player player) {

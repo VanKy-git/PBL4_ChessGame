@@ -488,4 +488,15 @@ public class userService {
             em.close();
         }
     }
+
+    // ========== BẢNG XẾP HẠNG ==========
+    public List<user> getLeaderboard() {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em);
+        try {
+            return dao.getTopUsersByElo(20); // Lấy top 20 người chơi
+        } finally {
+            em.close();
+        }
+    }
 }
