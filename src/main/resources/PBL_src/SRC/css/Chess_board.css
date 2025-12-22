@@ -1,3 +1,8 @@
+:root {
+    --white-square-bg: #f0d9b5;
+    --black-square-bg: #b58863;
+}
+
 .board {
     width: 480px;
     height: 480px;
@@ -18,11 +23,11 @@
 }
 
 .white {
-    background-color: #f0d9b5;
+    background-color: var(--white-square-bg);
 }
 
 .black {
-    background-color: #b58863;
+    background-color: var(--black-square-bg);
 }
 
 /* Highlight ô được chọn */
@@ -82,8 +87,8 @@ img:active {
     z-index: 5; /* Nằm dưới quân cờ */
 }
 
-.white .coordinate { color: #b58863; }
-.black .coordinate { color: #f0d9b5; }
+.white .coordinate { color: var(--black-square-bg); }
+.black .coordinate { color: var(--white-square-bg); }
 
 .rank {
     top: 2px;
