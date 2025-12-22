@@ -303,6 +303,8 @@ public class userController {
             Map<String, Object> request = gson.fromJson(requestJson, Map.class);
             String username = (String) request.get("username");
             String password = (String) request.get("password");
+
+            // File trên trả về Map (loginResult) chứ không phải đối tượng User thuần
             Map<String, Object> loginResult = userService.login(username, password);
             return successResponse(loginResult);
         }
@@ -340,9 +342,19 @@ public class userController {
                 return errorResponse("ID token is required");
             }
 
-            user newUser = userService.registerWithGoogle(idToken); // có thể ném exception khi email đã tồn tại
+            // Gọi service để đăng ký
+            user newUser = userService.registerWithGoogle(idToken);
 
-            return successResponse(newUser);
+            // Tạo Map response đầy đủ thông tin để trả về client
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("userId", newUser.getUserId());
+            responseData.put("username", newUser.getUserName());
+            responseData.put("email", newUser.getEmail());
+            responseData.put("avatar", newUser.getAvatarUrl()); // Hoặc newUser.getAvatarUrl() tùy entity của bạn
+            responseData.put("status", newUser.getStatus());
+            responseData.put("elo", newUser.getEloRating()); // Nếu có trường điểm ELO
+
+            return successResponse(responseData);
 
         } catch (RuntimeException e) {
             return errorResponse(e.getMessage());
@@ -360,14 +372,23 @@ public class userController {
                 return errorResponse("ID token is required");
             }
 
+            // Gọi service để tìm user
             user existingUser = userService.loginWithGoogle(idToken);
 
             if (existingUser == null) {
-                // Không tìm thấy -> yêu cầu register
-                return errorResponse("User not found. Please register with Google first.");
+                return errorResponse("Tài khoản không tồn tại. Vui lòng đăng ký trước!");
             }
 
-            return successResponse(existingUser);
+            // Tạo Map response đầy đủ thông tin (Giống hệt register)
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("userId", existingUser.getUserId());
+            responseData.put("username", existingUser.getUserName());
+            responseData.put("email", existingUser.getEmail());
+            responseData.put("avatar", existingUser.getAvatarUrl()); // Hoặc existingUser.getAvatarUrl()
+            responseData.put("status", existingUser.getStatus());
+            responseData.put("elo", existingUser.getEloRating());
+
+            return successResponse(responseData);
 
         } catch (RuntimeException e) {
             return errorResponse(e.getMessage());
@@ -487,15 +508,59 @@ public class userController {
     public String updateStatus(String requestJson) {
         try {
             Map<String, Object> request = gson.fromJson(requestJson, Map.class);
-            int userId = ((Number) request.get("userId")).intValue();
-            String status = (String) request.get("status");
+            if (!request.containsKey("userId")) return errorResponse("Thiếu tham số userId!");
+            if (!request.containsKey("status")) return errorResponse("Thiếu tham số status!");
 
+            // Logic mới: Xử lý trường hợp Gson parse số thành Double
+            Object userIdObj = request.get("userId");
+            int userId;
+            if (userIdObj instanceof Double) userId = ((Double) userIdObj).intValue();
+            else userId = Integer.parseInt(userIdObj.toString());
+
+            String status = (String) request.get("status");
             boolean success = userService.updateStatus(userId, status);
+
+            if (success) return successResponse("Cập nhật trạng thái thành công");
+            else return errorResponse("Cập nhật trạng thái thất bại - User không tồn tại");
+
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
+    // Hàm cập nhật thông tin tài khoản (Username, Email, Avatar)
+    public String updateAccount(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            // Xử lý parse ID an toàn hơn
+            int userId = Integer.parseInt(request.get("playerId").toString());
+            String username = (String) request.get("username");
+            String email = (String) request.get("email");
+            String avatarUrl = (String) request.get("avatarUrl");
+
+            boolean success = userService.updateAccount(userId, username, email, avatarUrl);
             if (success) {
-                return successResponse("Cập nhật trạng thái thành công");
+                user updatedUser = userService.getUserById(userId);
+                return successResponse(updatedUser);
             } else {
-                return errorResponse("Cập nhật trạng thái thất bại");
+                return errorResponse("Cập nhật tài khoản thất bại");
             }
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
+    // Hàm đổi mật khẩu
+    public String changePassword(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            int userId = Integer.parseInt(request.get("playerId").toString());
+            String oldPassword = (String) request.get("oldPassword");
+            String newPassword = (String) request.get("newPassword");
+
+            boolean success = userService.changePassword(userId, oldPassword, newPassword);
+            if (success) return successResponse("Đổi mật khẩu thành công");
+            else return errorResponse("Đổi mật khẩu thất bại");
         } catch (Exception e) {
             return errorResponse("Lỗi: " + e.getMessage());
         }
@@ -531,6 +596,11 @@ public class userController {
                 // Cập nhật
                 case "updateStatus":
                     return updateStatus(requestJson);
+
+                case "updateAccount":
+                    return updateAccount(requestJson);
+                case "changePassword":
+                    return changePassword(requestJson);
 
                 default:
                     return errorResponse("Action không hợp lệ: " + action);

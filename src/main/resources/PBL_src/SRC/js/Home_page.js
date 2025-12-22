@@ -4,6 +4,152 @@ import {connectMainSocket, sendMessage} from "./Connect_websocket.js";
 // Lấy playerName từ localStorage
 let playerName = localStorage.getItem("playerName") || "Guest";
 
+// === SIDEBAR USER INFO + LOGOUT ===
+async function loadSidebarUserInfo() {
+    const usernameEl = document.getElementById('sidebarUsername');
+    const playerIdEl = document.getElementById('sidebarPlayerId');
+    const avatarEl   = document.getElementById('sidebarAvatar');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (!usernameEl || !playerIdEl || !avatarEl) {
+        setTimeout(loadSidebarUserInfo, 100);
+        return;
+    }
+
+    const playerId = localStorage.getItem("playerId");
+    const token    = localStorage.getItem("token");
+
+    // NẾU KHÔNG CÓ TOKEN HOẶC PLAYERID → GUEST
+    if (!playerId || !token) {
+        usernameEl.textContent = "Guest";
+        playerIdEl.textContent = "ID: #0000";
+        avatarEl.src = "../../PBL4_imgs/icon/user.png";
+        return;
+    }
+
+    // BẮT BUỘC GỌI API MỖI LẦN ĐỂ LẤY DỮ LIỆU MỚI NHẤT TỪ DB
+    try {
+        const res = await fetch(`http://localhost:8910/api/account?playerId=${playerId}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!res.ok) throw new Error("Token lỗi hoặc hết hạn");
+
+        const json = await res.json();
+        if (json.success && json.data) {
+            const u = json.data;
+            // HIỆN ĐÚNG DỮ LIỆU MỚI NHẤT TỪ DB
+            usernameEl.textContent = u.userName || "Guest";
+            playerIdEl.textContent = `ID: #${u.playerId || playerId}`;
+            if (u.avatarUrl) {
+                avatarEl.src = u.avatarUrl;
+            }
+
+            // CẬP NHẬT LẠI localStorage ĐỂ LẦN SAU NHANH HƠN
+            localStorage.setItem("playerName", u.username);
+            if (u.avatarUrl) localStorage.setItem("avatarUrl", u.avatarUrl);
+        }
+    } catch (err) {
+        console.warn("Không load được từ DB → dùng cache cũ:", err);
+        // Nếu API lỗi → mới dùng cache
+        const cached = localStorage.getItem("playerName");
+        usernameEl.textContent = cached ? cached + " (offline)" : "Guest";
+        playerIdEl.textContent = `ID: #${playerId}`;
+    }
+}
+
+async function logout() {
+    // HIỆN POPUP XÁC NHẬN
+    const confirmed = await showConfirmationPopup(
+        "Xác nhận đăng xuất",
+        "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?"
+    );
+
+    if (!confirmed) return;
+
+    const playerId = localStorage.getItem("playerId");
+    const token = localStorage.getItem("token");
+
+    console.log("🔍 [LOGOUT] Starting logout process...");
+    console.log("   Player ID:", playerId);
+    console.log("   Token exists:", !!token);
+
+    // ✅ CẬP NHẬT STATUS THÀNH "OFFLINE"
+    if (playerId) {
+        try {
+            console.log("🔍 [LOGOUT] Calling updateStatus API...");
+
+            const requestBody = {
+                userId: parseInt(playerId),
+                status: "Offline"
+            };
+
+            console.log("📤 [LOGOUT] Request body:", JSON.stringify(requestBody));
+
+            const response = await fetch(`http://localhost:8910/api/updateStatus`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": token ? `Bearer ${token}` : ""
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            console.log("📥 [LOGOUT] Response status:", response.status);
+
+            // ✅ Kiểm tra response có OK không
+            if (!response.ok) {
+                console.error("❌ [LOGOUT] HTTP error:", response.status, response.statusText);
+            }
+
+            const result = await response.json();
+            console.log("📥 [LOGOUT] Response data:", result);
+
+            if (result.success) {
+                console.log("✅ [LOGOUT] Status updated to Offline successfully");
+            } else {
+                console.error("❌ [LOGOUT] Failed to update status:", result.message || result.error);
+                // Vẫn tiếp tục logout dù API lỗi
+            }
+
+        } catch (e) {
+            console.error("❌ [LOGOUT] Error calling updateStatus API:", e);
+            // Vẫn tiếp tục logout dù API lỗi
+        }
+    } else {
+        console.warn("⚠️ [LOGOUT] No playerId found, skipping status update");
+    }
+
+    // ✅ XÓA SẠCH DỮ LIỆU
+    console.log("🔍 [LOGOUT] Clearing localStorage...");
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("playerId");
+    localStorage.removeItem("playerName");
+    localStorage.removeItem("avatarUrl");
+    localStorage.removeItem("userData");
+    localStorage.removeItem("googleAuthMode");
+
+    console.log("✅ [LOGOUT] LocalStorage cleared");
+
+    // ✅ Reset UI
+    const usernameEl = document.getElementById('sidebarUsername');
+    const playerIdEl = document.getElementById('sidebarPlayerId');
+    const avatarEl = document.getElementById('sidebarAvatar');
+
+    if (usernameEl) usernameEl.textContent = "Guest";
+    if (playerIdEl) playerIdEl.textContent = "ID: #0000";
+    if (avatarEl) avatarEl.src = "../../PBL4_imgs/icon/user.png";
+
+    console.log("✅ [LOGOUT] UI reset to Guest");
+
+    // ✅ CHỜ 500MS ĐỂ ĐẢM BẢO API ĐÃ XONG
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    console.log("🔍 [LOGOUT] Redirecting to login page...");
+    window.location.href = "../html/MainLogin.html";
+}
+
 // Các hàm đổi Theme (Giữ nguyên)
 const boardEl = document.getElementById('chessBoard');
 
@@ -44,12 +190,12 @@ function getLobbyHTML() {
         <button id="backToModes" class="btn-back">←</button>
         <div style="font-weight:700; font-size:18px; text-align:center; margin-bottom:10px;">Chơi trực tuyến</div>
         <div class="muted" style="text-align:center; margin-bottom:20px;">Kết nối với đối thủ khác</div>
-        
+
         <button id="createRoomBtn" class="btnn" >Tạo phòng</button>
         <input id="joinRoomIdInput" class="input" placeholder="Nhập mã phòng...">
         <button id="joinRoomBtn" class="btnn" >Tham gia phòng</button>
         <button id="matchmakingBtn" class="btnn" >Ghép trận ngẫu nhiên</button>
-        
+
         <div id="lobbyStatus" class="status-lobby">Đang chờ kết nối...</div>
     </div>`;
 }
@@ -320,6 +466,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const playerId = localStorage.getItem("playerId");
     connectMainSocket(token, playerId);
 
+    loadSidebarUserInfo();
+
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {
 
@@ -415,4 +563,24 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
     });
+    const logoutButton = document.getElementById('logoutBtn');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', logout);
+    }
+    // LẮNG NGHE SỰ KIỆN CẬP NHẬT AVATAR TỪ BẤT KỲ TRANG NÀO (Account_setting.js)
+    window.addEventListener('userInfoUpdated', (e) => {
+        const { username, avatarUrl } = e.detail || {};
+
+        if (username) {
+            const el = document.getElementById('sidebarUsername');
+            if (el) el.textContent = username;
+            playerName = username; // cập nhật biến toàn cục luôn
+        }
+
+        if (avatarUrl) {
+            const img = document.getElementById('sidebarAvatar');
+            if (img) img.src = avatarUrl + '?t=' + Date.now();
+        }
+    });
 });
+
