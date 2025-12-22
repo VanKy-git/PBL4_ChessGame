@@ -1186,3 +1186,63 @@ border: 1px solid rgba(255, 165, 0, 0.3);
     text-align: center;
     padding: 20px;
 }
+
+/* Account Popup Styles */
+.account-popup-content {
+    width: 450px; /* Điều chỉnh chiều rộng phù hợp */
+    max-width: 90vw;
+    text-align: left; /* Căn trái nội dung bên trong */
+}
+
+.account-info-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.account-info-section p {
+    margin: 8px 0;
+    font-size: 1.1em;
+    color: #e6eef8;
+}
+
+.account-info-section strong {
+    color: #ffd27f;
+    margin-right: 5px;
+}
+
+.account-avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #ffd27f;
+    margin: 0 auto 15px auto; /* Căn giữa avatar */
+    display: block; /* Để margin auto hoạt động */
+}
+
+.account-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.account-actions .btn-action {
+    width: 100%; /* Nút chiếm toàn bộ chiều rộng */
+    padding: 12px;
+    font-size: 1em;
+}
+
+/* Change Password Popup */
+.form-group {
+    margin-bottom: 15px;
+}
+.form-group .input {
+    width: 100%;
+    background-color: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+}

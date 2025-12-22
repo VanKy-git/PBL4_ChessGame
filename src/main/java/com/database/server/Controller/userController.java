@@ -265,6 +265,28 @@ public class userController {
         }
     }
 
+    // ========================= ĐỔI MẬT KHẨU =========================
+    public String changePassword(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            int userId = ((Number) request.get("userId")).intValue();
+            String oldPassword = (String) request.get("oldPassword");
+            String newPassword = (String) request.get("newPassword");
+
+            boolean success = userService.changePassword(userId, oldPassword, newPassword);
+            if (success) {
+                return successResponse("Đổi mật khẩu thành công");
+            } else {
+                // This case might not be reached if service throws exception
+                return errorResponse("Đổi mật khẩu thất bại");
+            }
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
     // ========================= ROUTE HANDLER =========================
 
     public String handleRequest(String action, String requestJson) {
@@ -299,6 +321,10 @@ public class userController {
                 // Bảng xếp hạng
                 case "getLeaderboard":
                     return getLeaderboard();
+
+                // Đổi mật khẩu
+                case "changePassword":
+                    return changePassword(requestJson);
 
                 default:
                     return errorResponse("Action không hợp lệ: " + action);
