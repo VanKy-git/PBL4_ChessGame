@@ -1,193 +1,113 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const accountLink = document.getElementById('account-link');
-    const accountPopup = document.getElementById('accountPopup');
-    const accountClose = document.getElementById('accountClose');
-    const accountContainer = document.getElementById('accountContainer');
-    
-    // Change Password Elements
-    const changePasswordPopup = document.getElementById('changePasswordPopup');
-    const submitChangePasswordBtn = document.getElementById('submitChangePasswordBtn');
-    const cancelChangePasswordBtn = document.getElementById('cancelChangePasswordBtn');
-    const oldPasswordInput = document.getElementById('oldPassword');
-    const newPasswordInput = document.getElementById('newPassword');
-    const confirmNewPasswordInput = document.getElementById('confirmNewPassword');
+// ========== CHỨC NĂNG LOAD GIAO DIỆN TÀI KHOẢN ==========
+const accountLink = document.getElementById("account-link");
+const centerContent = document.querySelector(".center");
 
-    const API_URL = 'http://localhost:8910';
+if (accountLink && centerContent) {
+  console.log('Tìm thấy #account-link và .center');
+  // Lưu nội dung bàn cờ gốc
+  const originalBoardContent = centerContent.innerHTML;
 
-    if (accountLink) {
-        accountLink.addEventListener('click', async (e) => {
-            e.preventDefault();
-            accountPopup.style.display = 'flex';
-            await fetchAndRenderAccountInfo();
-        });
-    }
-
-    if (accountClose) {
-        accountClose.addEventListener('click', () => {
-            accountPopup.style.display = 'none';
-        });
-    }
-
-    // --- Change Password Logic ---
-    if (cancelChangePasswordBtn) {
-        cancelChangePasswordBtn.addEventListener('click', () => {
-            changePasswordPopup.style.display = 'none';
-            clearPasswordInputs();
-        });
-    }
-
-    if (submitChangePasswordBtn) {
-        submitChangePasswordBtn.addEventListener('click', async () => {
-            const oldPassword = oldPasswordInput.value;
-            const newPassword = newPasswordInput.value;
-            const confirmNewPassword = confirmNewPasswordInput.value;
-
-            if (!oldPassword || !newPassword || !confirmNewPassword) {
-                alert("Vui lòng nhập đầy đủ thông tin.");
-                return;
-            }
-
-            if (newPassword !== confirmNewPassword) {
-                alert("Mật khẩu mới không khớp.");
-                return;
-            }
-            
-            if (newPassword.length < 6) {
-                alert("Mật khẩu mới phải có ít nhất 6 ký tự.");
-                return;
-            }
-
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`${API_URL}/api/user/change-password`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        oldPassword: oldPassword,
-                        newPassword: newPassword
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    alert("Đổi mật khẩu thành công!");
-                    changePasswordPopup.style.display = 'none';
-                    clearPasswordInputs();
-                } else {
-                    alert("Lỗi: " + (result.error || "Đổi mật khẩu thất bại."));
-                }
-            } catch (error) {
-                console.error("Error changing password:", error);
-                alert("Đã xảy ra lỗi khi đổi mật khẩu.");
-            }
-        });
-    }
-
-    function clearPasswordInputs() {
-        oldPasswordInput.value = '';
-        newPasswordInput.value = '';
-        confirmNewPasswordInput.value = '';
-    }
-
-    async function fetchAndRenderAccountInfo() {
-        accountContainer.innerHTML = '<div class="loading-spinner"></div>';
-        const token = localStorage.getItem('token');
-        const playerName = localStorage.getItem('playerName');
-        const playerId = localStorage.getItem('playerId');
-        const isGuest = !playerId || playerId.startsWith('guest_');
-
-        if (isGuest) {
-            renderGuestInfo(playerName);
-            return;
-        }
-
-        if (!token) {
-            renderGuestInfo(playerName); // Fallback for safety
-            return;
-        }
-
-        try {
-            const response = await fetch(`${API_URL}/api/user/me`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                if (response.status === 401) {
-                    // Token invalid, logout
-                    logout();
-                }
-                throw new Error('Failed to fetch user data');
-            }
-
-            const result = await response.json();
-            if (result.success) {
-                renderUserInfo(result.data);
-            } else {
-                accountContainer.innerHTML = `<p class="error-message">Lỗi: ${result.error}</p>`;
-            }
-
-        } catch (error) {
-            console.error('Error fetching account info:', error);
-            accountContainer.innerHTML = `<p class="error-message">Không thể tải thông tin tài khoản.</p>`;
-        }
-    }
-
-    function renderGuestInfo(playerName) {
-        accountContainer.innerHTML = `
-            <div class="account-info-section">
-                <p><strong>Tên:</strong> ${playerName || 'Guest'}</p>
-                <p>Bạn đang chơi với tư cách khách.</p>
-            </div>
-            <div class="account-actions">
-                <button id="logoutBtn" class="btn-action btn-danger">Đăng xuất</button>
-            </div>
-        `;
-        addLogoutListener();
-    }
-
-    function renderUserInfo(user) {
-        accountContainer.innerHTML = `
-            <img src="${user.avatarUrl || '../../PBL4_imgs/icon/logo.png'}" alt="Avatar" class="account-avatar-large">
-            <div class="account-info-section">
-                <p><strong>ID:</strong> ${user.userId}</p>
-                <p><strong>Tên người dùng:</strong> ${user.userName}</p>
-                <p><strong>Email:</strong> ${user.email || 'Chưa cập nhật'}</p>
-                <p><strong>Elo:</strong> ${user.eloRating}</p>
-            </div>
-            <div class="account-actions">
-                <button id="changePasswordBtn" class="btn-action">Đổi mật khẩu</button>
-                <button id="logoutBtn" class="btn-action btn-danger">Đăng xuất</button>
-            </div>
-        `;
-        addLogoutListener();
+  // Hàm load nội dung tài khoản
+  async function loadAccountSettings() {
+    try {
+      console.log('Đang load Account_setting.html...');
+      const response = await fetch('Account_setting.html');
+      if (!response.ok) throw new Error('Không thể load trang tài khoản');
+      
+      const html = await response.text();
+      console.log('Đã load thành công!');
+      
+      // Tạo một div tạm để parse HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      
+      // Lấy nội dung body hoặc phần settings-page
+      const accountContent = tempDiv.querySelector('.settings-page');
+      
+      if (accountContent) {
+        // Thay thế nội dung center
+        centerContent.innerHTML = accountContent.outerHTML;
+        centerContent.classList.add('account-view');
         
-        const changePasswordBtn = document.getElementById('changePasswordBtn');
-        if(changePasswordBtn) {
-            changePasswordBtn.addEventListener('click', () => {
-                // Ẩn popup tài khoản, hiện popup đổi mật khẩu
-                // accountPopup.style.display = 'none'; // Tùy chọn: có thể giữ popup tài khoản ở dưới
-                changePasswordPopup.style.display = 'flex';
-            });
+        // Load CSS cho account settings nếu chưa có
+        if (!document.querySelector('link[href*="../css/Account_setting.css"]')) {
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = '../css/Account_setting.css';
+          document.head.appendChild(link);
         }
-    }
-
-    function addLogoutListener() {
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', logout);
+        
+        // Gắn sự kiện cho nút "Quay lại"
+        const cancelBtn = centerContent.querySelector('.cancel');
+        if (cancelBtn) {
+          cancelBtn.addEventListener('click', showBoard);
         }
+        
+        console.log('Hiển thị tài khoản thành công!');
+      } else {
+        throw new Error('Không tìm thấy .settings-page');
+      }
+      
+    } catch (error) {
+      console.error('Lỗi khi load trang tài khoản:', error);
+      // Fallback: hiển thị nội dung trực tiếp
+      centerContent.innerHTML = `
+        <div class="settings-page">
+          <h1 class="title">Cài Đặt Tài Khoản</h1>
+          <div class="account-section">
+            <div class="avatar">
+              <img src="../../PBL4_imgs/icon/man.png" alt="Avatar">
+              <button class="btn change-avatar">Đổi ảnh</button>
+            </div>
+            <div id="id_player">ID:#1234</div>
+            <label>Tên người chơi</label>
+            <input type="text" value="Tên người chơi">
+            <label>Email</label>
+            <input type="email" value="abc@email.com">
+            <label>Đổi mật khẩu</label>
+            <input type="password" placeholder="Nhập mật khẩu mới">
+            <div class="actions">
+              <button class="btn save">Lưu thay đổi</button>
+              <button class="btn cancel">Quay lại</button>
+            </div>
+          </div>
+        </div>
+      `;
+      centerContent.classList.add('account-view');
+      
+      // Load CSS
+      if (!document.querySelector('link[href*="Account_setting.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '../css/Account_setting.css';
+        document.head.appendChild(link);
+      }
+      
+      // Gắn sự kiện cho nút Quay lại trong fallback
+      const cancelBtn = centerContent.querySelector('.cancel');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', showBoard);
+      }
     }
+  }
 
-    function logout() {
-        localStorage.removeItem('token');
-        localStorage.removeItem('playerName');
-        localStorage.removeItem('playerId');
-        window.location.href = 'MainLogin.html';
-    }
-});
+  // Hàm hiển thị bàn cờ
+  function showBoard() {
+    centerContent.innerHTML = originalBoardContent;
+    centerContent.classList.remove('account-view');
+    // Áp dụng lại theme sau khi load lại bàn cờ
+    applyTheme(currentTheme);
+    console.log('Đã quay lại bàn cờ!');
+  }
+
+  // Sự kiện click vào nút Tài khoản
+  accountLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    console.log('Click vào nút Tài khoản!');
+    loadAccountSettings();
+  });
+  
+  console.log(' Tính năng tài khoản đã sẵn sàng!');
+} else {
+  console.error(' Không tìm thấy #account-link hoặc .center');
+}

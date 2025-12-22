@@ -29,11 +29,6 @@ public class matches {
     @JoinColumn(name = "player2_id", nullable = false)
     private user player2;
 
-    /** 🏆 Người thắng cuộc */
-    @ManyToOne
-    @JoinColumn(name = "winner_id")
-    private user winner;
-
     /** ♟️ Danh sách nước đi trong trận đấu */
     @OneToMany(mappedBy = "match", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @com.fasterxml.jackson.annotation.JsonIgnore
@@ -75,9 +70,6 @@ public class matches {
 
     public user getPlayer2() { return player2; }
     public void setPlayer2(user player2) { this.player2 = player2; }
-
-    public user getWinner() { return winner; }
-    public void setWinner(user winner) { this.winner = winner; }
 
     public LocalDateTime getStartTime() { return startTime; }
     public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
