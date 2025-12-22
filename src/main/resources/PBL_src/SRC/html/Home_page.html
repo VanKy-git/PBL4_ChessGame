@@ -39,7 +39,7 @@
                 
                 <a href="#" id="leaderboardLink"><i class="fa-solid fa-ranking-star"></i> Bảng xếp hạng</a>
                 
-                <a href="#"><i class="fa-solid fa-gear"></i> Cài đặt</a>
+                <a href="#" id="settingsLink"><i class="fa-solid fa-gear"></i> Cài đặt</a>
             </nav>
         </aside>
 
@@ -160,10 +160,96 @@
     </div>
 
     <div id="leaderboardPopup" class="popup-overlay" style="display:none;">
-        <div class="popup-content" style="max-height:80vh;overflow-y:auto;">
+        <div class="popup-content leaderboard-popup-content" style="max-height:80vh;overflow-y:auto;">
             <h2>Bảng xếp hạng</h2>
             <div id="leaderboardContainer">Đang tải...</div>
             <button id="leaderboardClose" class="close-btn">Đóng</button>
+        </div>
+    </div>
+
+    <div id="accountPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content account-popup-content">
+            <h2>Thông tin tài khoản</h2>
+            <div id="accountContainer">Đang tải...</div>
+            <button id="accountClose" class="close-btn">Đóng</button>
+        </div>
+    </div>
+
+    <div id="changePasswordPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content">
+            <h2>Đổi mật khẩu</h2>
+            <div class="form-group">
+                <input type="password" id="oldPassword" class="input" placeholder="Mật khẩu cũ">
+            </div>
+            <div class="form-group">
+                <input type="password" id="newPassword" class="input" placeholder="Mật khẩu mới">
+            </div>
+            <div class="form-group">
+                <input type="password" id="confirmNewPassword" class="input" placeholder="Xác nhận mật khẩu mới">
+            </div>
+            <div class="confirmation-buttons" style="margin-top: 20px;">
+                <button id="submitChangePasswordBtn" class="btn-action confirm">Xác nhận</button>
+                <button id="cancelChangePasswordBtn" class="btn-action cancel">Hủy</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsPopup" class="popup-overlay" style="display:none;">
+        <div class="popup-content settings-popup-content">
+            <h2>Cài đặt giao diện</h2>
+
+            <div class="settings-section">
+                <h3>Chủ đề bàn cờ</h3>
+                <div class="board-theme-options">
+                    <div class="theme-option" data-theme="default" title="Mặc định">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #f0d9b5 25%, #b58863 25%, #b58863 50%, #f0d9b5 50%, #f0d9b5 75%, #b58863 75%, #b58863 100%); background-size: 20px 20px;"></div>
+                        <span>Mặc định</span>
+                    </div>
+                    <div class="theme-option" data-theme="green" title="Xanh lá">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #eeeed2 25%, #769656 25%, #769656 50%, #eeeed2 50%, #eeeed2 75%, #769656 75%, #769656 100%); background-size: 20px 20px;"></div>
+                        <span>Xanh lá</span>
+                    </div>
+                    <div class="theme-option" data-theme="blue" title="Xanh dương">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #dee3e6 25%, #8ca2ad 25%, #8ca2ad 50%, #dee3e6 50%, #dee3e6 75%, #8ca2ad 75%, #8ca2ad 100%); background-size: 20px 20px;"></div>
+                        <span>Xanh dương</span>
+                    </div>
+                    <div class="theme-option" data-theme="wood" title="Gỗ">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #e8cba0 25%, #a67c52 25%, #a67c52 50%, #e8cba0 50%, #e8cba0 75%, #a67c52 75%, #a67c52 100%); background-size: 20px 20px;"></div>
+                        <span>Gỗ</span>
+                    </div>
+                    <div class="theme-option" data-theme="walnut" title="Gỗ óc chó">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #c2a386 25%, #7d5b3f 25%, #7d5b3f 50%, #c2a386 50%, #c2a386 75%, #7d5b3f 75%, #7d5b3f 100%); background-size: 20px 20px;"></div>
+                        <span>Gỗ óc chó</span>
+                    </div>
+                    <div class="theme-option" data-theme="icy_sea" title="Biển băng">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #c9d6de 25%, #788c9c 25%, #788c9c 50%, #c9d6de 50%, #c9d6de 75%, #788c9c 75%, #788c9c 100%); background-size: 20px 20px;"></div>
+                        <span>Biển băng</span>
+                    </div>
+                    <div class="theme-option" data-theme="bubblegum" title="Kẹo cao su">
+                        <div class="theme-preview" style="background: linear-gradient(45deg, #f7d4e8 25%, #a680b8 25%, #a680b8 50%, #f7d4e8 50%, #f7d4e8 75%, #a680b8 75%, #a680b8 100%); background-size: 20px 20px;"></div>
+                        <span>Kẹo cao su</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Tùy chỉnh màu (Nâng cao)</h3>
+                <div class="color-picker-group">
+                    <div class="color-picker-item">
+                        <label for="lightSquareColor">Ô sáng</label>
+                        <input type="color" id="lightSquareColor">
+                    </div>
+                    <div class="color-picker-item">
+                        <label for="darkSquareColor">Ô tối</label>
+                        <input type="color" id="darkSquareColor">
+                    </div>
+                </div>
+            </div>
+
+            <div class="confirmation-buttons" style="margin-top: 20px;">
+                <button id="saveSettingsBtn" class="btn-action confirm">Lưu & Đóng</button>
+                <button id="cancelSettingsBtn" class="btn-action cancel">Hủy</button>
+            </div>
         </div>
     </div>
 
@@ -186,23 +272,16 @@
         </div>
     </div>
 
-    <div id="settingPopup" class="popup-overlay" style="display:none;">
-        <div class="popup-content">
-            <h2>Cài đặt tài khoản</h2>
-            <div id="settingContainer">Đang tải...</div>
-            <button id="settingClose" class="close-btn">Đóng</button>
-        </div>
-
     <script type = "module" src="../js/Chess_board.js"></script>
-        <script type="module" src="../js/game_controller.js"></script>
-        <script type = "module" src="../js/Home_page.js"></script>
+    <script type="module" src="../js/game_controller.js"></script>
+    <script type = "module" src="../js/Home_page.js"></script>
     <script src="../js/Account_setting.js"></script>
-
+    <script type="module" src="../js/Settings.js"></script>
     <script type="module" src="../js/History.js"></script>
     <script type="module" src="../js/Friend_list.js"></script>
     <script type="module" src="../js/Leader_board.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
     <div id="ai-setup-overlay" class="popup-overlay hidden">
         <div class="popup-content ai-popup">
             <h3>Cấu hình AI Stockfish</h3>

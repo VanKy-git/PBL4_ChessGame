@@ -488,4 +488,45 @@ public class userService {
             em.close();
         }
     }
+
+    // ========== BẢNG XẾP HẠNG ==========
+    public List<user> getLeaderboard() {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em);
+        try {
+            return dao.getTopUsersByElo(20); // Lấy top 20 người chơi
+        } finally {
+            em.close();
+        }
+    }
+
+    // ========== ĐỔI MẬT KHẨU ==========
+    public boolean changePassword(int userId, String oldPassword, String newPassword) {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em);
+        try {
+            em.getTransaction().begin();
+            user u = dao.getUserById(userId);
+            if (u == null) {
+                throw new RuntimeException("User not found");
+            }
+            // Kiểm tra mật khẩu cũ
+            if (!BCrypt.checkpw(oldPassword, u.getPassword())) {
+                throw new RuntimeException("Mật khẩu cũ không đúng");
+            }
+            // Hash mật khẩu mới và cập nhật
+            String newHashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            u.setPassword(newHashedPassword);
+            dao.updateUser(u);
+            em.getTransaction().commit();
+            return true;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            throw e; // Ném lại lỗi để controller xử lý
+        } finally {
+            em.close();
+        }
+    }
 }
