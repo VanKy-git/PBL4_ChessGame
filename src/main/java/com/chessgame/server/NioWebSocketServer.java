@@ -1,5 +1,19 @@
 package com.chessgame.server;
 
+import com.database.server.DAO.userDAO;
+import com.database.server.Entity.friends;
+import com.database.server.Entity.user;
+import com.database.server.Service.friendsService;
+import com.database.server.Service.userService;
+import com.database.server.Utils.JwtConfig;
+import com.google.gson.Gson;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -11,15 +25,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
-import com.database.server.Utils.JwtConfig;
-import com.google.gson.Gson;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
+import java.util.concurrent.*;
 
 public class NioWebSocketServer implements Runnable {
     private final int port;
@@ -29,11 +35,17 @@ public class NioWebSocketServer implements Runnable {
     private final Gson gson = new Gson();
     private final Map<SocketChannel, Player> connectionPlayerMap = new ConcurrentHashMap<>();
     private final Map<String, GameRoom> gameRooms = new ConcurrentHashMap<>();
-    private final Set<SocketChannel> connections = Collections.synchronizedSet(new HashSet<>());
     private final Map<Long, ConcurrentLinkedQueue<Player>> waitingQueuesByTime = new ConcurrentHashMap<>();
     private final Map<SocketChannel, Object> writeLocks = new ConcurrentHashMap<>();
     private final Queue<SocketChannel> disconnectQueue = new ConcurrentLinkedQueue<>();
-    private static final String STOCKFISH_PATH = "D:\\Programing\\PBL4_ChessGame/src/main/resources/stockfish/stockfish-windows.exe ";
+    private static final String STOCKFISH_PATH = "D:\\Programing\\PBL4_ChessGame/src/main/resources/stockfish/stockfish-windows.exe";
+
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final EntityManagerFactory emf;
+    private final userService userService;
+    private final friendsService friendsService;
+    private final Map<String, ScheduledFuture<?>> disconnectionTimers = new ConcurrentHashMap<>();
+
 
     public NioWebSocketServer(int port) throws IOException {
         this.port = port;
@@ -42,6 +54,10 @@ public class NioWebSocketServer implements Runnable {
         this.threadPool = new ManualThreadPool(cores);
         System.out.println("HĐH: Khởi tạo Thread Pool với " + cores + " luồng worker.");
 
+        this.emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
+        this.userService = new userService(emf);
+        this.friendsService = new friendsService(emf);
+
         this.selector = Selector.open();
         this.serverChannel = ServerSocketChannel.open();
         this.serverChannel.bind(new InetSocketAddress(port));
@@ -49,6 +65,7 @@ public class NioWebSocketServer implements Runnable {
 
         this.serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
+        startHeartbeatAndTimeoutTask();
         System.out.println("Server đang chạy trên cổng " + port);
     }
 
@@ -78,7 +95,6 @@ public class NioWebSocketServer implements Runnable {
                 }
                 SocketChannel clientToDisconnect;
                 while ((clientToDisconnect = disconnectQueue.poll()) != null) {
-                    // Gọi handleDisconnect từ luồng Selector
                     handleDisconnect(clientToDisconnect);
                 }
             } catch (IOException e) {
@@ -94,11 +110,11 @@ public class NioWebSocketServer implements Runnable {
 
         ConnectionAttachment attachment = new ConnectionAttachment();
         attachment.stagingBuffer = ByteBuffer.allocate(8192);
+        attachment.lastActiveTime = System.currentTimeMillis();
 
         SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ, attachment);
         attachment.key = clientKey;
 
-        connections.add(client);
         System.out.println("Client mới: " + client.getRemoteAddress());
     }
 
@@ -133,36 +149,29 @@ public class NioWebSocketServer implements Runnable {
             headerLength = 10;
         }
 
-        // Kiểm tra xem buffer có đủ 1 frame hoàn chỉnh không
         int totalFrameSize = headerLength + maskLength + (int) payloadLength;
         if (buffer.remaining() < (totalFrameSize - headerLength)) {
             buffer.reset();
             return null;
         }
 
-        // Đã có 1 frame hoàn chỉnh, trích xuất nó
-        buffer.reset(); // Quay lại vị trí ban đầu (mark)
+        buffer.reset();
         byte[] completeFrame = new byte[totalFrameSize];
         buffer.get(completeFrame);
 
         return completeFrame;
     }
 
-    // Vẫn chạy trong luồng Selector
-    // Trong NioWebSocketServer.java
-
     private void handleRead(SelectionKey key) {
         if (!key.isValid()) {
-            System.out.println("Bỏ qua key không hợp lệ (đã bị hủy).");
-            return; // Không xử lý key này nữa
+            return;
         }
         SocketChannel client = (SocketChannel) key.channel();
         ConnectionAttachment attachment = (ConnectionAttachment) key.attachment();
+        attachment.lastActiveTime = System.currentTimeMillis();
 
-        // Tắt key tạm thời CHỈ KHI bắt đầu đọc
         key.interestOps(0);
 
-        // 1. ĐỌC DỮ LIỆU (Chạy trên luồng Selector)
         ByteBuffer buffer = ByteBuffer.allocate(8192);
         int bytesRead;
 
@@ -170,9 +179,7 @@ public class NioWebSocketServer implements Runnable {
             bytesRead = client.read(buffer);
 
             if (bytesRead == -1) {
-                // Client ngắt kết nối
-                System.out.println("Client đóng kết nối (đọc -1)");
-                handleDisconnect(client); // An toàn vì đang ở luồng Selector
+                handleDisconnect(client);
                 return;
             }
 
@@ -180,62 +187,47 @@ public class NioWebSocketServer implements Runnable {
             attachment.stagingBuffer.put(buffer);
             attachment.stagingBuffer.flip();
 
-            // 2. XỬ LÝ HANDSHAKE (Chạy trên luồng Selector)
             if (!attachment.isHandshakeDone) {
                 byte[] data = new byte[attachment.stagingBuffer.remaining()];
                 attachment.stagingBuffer.get(data);
 
-                // doHandshake (client.write) chạy trên luồng Selector
                 if (doHandshake(client, new String(data, StandardCharsets.UTF_8))) {
                     attachment.isHandshakeDone = true;
-                    System.out.println("Handshake thành công");
-                } else {
-                    System.out.println("Handshake thất bại");
                 }
                 attachment.stagingBuffer.compact();
             }
-            // 3. GIẢI MÃ FRAME & ĐẨY LOGIC VÀO WORKER
             else {
                 while (true) {
                     byte[] completeFrame = tryGetCompleteFrame(attachment.stagingBuffer);
 
                     if (completeFrame != null) {
-                        // Giải mã frame (vẫn trên luồng Selector)
                         String jsonMessage = decodeWebSocketFrame(completeFrame);
 
-                        // === CHỈ NÉM LOGIC GAME VÀO THREAD POOL ===
                         if (jsonMessage != null) {
                             final String finalJsonMessage = jsonMessage;
                             threadPool.submit(() -> {
-                                // Worker thread chỉ xử lý logic, không đọc/ghi
                                 handleGameLogic(client, attachment, finalJsonMessage);
                             });
                         }
                     } else {
-                        break; // Không còn frame nào, chờ đọc thêm
+                        break;
                     }
                 }
                 attachment.stagingBuffer.compact();
             }
 
-            // 4. Kích hoạt lại key
             if (client.isOpen()) {
-                // Phải wakeup() trước khi thay đổi interestOps từ luồng khác
-                // Nhưng vì chúng ta đang ở cùng luồng, chỉ cần set lại là đủ
-                // Tuy nhiên, để an toàn tuyệt đối khi đăng ký lại:
                 selector.wakeup();
                 key.interestOps(SelectionKey.OP_READ);
             }
 
         } catch (SocketException e) {
-            System.out.println("Socket error: " + e.getMessage());
-            handleDisconnect(client); // An toàn vì đang ở luồng Selector
+            handleDisconnect(client);
         } catch (IOException e) {
-            handleDisconnect(client); // An toàn vì đang ở luồng Selector
+            handleDisconnect(client);
         } catch (Exception e) {
-            System.err.println("Lỗi handleRead: " + e.getMessage());
             e.printStackTrace();
-            handleDisconnect(client); // An toàn vì đang ở luồng Selector
+            handleDisconnect(client);
         }
     }
 
@@ -253,8 +245,6 @@ public class NioWebSocketServer implements Runnable {
             // Bỏ qua
         }
     }
-
-    // --- WEBSOCKET PROTOCOL ---
 
     private boolean doHandshake(SocketChannel client, String rawRequest) throws Exception {
         String key = "";
@@ -284,32 +274,24 @@ public class NioWebSocketServer implements Runnable {
 
     private String decodeWebSocketFrame(byte[] frame) throws IOException {
         if (frame.length < 2) {
-            System.out.println(" Frame quá ngắn");
             return null;
         }
 
-        boolean isFinal = (frame[0] & 0x80) != 0;
         byte opcode = (byte) (frame[0] & 0x0F);
 
-        // XỬ LÝ CONTROL FRAMES
         if (opcode == 0x8) {
-            System.out.println("Received CLOSE frame");
             throw new IOException("Client requested close");
         }
 
         if (opcode == 0x9) {
-            System.out.println("Received PING");
             return "__PING__";
         }
 
         if (opcode == 0xA) {
-            System.out.println("Received PONG");
             return "__PONG__";
         }
 
-        // Chỉ xử lý TEXT frame (0x1)
         if (opcode != 0x1) {
-            System.out.println("Unknown opcode: " + opcode);
             return null;
         }
 
@@ -317,19 +299,12 @@ public class NioWebSocketServer implements Runnable {
         long payloadLength = (frame[1] & 0x7F);
         int offset = 2;
 
-        //XỬ LÝ EXTENDED LENGTH
         if (payloadLength == 126) {
-            if (frame.length < 4) {
-                System.out.println("Frame chưa đủ dữ liệu (126)");
-                return null;
-            }
+            if (frame.length < 4) return null;
             payloadLength = ((frame[2] & 0xFF) << 8) | (frame[3] & 0xFF);
             offset = 4;
         } else if (payloadLength == 127) {
-            if (frame.length < 10) {
-                System.out.println("Frame chưa đủ dữ liệu (127)");
-                return null;
-            }
+            if (frame.length < 10) return null;
             payloadLength = 0;
             for (int i = 0; i < 8; i++) {
                 payloadLength = (payloadLength << 8) | (frame[2 + i] & 0xFF);
@@ -337,14 +312,11 @@ public class NioWebSocketServer implements Runnable {
             offset = 10;
         }
 
-        // KIỂM TRA BUFFER ĐỦ LỚN
         if (frame.length < offset + (isMasked ? 4 : 0) + payloadLength) {
-            System.out.println("Frame chưa đủ dữ liệu payload");
             return null;
         }
 
         if (!isMasked) {
-            System.out.println("Client không mask frame - vi phạm RFC 6455");
             throw new IOException("Client must mask frames");
         }
 
@@ -392,39 +364,33 @@ public class NioWebSocketServer implements Runnable {
         return frame.array();
     }
 
-    //THÊM: Gửi PONG frame
     private void sendPongFrame(SocketChannel client) {
         try {
             if (client.isOpen()) {
                 ByteBuffer pongFrame = ByteBuffer.allocate(2);
-                pongFrame.put((byte) 0x8A); // FIN + PONG opcode
+                pongFrame.put((byte) 0x8A);
                 pongFrame.put((byte) 0x00);
                 pongFrame.flip();
                 client.write(pongFrame);
-                System.out.println("Sent PONG");
             }
         } catch (IOException e) {
-            System.err.println("  Không gửi được PONG");
             handleDisconnect(client);
         }
     }
-
-    // --- GAME LOGIC ---
 
     private static class ConnectionAttachment {
         public boolean isHandshakeDone = false;
         public Player player = null;
         public SelectionKey key = null;
         public ByteBuffer stagingBuffer = ByteBuffer.allocate(8192);
+        public long lastActiveTime;
     }
 
     private void handleGameLogic(SocketChannel client, ConnectionAttachment attachment, String jsonMessage) {
         if (jsonMessage == null) {
-            System.out.println("⚠  jsonMessage is null");
             return;
         }
 
-        // XỬ LÝ CONTROL FRAMES
         if ("__PING__".equals(jsonMessage)) {
             sendPongFrame(client);
             return;
@@ -437,7 +403,6 @@ public class NioWebSocketServer implements Runnable {
         try {
             Map<String, Object> data = gson.fromJson(jsonMessage, Map.class);
             if (data == null || !data.containsKey("type")) {
-                System.out.println("Invalid message format");
                 sendErrorMessage(client, "Invalid message format");
                 return;
             }
@@ -465,6 +430,9 @@ public class NioWebSocketServer implements Runnable {
                     break;
                 case "join_room":
                     handleJoinRoom(player, data);
+                    break;
+                case "watch_room":
+                    handleWatchRoom(player, data);
                     break;
                 case "leave_room":
                     handleLeaveRoom(player, data);
@@ -499,19 +467,42 @@ public class NioWebSocketServer implements Runnable {
                 case "rematch_request":
                     handleRematchRequest(player, data);
                     break;
-                case "create_ai_game": // ✅ THÊM CASE NÀY
+                case "create_ai_game":
                     handleCreateAiGame(player, data);
                     break;
+                case "take_back_request":
+                    handleTakeBackRequest(player, data);
+                    break;
+                case "search_users":
+                    handleSearchUsers(player, data);
+                    break;
+                case "get_friends":
+                    handleGetFriends(player);
+                    break;
+                case "friend_request":
+                    handleFriendRequest(player, data);
+                    break;
+                case "accept_friend":
+                    handleAcceptFriend(player, data);
+                    break;
+                case "reject_friend":
+                    handleRejectFriend(player, data);
+                    break;
+                case "invite_friend":
+                    handleInviteFriend(player, data);
+                    break;
+                case "invite_response":
+                    handleInviteResponse(player, data);
+                    break;
+                case "pong":
+                    break;
                 default:
-                    System.out.println("Unknown type: " + type);
                     sendErrorMessage(client, "Unknown message type");
             }
 
         } catch (com.google.gson.JsonSyntaxException e) {
-            System.err.println("Invalid JSON: " + e.getMessage());
             sendErrorMessage(client, "Invalid JSON format");
         } catch (Exception e) {
-            System.err.println("Error in handleGameLogic: " + e.getMessage());
             e.printStackTrace();
             sendErrorMessage(client, "Lỗi xử lý logic: " + e.getMessage());
         }
@@ -522,32 +513,36 @@ public class NioWebSocketServer implements Runnable {
 
         try {
             String roomId = generateUniqueRoomId();
-            long timeControl = 600000; // Mặc định 10 phút
+            long timeControl = 600000;
             if (data.get("timeControl") instanceof Number) {
                 timeControl = ((Number) data.get("timeControl")).longValue();
             }
 
-            // Lấy độ khó (Elo)
-            int elo = 1350; // Mặc định dễ nhất
+            int elo = 1350;
             if (data.get("elo") instanceof Number) {
                 elo = ((Number) data.get("elo")).intValue();
             }
+            
+            String preferredColor = (String) data.get("color"); // "white", "black", or "random"
 
-            // 1. Khởi tạo GameRoom
             GameRoom room = new GameRoom(roomId, timeControl, this);
 
-            // 2. Khởi động Stockfish
             StockfishEngine engine = new StockfishEngine(STOCKFISH_PATH);
-            engine.setElo(elo); // Set độ khó
-            room.setStockfishEngine(engine); // Lưu vào phòng
+            engine.setElo(elo);
+            room.setStockfishEngine(engine);
 
-            // 3. Tạo Bot Player
-            String botId = "STOCKFISH_AI_" + roomId;
-            // Bot không cần socket connection (null)
-            Player botPlayer = new Player(botId, "Stockfish (Elo " + elo + ")", null);
+            Player botPlayer = new Player("STOCKFISH_AI_" + roomId, "Stockfish (Elo " + elo + ")", null);
 
-            // 4. Chọn màu (Random)
-            if (Math.random() < 0.5) {
+            boolean playerIsWhite;
+            if ("white".equals(preferredColor)) {
+                playerIsWhite = true;
+            } else if ("black".equals(preferredColor)) {
+                playerIsWhite = false;
+            } else {
+                playerIsWhite = Math.random() < 0.5;
+            }
+
+            if (playerIsWhite) {
                 player.setColor("white");
                 botPlayer.setColor("black");
             } else {
@@ -555,33 +550,72 @@ public class NioWebSocketServer implements Runnable {
                 botPlayer.setColor("white");
             }
 
-            // 5. Thêm vào phòng
             room.addPlayer(player);
             room.addPlayer(botPlayer);
             gameRooms.put(roomId, room);
 
-            // Gửi thông tin phòng cho người chơi thật
-            sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor()));
-            sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor()));
+            sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor(), "isAiGame", true));
+            sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor(), "isAiGame", true));
 
-            // Bắt đầu game
             startGame(room);
 
-            // ✅ NẾU BOT CẦM TRẮNG -> BOT ĐI TRƯỚC
             if ("white".equals(botPlayer.getColor())) {
                 triggerStockfishMove(room, botPlayer);
             }
 
         } catch (IOException e) {
-            System.err.println("Lỗi khởi tạo Stockfish: " + e.getMessage());
-            sendErrorMessage(player.getConnection(), "Không thể khởi động AI Engine. Kiểm tra đường dẫn file.");
+            sendErrorMessage(player.getConnection(), "Không thể khởi động AI Engine.");
+        }
+    }
+    
+    private void handleTakeBackRequest(Player player, Map<String, Object> data) {
+        String roomId = (String) data.get("roomId");
+        GameRoom room = gameRooms.get(roomId);
+        
+        if (room == null) {
+            sendErrorMessage(player.getConnection(), "Phòng không tồn tại.");
+            return;
+        }
+        
+        if (room.getStockfishEngine() == null) {
+            sendErrorMessage(player.getConnection(), "Chỉ có thể đi lại khi chơi với máy.");
+            return;
+        }
+        
+        if (!room.getStatus().equals("playing")) {
+            sendErrorMessage(player.getConnection(), "Ván đấu không đang diễn ra.");
+            return;
+        }
+        
+        // Check if it's player's turn (cannot take back while AI is thinking)
+        if (!room.getCurrentTurn().equals(player.getColor())) {
+             sendErrorMessage(player.getConnection(), "Không thể đi lại khi máy đang suy nghĩ.");
+             return;
+        }
+
+        boolean success = room.takeBackMove();
+        
+        if (success) {
+            // Sync Stockfish internal board
+            try {
+                room.getStockfishEngine().setPosition(room.getValidator().toFen());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "take_back_result");
+            response.put("success", true);
+            response.put("fen", room.getValidator().toFen());
+            sendMessage(player.getConnection(), response);
+        } else {
+            sendMessage(player.getConnection(), Map.of("type", "take_back_result", "success", false, "message", "Không thể đi lại (chưa đủ nước đi)."));
         }
     }
 
     private void handleAuthentication(SocketChannel client, ConnectionAttachment attachment, Map<String, Object> data) {
         String token = (String) data.get("token");
 
-        // GUEST MODE
         if (token == null || token.isEmpty()) {
             String guestName = "Guest_" + (new Random().nextInt(9000) + 1000);
             String guestId = "guest_" + UUID.randomUUID();
@@ -590,20 +624,11 @@ public class NioWebSocketServer implements Runnable {
             connectionPlayerMap.put(client, guestPlayer);
             attachment.player = guestPlayer;
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("type", "player_info");
-            response.put("playerId", guestPlayer.getPlayerId());
-            response.put("playerName", guestPlayer.getPlayerName());
-            response.put("isGuest", true);
-
-            System.out.println("Guest: " + guestName);
-            sendMessage(client, response);
+            sendMessage(client, Map.of("type", "player_info", "playerId", guestPlayer.getPlayerId(), "playerName", guestPlayer.getPlayerName(), "isGuest", true));
             return;
         }
 
         try {
-            System.out.println("Verifying JWT");
-
             Jws<Claims> claimsJws = Jwts.parserBuilder()
                     .setSigningKey(JwtConfig.JWT_SECRET_KEY)
                     .build()
@@ -613,21 +638,69 @@ public class NioWebSocketServer implements Runnable {
             String userId = payload.getSubject();
             String username = payload.get("username", String.class);
 
+            // Reconnection logic
+            if (disconnectionTimers.containsKey(userId)) {
+                ScheduledFuture<?> task = disconnectionTimers.remove(userId);
+                if (task != null) task.cancel(false);
+                
+                System.out.println("Player " + username + " reconnected!");
+
+                Player oldPlayer = null;
+                SocketChannel oldSocket = null;
+                for (Map.Entry<SocketChannel, Player> entry : connectionPlayerMap.entrySet()) {
+                    if (entry.getValue().getPlayerId().equals(userId)) {
+                        oldPlayer = entry.getValue();
+                        oldSocket = entry.getKey();
+                        break;
+                    }
+                }
+
+                if (oldPlayer != null) {
+                    connectionPlayerMap.remove(oldSocket);
+                    connectionPlayerMap.put(client, oldPlayer);
+                    oldPlayer.setConnection(client);
+                    attachment.player = oldPlayer;
+
+                    sendMessage(client, Map.of("type", "player_info", "playerId", oldPlayer.getPlayerId(), "playerName", oldPlayer.getPlayerName(), "isGuest", false));
+
+                    GameRoom room = findRoomByPlayer(oldPlayer);
+                    if (room != null) {
+                        Map<String, Object> restoreData = new HashMap<>();
+                        restoreData.put("type", "game_state_restore");
+                        restoreData.put("fen", room.getValidator().toFen());
+                        restoreData.put("color", oldPlayer.getColor());
+                        restoreData.put("roomId", room.getRoomId());
+                        restoreData.put("whiteTime", room.getWhiteTimeMs());
+                        restoreData.put("blackTime", room.getBlackTimeMs());
+                        restoreData.put("currentTurn", room.getCurrentTurn());
+                        restoreData.put("moveHistory", room.getMoveHistory());
+                        
+                        Player p1 = room.getPlayerByColor("white");
+                        Player p2 = room.getPlayerByColor("black");
+                        restoreData.put("playerWhite", Map.of("id", p1.getPlayerId(), "name", p1.getPlayerName()));
+                        restoreData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
+
+                        sendMessage(client, restoreData);
+
+                        Player opponent = room.getOpponent(oldPlayer);
+                        if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
+                            sendMessage(opponent.getConnection(), Map.of("type", "opponent_reconnect_alert"));
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // Normal authentication
             Player authenticatedPlayer = new Player(userId, username, client);
             connectionPlayerMap.put(client, authenticatedPlayer);
             attachment.player = authenticatedPlayer;
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("type", "player_info");
-            response.put("playerId", authenticatedPlayer.getPlayerId());
-            response.put("playerName", authenticatedPlayer.getPlayerName());
-            response.put("isGuest", false);
+            userService.updateStatus(Integer.parseInt(userId), "Online");
 
-            System.out.println("User: " + username);
-            sendMessage(client, response);
+            sendMessage(client, Map.of("type", "player_info", "playerId", authenticatedPlayer.getPlayerId(), "playerName", authenticatedPlayer.getPlayerName(), "isGuest", false));
 
         } catch (JwtException e) {
-            System.err.println("JWT failed: " + e.getMessage());
             sendErrorMessage(client, "Token không hợp lệ: " + e.getMessage());
         }
     }
@@ -635,12 +708,10 @@ public class NioWebSocketServer implements Runnable {
     private String generateUniqueRoomId() {
         Random random = new Random();
         String roomId;
-
         do {
             int number = random.nextInt(1000000);
-            roomId = String.format("%06d", number); // Đảm bảo đủ 6 số
-        } while (gameRooms.containsKey(roomId)); // Kiểm tra trùng
-
+            roomId = String.format("%06d", number);
+        } while (gameRooms.containsKey(roomId));
         return roomId;
     }
 
@@ -654,16 +725,22 @@ public class NioWebSocketServer implements Runnable {
                 sendMessage(player.getConnection(), message);
             }
         }
+        for (Player spectator : room.getSpectators()) {
+            if (spectator.getConnection() != null && spectator.getConnection().isOpen()) {
+                sendMessage(spectator.getConnection(), message);
+            }
+        }
     }
 
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
-        room.getValidator().resetBoard();
+        // room.getValidator().resetBoard(); // Resetting is done in constructor, maybe not needed here unless for rematch
         Map<String, Object> gameStartData = new HashMap<>();
         gameStartData.put("gameState", room.getValidator().toFen());
         gameStartData.put("currentTurn", "white");
         gameStartData.put("initialTimeMs", room.getInitialTimeMs());
+        gameStartData.put("isAiGame", room.getStockfishEngine() != null); // Add isAiGame flag
 
         Player p1 = room.getPlayerByColor("white");
         Player p2 = room.getPlayerByColor("black");
@@ -694,8 +771,6 @@ public class NioWebSocketServer implements Runnable {
         Player opponent = queue.poll();
 
         if (opponent != null) {
-            System.out.println("  Matching (song song): " + player.getPlayerName() + " vs " + opponent.getPlayerName());
-
             final Player p1 = player;
             final Player p2 = opponent;
 
@@ -704,7 +779,6 @@ public class NioWebSocketServer implements Runnable {
             });
 
         } else {
-            System.out.println("Player " + player.getPlayerName() + " vào hàng chờ: " + preferredTime + "ms");
             queue.offer(player);
         }
     }
@@ -725,14 +799,8 @@ public class NioWebSocketServer implements Runnable {
         room.addPlayer(player2);
         gameRooms.put(roomId, room);
         for (Player player : room.getPlayers()) {
-            sendMessage(player.getConnection(), Map.of(
-                    "type", "room_info",
-                    "roomId", roomId
-            ));
-            sendMessage(player.getConnection(), Map.of(
-                    "type", "color",
-                    "color", player.getColor()
-            ));
+            sendMessage(player.getConnection(), Map.of("type", "room_info", "roomId", roomId));
+            sendMessage(player.getConnection(), Map.of("type", "color", "color", player.getColor()));
         }
 
         startGame(room);
@@ -741,7 +809,7 @@ public class NioWebSocketServer implements Runnable {
     private void handleCreateRoom(Player player, Map<String, Object> data) {
         if (player == null) return;
         String roomId = generateUniqueRoomId();
-        GameRoom room = new GameRoom(roomId, 600000, this); // Mặc định 10 phút
+        GameRoom room = new GameRoom(roomId, 600000, this);
         player.setColor("white");
         room.addPlayer(player);
         gameRooms.put(roomId, room);
@@ -768,17 +836,9 @@ public class NioWebSocketServer implements Runnable {
         player.setColor("black");
         room.addPlayer(player);
 
-        sendMessage(player.getConnection(), Map.of(
-                "type", "room_joined",
-                "roomId", roomId,
-                "color", player.getColor(),
-                "gameState", room.getValidator().toFen()
-        ));
+        sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor(), "gameState", room.getValidator().toFen()));
 
-        notifyRoomPlayers(room, "player_joined", Map.of(
-                "playerName", player.getPlayerName(),
-                "color", player.getColor()
-        ));
+        notifyRoomPlayers(room, "player_joined", Map.of("playerName", player.getPlayerName(), "color", player.getColor()));
 
         if (room.isFull()) {
             startGame(room);
@@ -786,69 +846,61 @@ public class NioWebSocketServer implements Runnable {
         broadcastRoomsList();
     }
 
+    private void handleWatchRoom(Player player, Map<String, Object> data) {
+        if (player == null) return;
+        String roomId = (String) data.get("roomId");
+        if (roomId == null || roomId.isEmpty()) {
+            sendErrorMessage(player.getConnection(), "Room ID is required!");
+            return;
+        }
+        GameRoom room = gameRooms.get(roomId);
+        if (room == null) {
+            sendErrorMessage(player.getConnection(), "Room does not exist!");
+            return;
+        }
+        
+        room.addSpectator(player);
+        
+        Map<String, Object> watchData = new HashMap<>();
+        watchData.put("type", "room_watched");
+        watchData.put("roomId", roomId);
+        watchData.put("gameState", room.getValidator().toFen());
+        watchData.put("currentTurn", room.getCurrentTurn());
+        watchData.put("whiteTime", room.getWhiteTimeMs());
+        watchData.put("blackTime", room.getBlackTimeMs());
+        watchData.put("moveHistory", room.getMoveHistory());
+        
+        Player p1 = room.getPlayerByColor("white");
+        Player p2 = room.getPlayerByColor("black");
+        if (p1 != null) watchData.put("playerWhite", Map.of("id", p1.getPlayerId(), "name", p1.getPlayerName()));
+        if (p2 != null) watchData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
+        
+        sendMessage(player.getConnection(), watchData);
+    }
+
     private void handleLeaveRoom(Player player, Map<String, Object> data) {
         if (player == null) return;
         String roomId = (String) data.get("roomId");
         GameRoom room = gameRooms.get(roomId);
         if (room != null) {
-            room.removePlayer(player);
-            if (room.isEmpty()) {
-                gameRooms.remove(roomId);
+            if (room.getSpectators().contains(player)) {
+                room.removeSpectator(player);
             } else {
-                Map<String, Object> leftData = new HashMap<>();
-                leftData.put("leftPlayer", player.getPlayerName());
-                leftData.put("reason", "Người chơi rời khỏi phòng!");
-                leftData.put("winner", room.getOpponent(player).getColor());
-                notifyRoomPlayers(room, "player_left", leftData);
+                room.removePlayer(player);
+                if (room.isEmpty()) {
+                    gameRooms.remove(roomId);
+                } else {
+                    Map<String, Object> leftData = new HashMap<>();
+                    leftData.put("leftPlayer", player.getPlayerName());
+                    leftData.put("reason", "Người chơi rời khỏi phòng!");
+                    leftData.put("winner", room.getOpponent(player).getColor());
+                    notifyRoomPlayers(room, "player_left", leftData);
+                }
             }
             broadcastRoomsList();
         }
     }
 
-//    private void handleGameMove(Player player, Map<String, Object> data) {
-//        if (player == null) return;
-//        String roomId = (String) data.get("roomId");
-//        GameRoom room = gameRooms.get(roomId);
-//
-//        if (room == null || !room.getStatus().equals("playing")) return;
-//        if (!room.getCurrentTurn().equals(player.getColor())) {
-//            sendErrorMessage(player.getConnection(), "It's not your turn!");
-//            return;
-//        }
-//
-//        String from = data.get("from").toString();
-//        String to = data.get("to").toString();
-//        Character promo = data.get("promotion") == null ? null : (Character) data.get("promotion");
-//        ChessValidator.MoveResult moveResult = room.getValidator().validateMove(from, to, player.getColor(), promo);
-//
-//        if (!moveResult.isValid) {
-//            sendMessage(player.getConnection(), Map.of(
-//                    "type", "move_result",
-//                    "result", false,
-//                    "message", moveResult.message
-//            ));
-//        } else {
-//            String nextTurn = player.getColor().equals("white") ? "black" : "white";
-//            room.setCurrentTurn(nextTurn);
-//            String fen = room.getValidator().toFen();
-//            boolean isNextPlayerInCheck = room.getValidator().isKingInCheck(nextTurn, room.getValidator().getBoard());
-//
-//            Map<String, Object> fenData = new HashMap<>();
-//            fenData.put("result", true);
-//            fenData.put("fen", fen);
-//            fenData.put("lastMove", Map.of("from", from, "to", to));
-//            fenData.put("isCheck", isNextPlayerInCheck);
-//            notifyRoomPlayers(room, "move_result", fenData);
-//
-//            if (moveResult.winner != null) {
-//                notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
-//                room.setStatus("finished");
-//                room.stopTimer();
-//            }
-//        }
-//    }
-
-    // Sửa lại handleGameMove để gọi processMove
     private void handleGameMove(Player player, Map<String, Object> data) {
         if (player == null) return;
         String roomId = (String) data.get("roomId");
@@ -859,21 +911,16 @@ public class NioWebSocketServer implements Runnable {
         String to = data.get("to").toString();
         Character promo = data.get("promotion") == null ? null : ((String)data.get("promotion")).charAt(0);
 
-        // Gọi hàm xử lý chung
         boolean moveSuccess = processMove(room, player, from, to, promo);
 
-        // Nếu người đi thành công VÀ đối thủ là AI -> Kích hoạt AI đi
         if (moveSuccess && "playing".equals(room.getStatus())) {
             Player opponent = room.getOpponent(player);
-            // Kiểm tra nếu đối thủ là Bot (Connection == null và có engine trong phòng)
             if (opponent.getConnection() == null && room.getStockfishEngine() != null) {
                 triggerStockfishMove(room, opponent);
             }
         }
     }
 
-    // ✅ HÀM XỬ LÝ NƯỚC ĐI CHUNG (Cho cả người và máy)
-// Trả về true nếu đi thành công
     private boolean processMove(GameRoom room, Player player, String from, String to, Character promo) {
         if (!"playing".equals(room.getStatus())) return false;
         if (!room.getCurrentTurn().equals(player.getColor())) {
@@ -886,18 +933,14 @@ public class NioWebSocketServer implements Runnable {
 
         if (!moveResult.isValid) {
             if (player.getConnection() != null) {
-                sendMessage(player.getConnection(), Map.of(
-                        "type", "move_result", "result", false, "message", moveResult.message
-                ));
+                sendMessage(player.getConnection(), Map.of("type", "move_result", "result", false, "message", moveResult.message));
             }
             return false;
         }
 
-        // --- Nước đi hợp lệ ---
         String nextTurn = player.getColor().equals("white") ? "black" : "white";
         room.setCurrentTurn(nextTurn);
 
-        // Cập nhật Stockfish (quan trọng: phải báo cho engine biết bàn cờ mới)
         if (room.getStockfishEngine() != null) {
             try {
                 room.getStockfishEngine().setPosition(room.getValidator().toFen());
@@ -915,50 +958,39 @@ public class NioWebSocketServer implements Runnable {
         fenData.put("fen", fen);
         fenData.put("lastMove", Map.of("from", from, "to", to));
         fenData.put("isCheck", isNextPlayerInCheck);
+        
+        room.addMoveToHistory(fenData);
 
-        // Gửi cho tất cả người chơi (người thật) trong phòng
         notifyRoomPlayers(room, "move_result", fenData);
 
         if (moveResult.winner != null) {
             notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
             room.setStatus("finished");
-            room.shutdownTimerService(); // Tắt timer và Engine
+            room.shutdownTimerService();
         }
 
         return true;
     }
 
     private void triggerStockfishMove(GameRoom room, Player botPlayer) {
-        // Chạy trong thread pool để không chặn luồng chính
         threadPool.submit(() -> {
             try {
-                // Giả lập thời gian suy nghĩ (tối thiểu 500ms cho tự nhiên)
-                // và tối đa dựa trên thời gian còn lại, ví dụ 2 giây
                 int thinkTime = 2000;
 
                 String bestMoveUCI = room.getStockfishEngine().getBestMove(thinkTime);
 
                 if (bestMoveUCI == null) {
-                    System.err.println("Stockfish không trả về nước đi nào!");
                     return;
                 }
 
-                // Stockfish trả về dạng "e2e4" hoặc "a7a8q" (phong cấp)
-                // Cần cắt chuỗi ra
                 String from = bestMoveUCI.substring(0, 2);
                 String to = bestMoveUCI.substring(2, 4);
                 Character promo = null;
 
                 if (bestMoveUCI.length() > 4) {
-                    promo = bestMoveUCI.charAt(4); // Lấy ký tự phong cấp (q, r, b, n)
+                    promo = bestMoveUCI.charAt(4);
                 }
 
-                System.out.println("Bot đi: " + from + " -> " + to);
-
-                // Gọi lại processMove (đệ quy logic nhưng an toàn vì đã đổi lượt)
-                // Lưu ý: processMove không synchronized, nhưng GameRoom state nên được bảo vệ
-                // Trong trường hợp này, vì Bot chạy tuần tự sau người, rủi ro thấp.
-                // Để an toàn tuyệt đối, nên đồng bộ hóa việc gọi processMove trong GameRoom.
                 processMove(room, botPlayer, from, to, promo);
 
             } catch (IOException e) {
@@ -973,23 +1005,15 @@ public class NioWebSocketServer implements Runnable {
         String message = (String) data.get("message");
         GameRoom room = gameRooms.get(roomId);
         if (room != null) {
-            notifyRoomPlayers(room, "chat", Map.of(
-                    "playerName", player.getPlayerName(),
-                    "message", message,
-                    "timestamp", System.currentTimeMillis()
-            ));
+            notifyRoomPlayers(room, "chat", Map.of("playerName", player.getPlayerName(), "message", message, "timestamp", System.currentTimeMillis()));
         }
     }
 
     private void handleGetRooms(Player player) {
         List<Map<String, Object>> roomList = new ArrayList<>();
         for (GameRoom room : gameRooms.values()) {
-            if (room.getStatus().equals("waiting")) {
-                roomList.add(Map.of(
-                        "roomId", room.getRoomId(),
-                        "playerCount", room.getPlayers().size(),
-                        "status", room.getStatus()
-                ));
+            if (room.getStatus().equals("waiting") || room.getStatus().equals("playing")) {
+                roomList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size(), "status", room.getStatus()));
             }
         }
         sendMessage(player.getConnection(), Map.of("type", "room_list", "rooms", roomList));
@@ -998,8 +1022,8 @@ public class NioWebSocketServer implements Runnable {
     private void broadcastRoomsList() {
         List<Map<String, Object>> roomsList = new ArrayList<>();
         for (GameRoom room : gameRooms.values()) {
-            if (room.getStatus().equals("waiting")) {
-                roomsList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size()));
+            if (room.getStatus().equals("waiting") || room.getStatus().equals("playing")) {
+                roomsList.add(Map.of("roomId", room.getRoomId(), "playerCount", room.getPlayers().size(), "status", room.getStatus()));
             }
         }
         Map<String, Object> broadcast = Map.of("type", "room_update", "rooms", roomsList);
@@ -1013,15 +1037,10 @@ public class NioWebSocketServer implements Runnable {
     private void hanleCancelMatchMaking(Player player, Map<String, Object> data) {
         if (player == null || player.getPreferredTimeMs() == null) return;
 
-        // Lấy đúng hàng đợi mà player đang đứng
         ConcurrentLinkedQueue<Player> queue = waitingQueuesByTime.get(player.getPreferredTimeMs());
 
         if (queue != null) {
-            // remove() là một thao tác an toàn (thread-safe)
             boolean removed = queue.remove(player);
-            if (removed) {
-                System.out.println("Player " + player.getPlayerName() + " đã hủy tìm trận.");
-            }
         }
     }
 
@@ -1080,11 +1099,7 @@ public class NioWebSocketServer implements Runnable {
             return;
         }
         List<String> validMoves = room.getValidator().getValidMovesForSquare(square);
-        sendMessage(player.getConnection(), Map.of(
-                "type", "valid_moves",
-                "square", square,
-                "moves", validMoves
-        ));
+        sendMessage(player.getConnection(), Map.of("type", "valid_moves", "square", square, "moves", validMoves));
     }
 
     private void handleResign(Player player, Map<String, Object> data) {
@@ -1108,7 +1123,7 @@ public class NioWebSocketServer implements Runnable {
             return;
         }
         Player opponent = room.getOpponent(player);
-        if (opponent == null || !opponent.getConnection().isOpen()) {
+        if (opponent == null || opponent.getConnection() == null || !opponent.getConnection().isOpen()) {
             sendMessage(player.getConnection(), Map.of("type", "rematch_unavailable", "reason", "Đối thủ đã offline."));
             return;
         }
@@ -1116,10 +1131,9 @@ public class NioWebSocketServer implements Runnable {
         String playerColor = player.getColor();
         String opponentColor = opponent.getColor();
 
-        if (playerColor.equals(room.getRematchRequestedByColor())) return; // Đã yêu cầu rồi
+        if (playerColor.equals(room.getRematchRequestedByColor())) return;
 
         if (opponentColor.equals(room.getRematchRequestedByColor())) {
-            // --- Cả hai đã yêu cầu -> Bắt đầu tái đấu ---
             room.swapPlayerColors();
             room.resetForRematch();
 
@@ -1138,7 +1152,6 @@ public class NioWebSocketServer implements Runnable {
             notifyRoomPlayers(room, "game_start", gameStartData);
             room.startTimer();
         } else {
-            // --- Chỉ người này yêu cầu -> Gửi lời mời cho đối thủ ---
             room.setRematchRequestedByColor(playerColor);
             sendMessage(opponent.getConnection(), Map.of("type", "rematch_offer", "offeringPlayer", player.getPlayerName()));
             sendMessage(player.getConnection(), Map.of("type", "rematch_offer_sent"));
@@ -1146,7 +1159,6 @@ public class NioWebSocketServer implements Runnable {
     }
 
     private void handleGetHistory(Player player, Map<String, Object> data) {
-        // TODO: Kết nối với Database Service để lấy lịch sử thật
         List<Map<String, Object>> historyList = new ArrayList<>();
         sendMessage(player.getConnection(), Map.of("type", "history_list", "history", historyList));
     }
@@ -1157,6 +1169,9 @@ public class NioWebSocketServer implements Runnable {
             if (room.getPlayers().contains(player)) {
                 return room;
             }
+            if (room.getSpectators().contains(player)) {
+                return room;
+            }
         }
         return null;
     }
@@ -1164,15 +1179,12 @@ public class NioWebSocketServer implements Runnable {
     private void cleanupRoom(String roomId) {
         GameRoom removedRoom = gameRooms.remove(roomId);
         if (removedRoom != null) {
-            System.out.println("Cleaning up room " + roomId);
             removedRoom.stopTimer();
-            // (Giả sử GameRoom không còn timer service riêng)
         }
     }
 
     public void handleTimeout(GameRoom room, String winnerColor) {
         if (room == null) return;
-        System.out.println("Handling timeout for room " + room.getRoomId() + ". Winner: " + winnerColor);
         Map<String, Object> endData = new HashMap<>();
         endData.put("winner", winnerColor);
         endData.put("reason", "timeout");
@@ -1183,42 +1195,50 @@ public class NioWebSocketServer implements Runnable {
 
     private void handleDisconnect(SocketChannel client) {
         if (client == null) {
-            System.err.println("handleDisconnect được gọi với client=null. Đang bỏ qua...");
             return;
         }
+        
+        Player player = connectionPlayerMap.get(client);
+        if (player != null) {
+            GameRoom room = findRoomByPlayer(player);
+            if (room != null && "playing".equals(room.getStatus())) {
+                System.out.println("Player " + player.getPlayerName() + " disconnected during game. Waiting 60s...");
+                
+                Player opponent = room.getOpponent(player);
+                if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
+                    sendMessage(opponent.getConnection(), Map.of("type", "opponent_disconnect_alert"));
+                }
+
+                ScheduledFuture<?> task = scheduler.schedule(() -> {
+                    System.out.println("Player " + player.getPlayerName() + " timed out. Ending game.");
+                    handlePlayerDisconnectInRoom(room, player);
+                    connectionPlayerMap.remove(client);
+                    disconnectionTimers.remove(player.getPlayerId());
+                    if (!player.getPlayerId().startsWith("guest_")) {
+                        userService.updateStatus(Integer.parseInt(player.getPlayerId()), "Offline");
+                    }
+                }, 60, TimeUnit.SECONDS);
+                
+                disconnectionTimers.put(player.getPlayerId(), task);
+                
+            } else {
+                connectionPlayerMap.remove(client);
+                if (!player.getPlayerId().startsWith("guest_")) {
+                    userService.updateStatus(Integer.parseInt(player.getPlayerId()), "Offline");
+                }
+            }
+        }
+
         try {
             sendCloseFrame(client);
-
             SelectionKey key = client.keyFor(selector);
             if (key != null) {
                 key.cancel();
             }
-
-            Player player = connectionPlayerMap.remove(client);
-            if (player != null) {
-                System.out.println("Player disconnected: " + player.getPlayerName());
-                if (player.getPreferredTimeMs() != null) {
-                    ConcurrentLinkedQueue<Player> queue = waitingQueuesByTime.get(player.getPreferredTimeMs());
-                    if (queue != null) {
-                        // remove() là một thao tác an toàn (thread-safe)
-                        boolean removed = queue.remove(player);
-                        if (removed) {
-                            System.out.println("Player " + player.getPlayerName() + " đã hủy tìm trận.");
-                        }
-                    }
-                }
-                GameRoom room = findRoomByPlayer(player);
-                if (room != null) {
-                    handlePlayerDisconnectInRoom(room, player);
-                }
-            }
             writeLocks.remove(client);
-            connections.remove(client);
             client.close();
-
-            System.out.println("Client disconnected");
         } catch (IOException e) {
-            System.err.println("Error during disconnect: " + e.getMessage());
+            // ignore
         }
     }
 
@@ -1229,7 +1249,7 @@ public class NioWebSocketServer implements Runnable {
 
         if ("playing".equals(status)) {
             Player opponent = room.getOpponent(player);
-            if (opponent != null && opponent.getConnection().isOpen()) {
+            if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
                 String winnerColor = opponent.getColor();
                 Map<String, Object> endData = new HashMap<>();
                 endData.put("winner", winnerColor);
@@ -1240,7 +1260,6 @@ public class NioWebSocketServer implements Runnable {
             room.setStatus("finished");
             room.stopTimer();
         } else if ("waiting".equals(status)) {
-            // Đang chờ → Xóa phòng
             gameRooms.remove(room.getRoomId());
             broadcastRoomsList();
         }
@@ -1252,8 +1271,7 @@ public class NioWebSocketServer implements Runnable {
     }
 
     public void sendMessage(SocketChannel client, Object messageObject) {
-        if (!client.isOpen()) {
-            System.out.println("Cannot send - client closed");
+        if (client == null || !client.isOpen()) {
             return;
         }
 
@@ -1269,7 +1287,6 @@ public class NioWebSocketServer implements Runnable {
                     client.write(buffer);
                 }
             } catch (IOException e) {
-                System.err.println("  Send error: " + e.getMessage());
                 disconnectQueue.offer(client);
                 selector.wakeup();
             }
@@ -1283,7 +1300,131 @@ public class NioWebSocketServer implements Runnable {
         sendMessage(client, errorMap);
     }
 
-    // --- MAIN ---
+    private void startHeartbeatAndTimeoutTask() {
+        scheduler.scheduleAtFixedRate(() -> {
+            long now = System.currentTimeMillis();
+            for (SelectionKey key : selector.keys()) {
+                if (key.channel() instanceof SocketChannel && key.isValid()) {
+                    SocketChannel client = (SocketChannel) key.channel();
+                    ConnectionAttachment attachment = (ConnectionAttachment) key.attachment();
+                    if (attachment != null && attachment.isHandshakeDone) {
+                        if (now - attachment.lastActiveTime > 60000) {
+                            disconnectQueue.offer(client);
+                        } else if (now - attachment.lastActiveTime > 30000) {
+                            sendMessage(client, Map.of("type", "ping"));
+                        }
+                    }
+                }
+            }
+            selector.wakeup();
+        }, 10, 10, TimeUnit.SECONDS);
+    }
+
+    private void handleSearchUsers(Player player, Map<String, Object> data) {
+        String keyword = (String) data.get("keyword");
+        if (keyword == null || keyword.trim().isEmpty()) {
+            sendMessage(player.getConnection(), Map.of("type", "search_results", "users", new ArrayList<>()));
+            return;
+        }
+        userDAO dao = new userDAO(emf.createEntityManager());
+        List<user> users = dao.searchUsers(keyword);
+        List<Map<String, Object>> userDTOs = new ArrayList<>();
+        for (user u : users) {
+            Map<String, Object> dto = new HashMap<>();
+            dto.put("userId", u.getUserId());
+            dto.put("userName", u.getUserName());
+            dto.put("elo", u.getEloRating());
+            userDTOs.add(dto);
+        }
+        sendMessage(player.getConnection(), Map.of("type", "search_results", "users", userDTOs));
+    }
+
+    private void handleGetFriends(Player player) {
+        List<friends> friendsList = friendsService.getFriendsOfUser(Integer.parseInt(player.getPlayerId()));
+        List<Map<String, Object>> friendDTOs = new ArrayList<>();
+
+        for (friends f : friendsList) {
+            Map<String, Object> dto = new HashMap<>();
+            dto.put("friendship_id", f.getFriendshipId());
+            dto.put("status", f.getStatus());
+            
+            user friendUser = (f.getUser1().getUserId() == Integer.parseInt(player.getPlayerId())) ? f.getUser2() : f.getUser1();
+            
+            dto.put("friend_id", friendUser.getUserId());
+            dto.put("friend_name", friendUser.getUserName());
+            dto.put("friend_status", friendUser.getStatus());
+            
+            friendDTOs.add(dto);
+        }
+
+        sendMessage(player.getConnection(), Map.of("type", "friends_list", "friends", friendDTOs));
+    }
+
+    private void handleFriendRequest(Player player, Map<String, Object> data) {
+        int receiverId = ((Number) data.get("receiverId")).intValue();
+        try {
+            friendsService.sendFriendRequest(Integer.parseInt(player.getPlayerId()), receiverId);
+            sendMessage(player.getConnection(), Map.of("type", "friend_request_sent", "receiverId", receiverId));
+        } catch (Exception e) {
+            sendErrorMessage(player.getConnection(), e.getMessage());
+        }
+    }
+
+    private void handleAcceptFriend(Player player, Map<String, Object> data) {
+        int friendshipId = ((Number) data.get("friendshipId")).intValue();
+        if (friendsService.acceptFriendRequest(friendshipId)) {
+            sendMessage(player.getConnection(), Map.of("type", "friend_request_accepted", "friendshipId", friendshipId));
+        } else {
+            sendErrorMessage(player.getConnection(), "Could not accept friend request.");
+        }
+    }
+
+    private void handleRejectFriend(Player player, Map<String, Object> data) {
+        int friendshipId = ((Number) data.get("friendshipId")).intValue();
+        if (friendsService.rejectFriendRequest(friendshipId)) {
+            sendMessage(player.getConnection(), Map.of("type", "friend_request_rejected", "friendshipId", friendshipId));
+        } else {
+            sendErrorMessage(player.getConnection(), "Could not reject friend request.");
+        }
+    }
+
+    private void handleInviteFriend(Player player, Map<String, Object> data) {
+        String friendId = String.valueOf(data.get("friendId"));
+        Player friend = getPlayerById(friendId);
+        if (friend != null && friend.getConnection() != null && friend.getConnection().isOpen()) {
+            if (findRoomByPlayer(friend) != null) {
+                sendErrorMessage(player.getConnection(), "Player is already in a game.");
+                return;
+            }
+            sendMessage(friend.getConnection(), Map.of("type", "game_invite", "fromPlayerId", player.getPlayerId(), "fromPlayerName", player.getPlayerName()));
+            sendMessage(player.getConnection(), Map.of("type", "invite_sent", "friendId", friendId));
+        } else {
+            sendErrorMessage(player.getConnection(), "Player is not online.");
+        }
+    }
+
+    private void handleInviteResponse(Player player, Map<String, Object> data) {
+        boolean accepted = (Boolean) data.get("accepted");
+        String opponentId = (String) data.get("opponentId");
+        Player opponent = getPlayerById(opponentId);
+        if (opponent != null && opponent.getConnection() != null && opponent.getConnection().isOpen()) {
+            if (accepted) {
+                startNewMatch(player, opponent, 600000); // 10 minutes default
+            } else {
+                sendMessage(opponent.getConnection(), Map.of("type", "invite_rejected", "fromPlayerId", player.getPlayerId()));
+            }
+        }
+    }
+
+    private Player getPlayerById(String playerId) {
+        for (Player p : connectionPlayerMap.values()) {
+            if (p.getPlayerId().equals(playerId)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
     public static void main(String[] args) {
         try {
             NioWebSocketServer server = new NioWebSocketServer(8080);

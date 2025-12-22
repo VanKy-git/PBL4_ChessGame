@@ -15,19 +15,20 @@ public class friendsDAO {
     }
 
     // Gửi lời mời kết bạn
-    public boolean addFriendRequest(int user1Id, int user2Id) {
+    public void addFriendRequest(int user1Id, int user2Id) {
         user u1 = em.find(user.class, user1Id);
         user u2 = em.find(user.class, user2Id);
-        if (u1 == null || u2 == null) return false;
+        if (u1 == null || u2 == null) {
+            throw new IllegalArgumentException("User not found");
+        }
 
         friends f = new friends();
         f.setUser1(u1);
         f.setUser2(u2);
-        f.setStatus("PENDING");
+        f.setStatus("pending");
         f.setCreatedAt(LocalDateTime.now());
 
         em.persist(f);
-        return true;
     }
 
     // Lấy tất cả bạn bè hoặc lời mời của 1 người dùng
@@ -50,25 +51,7 @@ public class friendsDAO {
         return em.merge(f) != null;
     }
 
-    // Chấp nhận kết bạn
-    public boolean acceptFriendRequest(int friendshipId) {
-        friends f = em.find(friends.class, friendshipId);
-        if (f == null) return false;
-        f.setStatus("ACCEPTED");
-        em.merge(f);
-        return true;
-    }
-
-    // Từ chối / hủy
-    public boolean rejectFriendRequest(int friendshipId) {
-        friends f = em.find(friends.class, friendshipId);
-        if (f == null) return false;
-        f.setStatus("REJECTED");
-        em.merge(f);
-        return true;
-    }
-
-    // Xóa bạn bè
+    // Xóa bạn bè hoặc từ chối lời mời
     public boolean deleteFriendship(int friendshipId) {
         friends f = em.find(friends.class, friendshipId);
         if (f == null) return false;

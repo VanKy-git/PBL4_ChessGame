@@ -9,6 +9,7 @@ public class friends {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "friendship_id")
     private int friendshipId;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -19,9 +20,10 @@ public class friends {
     @JoinColumn(name = "user_id2", nullable = false)
     private user user2;
 
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false)
     private String status;
 
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     // ===== GETTER & SETTER =====

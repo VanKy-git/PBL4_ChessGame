@@ -1,5 +1,5 @@
 // File: Home_page.js
-import {connectMainSocket, sendMessage} from "./Connect_websocket.js";
+import {connectMainSocket, sendMessage, registerHandler} from "./Connect_websocket.js";
 
 // Lấy playerName từ localStorage
 let playerName = localStorage.getItem("playerName") || "Guest";
@@ -34,10 +34,12 @@ const startAiBtn = document.getElementById('startAiGameBtn');
 const cancelAiBtn = document.getElementById('cancelAiSetupBtn');
 const eloBtns = document.querySelectorAll('.elo-btn');
 const aiTimeBtns = document.querySelectorAll('.time-btn-ai');
+const colorBtns = document.querySelectorAll('.color-btn');
 
 // Biến lưu cấu hình đang chọn
 let selectedElo = 1350;
 let selectedAiTime = 600000;
+let selectedColor = 'random'; // Thêm biến chọn màu
 let matchmakingIntervalId = null; // ID để dừng setInterval
 let matchmakingStartTime = 0;   // Thời điểm bắt đầu tìm trận
 
@@ -61,7 +63,33 @@ function getLobbyHTML() {
         <button id="matchmakingBtn" class="btnn" >Ghép trận ngẫu nhiên</button>
         
         <div id="lobbyStatus" class="status-lobby">Đang chờ kết nối...</div>
+        <div id="roomListContainer" class="room-list-container"></div>
     </div>`;
+}
+
+function updateRoomList(rooms) {
+    const container = document.getElementById('roomListContainer');
+    if (!container) return;
+
+    if (!rooms || rooms.length === 0) {
+        container.innerHTML = '<p class="muted">Không có phòng nào.</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <h3 style="margin-top: 20px;">Các phòng đang chờ</h3>
+        <ul class="room-list">
+            ${rooms.map(room => `
+                <li class="room-item">
+                    <span>Phòng #${room.roomId} (${room.playerCount}/2)</span>
+                    <div class="room-actions">
+                        ${room.status === 'waiting' ? `<button class="btn-join-list" data-roomid="${room.roomId}">Vào chơi</button>` : ''}
+                        ${room.status === 'playing' ? `<button class="btn-watch-list" data-roomid="${room.roomId}">Xem</button>` : ''}
+                    </div>
+                </li>
+            `).join('')}
+        </ul>
+    `;
 }
 
 if (aiModeBtn) {
@@ -100,15 +128,25 @@ aiTimeBtns.forEach(btn => {
     });
 });
 
+// Logic chọn màu quân
+colorBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        colorBtns.forEach(b => b.classList.remove('selected'));
+        e.currentTarget.classList.add('selected');
+        selectedColor = e.currentTarget.dataset.color;
+    });
+});
+
 // 6. Gửi lệnh tạo game xuống Server
 if (startAiBtn) {
     startAiBtn.addEventListener('click', () => {
-        console.log(`Creating AI Game: Elo ${selectedElo}, Time ${selectedAiTime}`);
+        console.log(`Creating AI Game: Elo ${selectedElo}, Time ${selectedAiTime}, Color: ${selectedColor}`);
 
         sendMessage({
             type: "create_ai_game",
             elo: selectedElo,
-            timeControl: selectedAiTime
+            timeControl: selectedAiTime,
+            color: selectedColor // Gửi màu đã chọn
         });
 
         // Ẩn popup
@@ -117,7 +155,7 @@ if (startAiBtn) {
 
         // Ẩn giao diện Lobby (nếu có), hiện bàn cờ
         // (Logic này có thể đã được xử lý khi nhận message 'game_start' hoặc 'room_joined')
-        showGameControlsView();
+        window.showGameControlsView(true); // true để báo là game AI
     });
 }
 
@@ -160,7 +198,11 @@ function handleCancelMatchmaking() {
     }
 }
 
-function getGameControlsHTML() {
+function getGameControlsHTML(isAiGame = false) {
+    const aiButtons = isAiGame ? `
+        <button id="takeBackBtn" class="btn-action">Đi lại</button>
+    ` : '';
+
     return `
     <div class="game-controls-wrapper">
         <div class="status" id="gameStatus">Đang chờ đối thủ...</div>
@@ -181,6 +223,7 @@ function getGameControlsHTML() {
             <ul id="moveList"></ul>
         </div>
         <div class="game-actions">
+            ${aiButtons}
             <button id="drawRequestBtn" class="btn-action">Cầu hòa</button>
             <button id="resignBtn" class="btn-action btn-warning">Đầu hàng</button>
             <button id="exitRoomBtn" class="btn-action btn-danger">Thoát phòng</button>
@@ -250,6 +293,7 @@ function selectTimeControl() {
 
 function showLobbyView(selectedTimeMs = null) {
     if (rightPanel) rightPanel.innerHTML = getLobbyHTML();
+    sendMessage({ type: "get_rooms" });
 }
 
 window.showGameOverPopup = function(result, reason) {
@@ -303,8 +347,8 @@ window.showGameOverPopup = function(result, reason) {
     gameOverOverlay.classList.remove('hidden');
 }
 
-window.showGameControlsView = function() {
-    if (rightPanel) rightPanel.innerHTML = getGameControlsHTML();
+window.showGameControlsView = function(isAiGame = false) {
+    if (rightPanel) rightPanel.innerHTML = getGameControlsHTML(isAiGame);
 
     const chatSendBtn = document.getElementById('chatSendBtnEl');
     if (chatSendBtn && window.sendChat) chatSendBtn.addEventListener('click', window.sendChat);
@@ -386,6 +430,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const token = localStorage.getItem("token");
     const playerId = localStorage.getItem("playerId");
     connectMainSocket(token, playerId);
+
+    registerHandler('room_list', (msg) => updateRoomList(msg.rooms));
+    registerHandler('room_update', (msg) => updateRoomList(msg.rooms));
 
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {
@@ -480,6 +527,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 showModesView(); // Quay về màn hình chọn chế độ
             }
             return;
+        }
+        
+        // 9. Click "Vào chơi" từ danh sách phòng
+        const joinListBtn = event.target.closest('.btn-join-list');
+        if (joinListBtn && window.joinRoom) {
+            const roomId = joinListBtn.dataset.roomid;
+            document.getElementById('joinRoomIdInput').value = roomId;
+            window.joinRoom();
+            return;
+        }
+
+        // 10. Click "Xem" từ danh sách phòng
+        const watchListBtn = event.target.closest('.btn-watch-list');
+        if (watchListBtn && window.watchRoom) {
+            const roomId = watchListBtn.dataset.roomid;
+            window.watchRoom(roomId);
+            return;
+        }
+
+        // 11. Click "Đi lại" (Take Back) trong game AI
+        const takeBackBtn = event.target.closest('#takeBackBtn');
+        if (takeBackBtn && window.requestTakeBack) {
+            window.requestTakeBack();
         }
     });
 });

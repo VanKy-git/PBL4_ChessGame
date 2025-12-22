@@ -61,10 +61,6 @@ public class user {
     @Column(name = "email", length = 255)
     private String email;
 
-    // Thời gian tạo tài khoản
-    @Column (name = "createAt")
-    private LocalDateTime createAt = LocalDateTime.now();
-
     // ===== Constructors =====
     public user() {}
 
@@ -120,9 +116,6 @@ public class user {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
-
-    public LocalDateTime getCreateAt() { return createAt; }
-    public void setCreateAt(LocalDateTime createAt) { this.createAt = createAt; }
 
     // ===== toString() =====
     @Override

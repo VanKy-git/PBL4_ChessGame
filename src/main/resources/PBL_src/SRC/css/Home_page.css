@@ -638,78 +638,123 @@ border: 1px solid rgba(255, 165, 0, 0.3);
   animation-duration: 0.5s;
 }
 
+/* Player Bar Styles */
 .player-bar {
     display: flex;
-    justify-content: space-between; /* Đẩy tên/quân ăn sang trái, thời gian sang phải */
-    align-items: center; /* Căn giữa theo chiều dọc */
-    width: 60%; /* Hoặc kích thước phù hợp */
-    margin: 8px auto; /* Giảm margin một chút */
-    padding: 10px 15px;
-    border-radius: 10px; /* Giảm bo góc */
-    background: rgba(0, 0, 0, 0.2); /* Nền tối mờ chung */
+    justify-content: space-between;
+    align-items: center;
+    width: 40%;
+    min-width: 320px;
+    margin: 5px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    color: var(--text-primary, #e6eef8); /* Dùng biến màu chữ chính */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    color: var(--text-primary, #e6eef8);
+    transition: all 0.3s ease;
 }
 
-/* Thanh trên (thường là đối thủ) */
 .top-player {
-    background: rgba(0, 0, 0, 0.3); /* Nền tối hơn chút */
+    margin-right: auto;
+    margin-left: 0;
+    border-left: 4px solid #ff4d4d;
 }
+
 .player-bar.hidden {
     display: none;
 }
 
-/* Thanh dưới (thường là bạn) */
 .bottom-player {
-    background: rgba(50, 50, 50, 0.3); /* Nền sáng hơn chút */
+    margin-left: auto;
+    margin-right: 0;
+    border-right: 4px solid #28a745;
 }
 
-/* Phần chi tiết (Tên + Quân ăn được) */
+.player-info-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.player-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #4a4a4a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    overflow: hidden;
+}
+
+.player-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.player-avatar .fa-user {
+    font-size: 24px;
+    color: #ccc;
+}
+
 .player-details {
     display: flex;
-    flex-direction: column; /* Xếp tên trên, quân ăn được dưới */
-    gap: 4px; /* Khoảng cách nhỏ giữa tên và quân */
+    flex-direction: column;
+    gap: 2px;
 }
 
 .player-name {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 1.1em;
+    color: #fff;
 }
 
-/* Khu vực chứa quân cờ ăn được */
+.player-elo {
+    font-size: 0.85em;
+    color: #ccc;
+}
+
+.player-info-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
 .captured-pieces {
-    display: flex; /* Xếp các quân cờ ăn được nằm ngang */
-    gap: 2px;     /* Khoảng cách nhỏ giữa các quân */
-    height: 18px; /* Giới hạn chiều cao */
+    display: flex;
+    gap: 1px;
+    height: 20px;
     align-items: center;
+    min-width: 100px;
 }
 
-/* Style cho từng quân cờ bị ăn (dùng span) */
 .captured-pieces span {
-    font-size: 14px; /* Kích thước nhỏ */
-    opacity: 0.8; /* Hơi mờ đi */
+    font-size: 18px;
+    opacity: 0.9;
+    color: #f0d9b5;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
-/* Đồng hồ thời gian */
 .player-time {
-    font-size: 1.6em; /* To, rõ ràng */
+    font-size: 1.4em;
     font-weight: bold;
-    font-variant-numeric: tabular-nums; /* Giữ chiều rộng số ổn định */
-    color: #ffffff; /* Màu trắng cho nổi bật */
-    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5); /* Đổ bóng nhẹ */
+    font-variant-numeric: tabular-nums;
+    color: #ffffff;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
-/* (Tùy chọn) Style khi đến lượt (có thể giữ lại từ trước) */
 .player-bar.active-turn {
     background: rgba(255, 165, 0, 0.3);
     box-shadow: 0 0 15px rgba(255, 165, 0, 0.5);
 }
-/* Style khi gần hết giờ (ví dụ < 30 giây) */
 .player-bar.low-time .player-time {
-    color: #ff4d4d; /* Chuyển sang màu đỏ */
-    animation: pulse-time 1s infinite alternate; /* Hiệu ứng nhấp nháy */
+    color: #ff4d4d;
+    animation: pulse-time 1s infinite alternate;
 }
 @keyframes pulse-time {
     from { opacity: 1; }
@@ -918,4 +963,164 @@ border: 1px solid rgba(255, 165, 0, 0.3);
     width: auto; /* Cho nút co lại theo nội dung */
     padding: 8px 15px;
 }
-  
+
+/* Popup Phong cấp */
+.promotion-popup {
+    background-color: rgba(40, 30, 10, 0.95);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 165, 0, 0.6);
+    text-align: center;
+    color: #fff6e5;
+}
+
+.promotion-options {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.promo-option {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    border: 2px solid transparent;
+}
+
+.promo-option:hover {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #ffd27f;
+}
+
+.promo-option img {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+}
+
+/* Friends Popup */
+.friends-popup-content {
+    width: 450px;
+    max-width: 90vw;
+}
+
+.friends-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 165, 0, 0.3);
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn.active {
+    color: #ffd27f;
+    border-bottom-color: #ffd27f;
+    font-weight: 600;
+}
+
+.tab-content {
+    min-height: 250px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 5px; /* Khoảng trống cho thanh cuộn */
+}
+
+.search-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+.search-bar .input {
+    background-color: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+}
+
+.friend-item, .user-item, .request-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    gap: 10px; /* Tăng khoảng cách */
+}
+
+.friend-info, .user-info, .request-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.request-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.status-badge {
+    font-size: 0.8em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+.status-badge.online {
+    background-color: #28a745;
+    color: white;
+}
+.status-badge.offline {
+    background-color: #6c757d;
+    color: #ddd;
+}
+
+.elo-rating, .request-msg {
+    font-size: 0.9em;
+    color: #bbb;
+}
+
+.empty-msg {
+    text-align: center;
+    padding: 40px 0;
+    color: #aaa;
+}
+
+.loading-spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 40px auto;
+}
+
+/* Thêm style cho avatar trong list user */
+.user-avatar-small {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.3);
+}
