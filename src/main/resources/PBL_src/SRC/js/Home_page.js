@@ -553,3 +553,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 });
+
+// Thêm vào cuối file Home_page.js
+import { applyTheme } from "./Setting.js";
+
+// Lấy theme đã lưu hoặc mặc định
+const savedTheme = localStorage.getItem('chessTheme') || 'classic';
+applyTheme(savedTheme);

@@ -44,7 +44,9 @@ public class matchesDAO {
         if (m != null) {
             m.setEndTime(LocalDateTime.now());
             m.setMatchStatus(status);
-            m.setPgnNotation(pgnNotation);
+            if (pgnNotation != null) {
+                m.setPgnNotation(pgnNotation);
+            }
             em.merge(m);
             return true;
         }
@@ -164,7 +166,7 @@ public class matchesDAO {
     /** Lấy thông tin chi tiết 1 trận đấu, bao gồm thông tin 2 người chơi */
     public match_player getMatchWithPlayers(int matchId) {
         String jpql = """
-            SELECT new com.chatapp.server.Model.DAO.matchesDAO.match_player(
+            SELECT new com.database.server.DAO.matchesDAO.match_player(
                 m.matchId,
                 m.player1.user_id, m.player1.userName, m.player1.eloRating,
                 m.player2.user_id, m.player2.userName, m.player2.eloRating,
@@ -185,7 +187,7 @@ public class matchesDAO {
     /** Lấy danh sách tất cả các trận đấu kèm thông tin người chơi */
     public List<match_player> getAllMatchesWithPlayers() {
         String jpql = """
-            SELECT new com.chatapp.server.Model.DAO.matchesDAO.match_player(
+            SELECT new com.database.server.DAO.matchesDAO.match_player(
                 m.matchId,
                 m.player1.user_id, m.player1.userName, m.player1.eloRating,
                 m.player2.user_id, m.player2.userName, m.player2.eloRating,

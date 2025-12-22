@@ -17,6 +17,9 @@ function renderLeaderboard(list) {
     leaderboardContainer.innerHTML = list.map((player, index) => {
         const rankColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'transparent';
         
+        // Kiểm tra tên người chơi, nếu không có thì hiển thị "Unknown"
+        const playerName = player.playerName || player.username || "Unknown";
+
         return `
             <div class="leaderboard-item" style="
               background:rgba(0, 0, 0, 0.6);padding:12px;border-radius:6px;margin:10px 0;
@@ -25,7 +28,7 @@ function renderLeaderboard(list) {
               border-left: 4px solid ${rankColor};
             ">
                 <span class="rank" style="font-weight: bold; width: 30px;">#${index + 1}</span>
-                <strong style="flex-grow: 1;">${player.playerName}</strong> 
+                <strong style="flex-grow: 1;">${playerName}</strong>
                 <span class="rating" style="color: #88ff88; font-weight: bold;">ELO: ${player.elo}</span>
                 <span class="wins" style="margin-left: 15px; color: #bbb;">${player.wins} Thắng</span>
             </div>

@@ -79,6 +79,24 @@ public class matchesService {
             em.close();
         }
     }
+    
+    /** Kết thúc một trận đấu */
+    public boolean endMatch(int matchId, String status, String pgnNotation) {
+        EntityManager em = emf.createEntityManager();
+        matchesDAO dao = new matchesDAO(em);
+        try {
+            em.getTransaction().begin();
+            boolean result = dao.endMatch(matchId, status, pgnNotation);
+            em.getTransaction().commit();
+            return result;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
 
     // ========================= MỞ RỘNG: MATCH + NGƯỜI CHƠI =========================
 

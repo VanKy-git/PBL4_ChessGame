@@ -1124,3 +1124,55 @@ border: 1px solid rgba(255, 165, 0, 0.3);
     object-fit: cover;
     border: 1px solid rgba(255,255,255,0.3);
 }
+
+/* Leaderboard Popup */
+#leaderboardPopup .popup-content {
+    width: 500px; /* Tăng chiều rộng */
+    max-width: 90vw;
+}
+
+.leaderboard-item {
+    background: rgba(0, 0, 0, 0.6);
+    padding: 12px;
+    border-radius: 6px;
+    margin: 10px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #eee;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s;
+}
+
+.leaderboard-item:hover {
+    transform: translateX(5px);
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.rank {
+    font-weight: bold;
+    width: 40px;
+    font-size: 1.1em;
+}
+
+.leaderboard-item strong {
+    flex-grow: 1;
+    text-align: left;
+    padding-left: 10px;
+    font-size: 1.1em;
+}
+
+.rating {
+    color: #88ff88;
+    font-weight: bold;
+    min-width: 80px;
+    text-align: right;
+}
+
+.wins {
+    margin-left: 15px;
+    color: #bbb;
+    font-size: 0.9em;
+    min-width: 70px;
+    text-align: right;
+}

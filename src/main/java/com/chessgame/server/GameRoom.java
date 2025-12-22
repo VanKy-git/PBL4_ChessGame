@@ -28,6 +28,7 @@ public class GameRoom {
     private String rematchRequestedByColor = null;
     private final List<Map<String, Object>> moveHistory = new CopyOnWriteArrayList<>();
     private final List<String> fenHistory = new CopyOnWriteArrayList<>();
+    private Integer matchDbId = null; // ID của trận đấu trong database
 
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
@@ -139,6 +140,7 @@ public class GameRoom {
         this.moveHistory.clear();
         this.fenHistory.clear();
         this.fenHistory.add(this.validator.toFen());
+        this.matchDbId = null; // Reset DB ID for the new match
     }
 
     public synchronized void swapPlayerColors() {
@@ -225,7 +227,13 @@ public class GameRoom {
     }
 
     // Getters and Setters
+    public Integer getMatchDbId() {
+        return matchDbId;
+    }
 
+    public void setMatchDbId(Integer matchDbId) {
+        this.matchDbId = matchDbId;
+    }
 
     public StockfishEngine getStockfishEngine() {
         return stockfishEngine;

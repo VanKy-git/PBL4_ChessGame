@@ -1,9 +1,12 @@
 package com.chessgame.server;
 
+import com.database.server.DAO.matchesDAO;
 import com.database.server.DAO.userDAO;
 import com.database.server.Entity.friends;
+import com.database.server.Entity.matches;
 import com.database.server.Entity.user;
 import com.database.server.Service.friendsService;
+import com.database.server.Service.matchesService;
 import com.database.server.Service.userService;
 import com.database.server.Utils.JwtConfig;
 import com.google.gson.Gson;
@@ -24,6 +27,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -44,6 +48,7 @@ public class NioWebSocketServer implements Runnable {
     private final EntityManagerFactory emf;
     private final userService userService;
     private final friendsService friendsService;
+    private final matchesService matchesService;
     private final Map<String, ScheduledFuture<?>> disconnectionTimers = new ConcurrentHashMap<>();
 
 
@@ -57,6 +62,7 @@ public class NioWebSocketServer implements Runnable {
         this.emf = Persistence.createEntityManagerFactory("PBL4_ChessPU");
         this.userService = new userService(emf);
         this.friendsService = new friendsService(emf);
+        this.matchesService = new matchesService(emf);
 
         this.selector = Selector.open();
         this.serverChannel = ServerSocketChannel.open();
@@ -735,15 +741,25 @@ public class NioWebSocketServer implements Runnable {
     private void startGame(GameRoom room) {
         room.setStatus("playing");
         room.setCurrentTurn("white");
-        // room.getValidator().resetBoard(); // Resetting is done in constructor, maybe not needed here unless for rematch
+
+        Player p1 = room.getPlayerByColor("white");
+        Player p2 = room.getPlayerByColor("black");
+
+        if (p1 != null && p2 != null && !p1.getPlayerId().startsWith("guest_") && !p2.getPlayerId().startsWith("guest_")) {
+            user user1 = userService.getUserById(Integer.parseInt(p1.getPlayerId()));
+            user user2 = userService.getUserById(Integer.parseInt(p2.getPlayerId()));
+            if (user1 != null && user2 != null) {
+                matches newMatch = matchesService.createMatch(user1, user2);
+                room.setMatchDbId(newMatch.getMatchId());
+            }
+        }
+
         Map<String, Object> gameStartData = new HashMap<>();
         gameStartData.put("gameState", room.getValidator().toFen());
         gameStartData.put("currentTurn", "white");
         gameStartData.put("initialTimeMs", room.getInitialTimeMs());
-        gameStartData.put("isAiGame", room.getStockfishEngine() != null); // Add isAiGame flag
+        gameStartData.put("isAiGame", room.getStockfishEngine() != null);
 
-        Player p1 = room.getPlayerByColor("white");
-        Player p2 = room.getPlayerByColor("black");
         if (p1 != null && p2 != null) {
             gameStartData.put("playerWhite", Map.of("id", p1.getPlayerId(), "name", p1.getPlayerName()));
             gameStartData.put("playerBlack", Map.of("id", p2.getPlayerId(), "name", p2.getPlayerName()));
@@ -895,6 +911,7 @@ public class NioWebSocketServer implements Runnable {
                     leftData.put("reason", "Người chơi rời khỏi phòng!");
                     leftData.put("winner", room.getOpponent(player).getColor());
                     notifyRoomPlayers(room, "player_left", leftData);
+                    endGameInDb(room, room.getOpponent(player).getColor(), "resignation");
                 }
             }
             broadcastRoomsList();
@@ -967,6 +984,7 @@ public class NioWebSocketServer implements Runnable {
             notifyRoomPlayers(room, "end_game", Map.of("winner", moveResult.winner));
             room.setStatus("finished");
             room.shutdownTimerService();
+            endGameInDb(room, moveResult.winner, moveResult.message);
         }
 
         return true;
@@ -1083,6 +1101,7 @@ public class NioWebSocketServer implements Runnable {
             notifyRoomPlayers(room, "end_game", Map.of("winner", "draw", "reason", "agreement"));
             room.setStatus("finished");
             room.stopTimer();
+            endGameInDb(room, "draw", "agreement");
         } else {
             room.setIsDrawOffered(null);
             if (offeringPlayer != null && offeringPlayer.getConnection().isOpen()) {
@@ -1113,6 +1132,7 @@ public class NioWebSocketServer implements Runnable {
         notifyRoomPlayers(room, "end_game", Map.of("winner", winnerColor, "reason", "resignation"));
         room.setStatus("finished");
         room.stopTimer();
+        endGameInDb(room, winnerColor, "resignation");
     }
 
     private void handleRematchRequest(Player player, Map<String, Object> data) {
@@ -1159,7 +1179,21 @@ public class NioWebSocketServer implements Runnable {
     }
 
     private void handleGetHistory(Player player, Map<String, Object> data) {
+        if (player.getPlayerId().startsWith("guest_")) {
+            sendMessage(player.getConnection(), Map.of("type", "history_list", "history", new ArrayList<>()));
+            return;
+        }
+        matchesDAO dao = new matchesDAO(emf.createEntityManager());
+        List<matches> matches = dao.getMatchesByUser(Integer.parseInt(player.getPlayerId()));
         List<Map<String, Object>> historyList = new ArrayList<>();
+        for (matches m : matches) {
+            Map<String, Object> dto = new HashMap<>();
+            dto.put("playerX", m.getPlayer1().getUserName());
+            dto.put("playerO", m.getPlayer2().getUserName());
+            dto.put("winner", m.getMatchStatus());
+            dto.put("date", m.getEndTime() != null ? m.getEndTime().toString() : m.getStartTime().toString());
+            historyList.add(dto);
+        }
         sendMessage(player.getConnection(), Map.of("type", "history_list", "history", historyList));
     }
 
@@ -1191,6 +1225,7 @@ public class NioWebSocketServer implements Runnable {
         notifyRoomPlayers(room, "end_game", endData);
         room.setStatus("finished");
         room.stopTimer();
+        endGameInDb(room, winnerColor, "timeout");
     }
 
     private void handleDisconnect(SocketChannel client) {
@@ -1256,6 +1291,7 @@ public class NioWebSocketServer implements Runnable {
                 endData.put("reason", "opponent_disconnected");
                 endData.put("disconnectedPlayer", player.getPlayerName());
                 sendMessage(opponent.getConnection(), Map.of("type", "end_game", "data", endData));
+                endGameInDb(room, winnerColor, "opponent_disconnected");
             }
             room.setStatus("finished");
             room.stopTimer();
@@ -1423,6 +1459,25 @@ public class NioWebSocketServer implements Runnable {
             }
         }
         return null;
+    }
+
+    private void endGameInDb(GameRoom room, String winnerColor, String reason) {
+        if (room.getMatchDbId() == null) return; // Not a DB match
+
+        String status;
+        if ("draw".equals(winnerColor)) {
+            status = "Draw";
+        } else {
+            Player winnerPlayer = room.getPlayerByColor(winnerColor);
+            if (winnerPlayer != null) {
+                status = winnerPlayer.getPlayerName();
+            } else {
+                status = "Unknown"; // Fallback
+            }
+        }
+        
+        // PGN is not implemented yet, so we pass null
+        matchesService.endMatch(room.getMatchDbId(), status, null);
     }
 
     public static void main(String[] args) {
