@@ -265,6 +265,7 @@ public class NioWebSocketServer implements Runnable {
         String response = "HTTP/1.1 101 Switching Protocols\r\n" +
                 "Upgrade: websocket\r\n" +
                 "Connection: Upgrade\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
                 "Sec-WebSocket-Accept: " + acceptKey + "\r\n" +
                 "\r\n";
 
