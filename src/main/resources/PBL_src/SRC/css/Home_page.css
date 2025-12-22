@@ -1246,3 +1246,97 @@ border: 1px solid rgba(255, 165, 0, 0.3);
     border: 1px solid rgba(255,255,255,0.2);
     color: white;
 }
+
+/* Settings Popup Styles */
+.settings-popup-content {
+    width: 400px;
+    max-width: 90vw;
+    text-align: left;
+}
+
+.settings-section {
+    margin-bottom: 25px;
+}
+
+.settings-section h3 {
+    font-size: 1.2em;
+    color: #ffd27f;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 165, 0, 0.3);
+    padding-bottom: 8px;
+}
+
+.color-picker-group {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.color-picker-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-picker-item label {
+    font-weight: 500;
+}
+
+.color-picker-item input[type="color"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 50px;
+    height: 50px;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+}
+.color-picker-item input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+.color-picker-item input[type="color"]::-webkit-color-swatch {
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+
+.board-theme-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* 2 cột hoặc hơn */
+    gap: 15px;
+}
+
+.theme-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.2);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-option:hover {
+    background: rgba(0,0,0,0.4);
+}
+
+.theme-option.selected {
+    border-color: #ffd27f; /* Màu vàng nổi bật khi chọn */
+    box-shadow: 0 0 10px rgba(255, 210, 127, 0.5);
+}
+
+.theme-preview {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.theme-option span {
+    font-size: 0.9em;
+    color: #e6eef8;
+}
