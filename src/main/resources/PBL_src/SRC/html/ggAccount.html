@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng nhập / Đăng ký bằng Google</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../../PBL4_imgs/icon/logo.png">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f5f7fb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background:url(../../PBL4_imgs/image/background5.png);
+            background-size: cover;
+        }
+        .container {
+            width: 400px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            padding: 30px;
+            text-align: center;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+
+        /* Style cho nút Quay lại */
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            margin-top: 15px;
+        }
+        .back-btn:hover { background: #5a6268; }
+
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #555;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #f2f5ff;
+            padding: 10px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Đăng nhập bằng Google</h2>
+
+    <div id="g_id_onload"
+         data-client_id="660085540047-jc210st32m11fil9rp7n5lck025jfc67.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="rectangular"
+         data-theme="outline"
+         data-text="continue_with"
+         data-size="large"
+         data-logo_alignment="left">
+    </div>
+
+    <div id="status">Vui lòng chọn tài khoản Google để tiếp tục...</div>
+
+    <button class="back-btn" id="backBtn">Quay lại</button>
+</div>
+
+<script>
+    // 🟢 URL API backend
+    const API_URL = "http://localhost:8910";
+    const LOGIN_API = `${API_URL}/api/loginWithGoogle`;
+    const REGISTER_API = `${API_URL}/api/registerWithGoogle`;
+
+    let latestToken = null;
+
+    // Kiểm tra xem user muốn login hay register
+    const authMode = localStorage.getItem("googleAuthMode") || "login";
+
+    // Cập nhật tiêu đề
+    document.querySelector('h2').textContent =
+        authMode === "signup" ? "Đăng ký bằng Google" : "Đăng nhập bằng Google";
+
+    // ✅ SỰ KIỆN CHO NÚT QUAY LẠI
+    document.getElementById("backBtn").addEventListener("click", () => {
+        // Xóa chế độ authMode để lần sau vào lại mặc định là login (hoặc giữ nguyên tùy bạn)
+        localStorage.removeItem("googleAuthMode");
+
+        // Chuyển hướng về trang MainLogin.html
+        window.location.href = "MainLogin.html";
+    });
+
+    // Hàm callback khi Google trả idToken
+    function handleCredentialResponse(response) {
+        latestToken = response.credential;
+
+        // TỰ ĐỘNG GỬI TOKEN ĐẾN SERVER NGAY
+        if (authMode === "signup") {
+            sendTokenToServer(REGISTER_API);
+        } else {
+            sendTokenToServer(LOGIN_API);
+        }
+    }
+
+    // Hàm gửi token tới server
+    async function sendTokenToServer(apiUrl) {
+        if (!latestToken) {
+            alert("Bạn cần đăng nhập Google trước!");
+            return;
+        }
+
+        document.getElementById('status').innerText = "🔄 Đang xử lý...";
+        // Ẩn nút quay lại khi đang xử lý để tránh lỗi
+        document.getElementById('backBtn').style.display = 'none';
+
+        try {
+            const res = await fetch(apiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: latestToken })
+            });
+
+            const result = await res.json();
+
+            if (res.ok && result.success) {
+                // LƯU THÔNG TIN
+                localStorage.setItem("token", result.data.token);
+                localStorage.setItem("playerId", result.data.userId);
+                localStorage.setItem("playerName", result.data.username || result.data.name);
+                localStorage.setItem("avatarUrl", result.data.avatar || result.data.picture || "../../PBL4_imgs/icon/man.png");
+
+                // Cache userData
+                localStorage.setItem("userData", JSON.stringify({
+                    playerId: result.data.userId,
+                    username: result.data.username || result.data.name,
+                    email: result.data.email,
+                    avatarUrl: result.data.avatar || result.data.picture || "../../PBL4_imgs/icon/man.png"
+                }));
+
+                localStorage.removeItem("googleAuthMode");
+
+                document.getElementById('status').innerText = "✅ Thành công! Đang chuyển hướng...";
+
+                setTimeout(() => {
+                    window.location.href = "Home_page.html";
+                }, 1000);
+
+            } else {
+                document.getElementById('status').innerText =
+                    "⚠️ Lỗi: " + (result.error || result.message || "Không xác định");
+                // Hiện lại nút back nếu lỗi
+                document.getElementById('backBtn').style.display = 'block';
+            }
+
+        } catch (err) {
+            document.getElementById('status').innerText =
+                "❌ Lỗi kết nối server: " + err.message;
+            document.getElementById('backBtn').style.display = 'block';
+        }
+    }
+</script>
+</body>
+</html>

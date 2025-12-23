@@ -73,14 +73,33 @@ public class friendsController {
      * Lấy danh sách bạn bè hoặc lời mời của một user
      * Request: { "userId": 1 }
      */
+//    public String getFriendsOfUser(String requestJson) {
+//        try {
+//            Map<String, Number> request = gson.fromJson(requestJson, Map.class);
+//            int userId = request.get("userId").intValue();
+//
+//            List<friends> friendsList = service.getFriendsOfUser(userId);
+//            return successResponse(friendsList);
+//        } catch (Exception e) {
+//            return errorResponse("Lỗi: " + e.getMessage());
+//        }
+//    }
+
+    /**
+     * Lấy danh sách bạn bè hoặc lời mời của một user
+     * Request: { "userId": 1 }
+     */
     public String getFriendsOfUser(String requestJson) {
         try {
             Map<String, Number> request = gson.fromJson(requestJson, Map.class);
             int userId = request.get("userId").intValue();
 
-            List<friends> friendsList = service.getFriendsOfUser(userId);
+            // Gọi hàm Service vừa sửa (trả về List<Map>)
+            List<Map<String, Object>> friendsList = service.getFriendsOfUser(userId);
+
             return successResponse(friendsList);
         } catch (Exception e) {
+            e.printStackTrace(); // In lỗi ra console để dễ debug
             return errorResponse("Lỗi: " + e.getMessage());
         }
     }

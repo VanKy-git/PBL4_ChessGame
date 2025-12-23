@@ -8,6 +8,9 @@ import jakarta.persistence.EntityManagerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class friendsService {
 
@@ -52,11 +55,53 @@ public class friendsService {
         }
     }
 
-    public List<friends> getFriendsOfUser(int userId) {
+//    public List<friends> getFriendsOfUser(int userId) {
+//        EntityManager em = emf.createEntityManager();
+//        try {
+//            friendsDAO dao = new friendsDAO(em);
+//            return dao.getFriendsOfUser(userId);
+//        } finally {
+//            em.close();
+//        }
+//    }
+
+
+    public List<Map<String, Object>> getFriendsOfUser(int userId) {
         EntityManager em = emf.createEntityManager();
         try {
             friendsDAO dao = new friendsDAO(em);
-            return dao.getFriendsOfUser(userId);
+
+            // Lấy danh sách thô từ DB
+            List<friends> rawList = dao.getFriendsOfUser(userId);
+            List<Map<String, Object>> resultList = new ArrayList<>();
+
+            for (friends f : rawList) {
+                user friendUser;
+
+                // Logic xác định ai là bạn
+                if (f.getUser1().getUserId() == userId) {
+                    friendUser = f.getUser2();
+                } else {
+                    friendUser = f.getUser1();
+                }
+
+                Map<String, Object> friendMap = new HashMap<>();
+                friendMap.put("friendship_id", f.getFriendshipId());
+                friendMap.put("friend_id", friendUser.getUserId());
+                friendMap.put("friend_name", friendUser.getUserName());
+                friendMap.put("avatar_url", friendUser.getAvatarUrl());
+                friendMap.put("friend_status", friendUser.getStatus());
+                friendMap.put("status", f.getStatus());
+
+                // 🔴 QUAN TRỌNG NHẤT: BẮT BUỘC PHẢI CÓ DÒNG NÀY
+                // User1 luôn là người gửi (Sender)
+                friendMap.put("sender_id", f.getUser1().getUserId());
+
+                resultList.add(friendMap);
+            }
+
+            return resultList;
+
         } finally {
             em.close();
         }
