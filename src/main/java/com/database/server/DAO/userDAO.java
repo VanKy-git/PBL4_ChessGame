@@ -268,6 +268,20 @@ public class userDAO {
         return false;
     }
 
+    public boolean updateWinLossCount(int userId, boolean isWin) {
+        user u = em.find(user.class, userId);
+        if (u != null) {
+            if (isWin) {
+                u.setWinCount(u.getWinCount() + 1);
+            } else {
+                u.setLossCount(u.getLossCount() + 1);
+            }
+            em.merge(u);
+            return true;
+        }
+        return false;
+    }
+
     public boolean deleteUser(int userId) {
         user u = em.find(user.class, userId);
         if (u != null) {

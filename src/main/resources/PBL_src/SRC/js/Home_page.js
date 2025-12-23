@@ -15,6 +15,7 @@ const matchmakingTimerEl = document.getElementById('matchmaking-timer');
 const gameOverOverlay = document.getElementById('game-over-overlay');
 const gameOverTitleEl = document.getElementById('gameOverTitle');
 const gameOverReasonEl = document.getElementById('gameOverReason');
+const gameOverEloChangeEl = document.getElementById('gameOverEloChange');
 const findNewBtn = document.getElementById('gameOverFindNewBtn');
 const rematchBtn = document.getElementById('gameOverRematchBtn');
 const leaveBtn = document.getElementById('gameOverLeaveBtn');
@@ -325,7 +326,7 @@ function showLobbyView(selectedTimeMs = null) {
     if (rightPanel) rightPanel.innerHTML = getLobbyHTML();
 }
 
-window.showGameOverPopup = function(result, reason) {
+window.showGameOverPopup = function(result, reason, eloChangeText = '') {
     if (!gameOverOverlay || !gameOverTitleEl || !gameOverReasonEl || !findNewBtn || !rematchBtn || !leaveBtn) {
         console.error("Không tìm thấy các element của popup Game Over!");
         alert(`Kết quả: ${result} - Lý do: ${reason || 'Kết thúc trận'}`);
@@ -348,6 +349,15 @@ window.showGameOverPopup = function(result, reason) {
             break;
     }
     gameOverReasonEl.textContent = reason || ''; // Hiển thị lý do hoặc để trống
+    
+    if (gameOverEloChangeEl) {
+        if (eloChangeText) {
+            gameOverEloChangeEl.textContent = eloChangeText;
+            gameOverEloChangeEl.classList.remove('hidden');
+        } else {
+            gameOverEloChangeEl.classList.add('hidden');
+        }
+    }
 
     findNewBtn.onclick = () => {
         gameOverOverlay.classList.add('hidden'); // Ẩn popup

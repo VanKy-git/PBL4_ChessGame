@@ -636,6 +636,61 @@ public class userService {
         }
     }
 
+    public boolean updateEloRating(int userId, int newElo) {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em);
+        try {
+            em.getTransaction().begin();
+            boolean result = dao.updateEloRating(userId, newElo);
+            em.getTransaction().commit();
+            return result;
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    public void processGameResult(int whitePlayerId, int blackPlayerId, String winnerColor, int newEloWhite, int newEloBlack) {
+        EntityManager em = emf.createEntityManager();
+        userDAO dao = new userDAO(em); // We need the DAO to fetch users
+        try {
+            em.getTransaction().begin();
+
+            user whiteUser = dao.getUserById(whitePlayerId);
+            user blackUser = dao.getUserById(blackPlayerId);
+
+            if (whiteUser != null && blackUser != null) {
+                whiteUser.setEloRating(newEloWhite);
+                blackUser.setEloRating(newEloBlack);
+
+                if ("white".equals(winnerColor)) {
+                    whiteUser.setWinCount(whiteUser.getWinCount() + 1);
+                    blackUser.setLossCount(blackUser.getLossCount() + 1);
+                } else if ("black".equals(winnerColor)) {
+                    blackUser.setWinCount(blackUser.getWinCount() + 1);
+                    whiteUser.setLossCount(whiteUser.getLossCount() + 1);
+                }
+                // For a draw, only ELO changes, win/loss counts do not change.
+
+                em.merge(whiteUser);
+                em.merge(blackUser);
+            }
+
+            em.getTransaction().commit();
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            System.err.println("Lỗi xử lý kết quả trận đấu: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Lỗi xử lý kết quả trận đấu", e);
+        } finally {
+            em.close();
+        }
+    }
+
 
     // ========== CẬP NHẬT TÀI KHOẢN ==========
 

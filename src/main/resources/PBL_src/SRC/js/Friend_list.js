@@ -39,7 +39,7 @@ function renderFriendsList(friends) {
 
         return `
             <div class="friend-item" data-id="${friend.friend_id}">
-                <img src="${friend.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+                <img src="${friend.avatar_url || '../../PBL4_imgs/icon/user.png'}" alt="Avatar" class="user-avatar-small">
                 <div class="friend-info">
                     <strong>${friend.friend_name}</strong>
                     <span class="status-badge ${friendStatus === 'Online' || friendStatus === 'In Game' ? 'online' : 'offline'}">
@@ -102,7 +102,7 @@ function renderSearchResults(users) {
 
         return `
                 <div class="user-item" data-id="${user.userId}">
-                    <img src="${user.avatarUrl || user.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" 
+                    <img src="${user.avatarUrl || user.avatar_url || '../../PBL4_imgs/icon/user.png'}" 
                          alt="Avatar" class="user-avatar-small"
                          onerror="this.onerror=null;this.src='../../PBL4_imgs/icon/man.png';">
                     
@@ -134,7 +134,7 @@ function renderFriendRequests(requests) {
     }
     friendsTabContent.innerHTML = requests.map(req => `
         <div class="request-item" data-id="${req.friendship_id}">
-            <img src="${req.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+            <img src="${req.avatar_url || '../../PBL4_imgs/icon/user.png'}" alt="Avatar" class="user-avatar-small">
             <div class="request-info">
                 <strong>${req.friend_name}</strong>
                 <span class="request-msg">muốn kết bạn với bạn</span>

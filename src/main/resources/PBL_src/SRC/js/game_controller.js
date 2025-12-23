@@ -684,8 +684,31 @@ function onEndGame(msg) {
         result = 'loss';
     }
 
+    let eloChangeText = '';
+    // Check if ELO change data is available
+    if (msg.eloChangeWhite !== undefined && msg.eloChangeBlack !== undefined) {
+        const myEloChange = (yourColor === 'white') ? msg.eloChangeWhite : msg.eloChangeBlack;
+        const opponentEloChange = (yourColor === 'white') ? msg.eloChangeBlack : msg.eloChangeWhite;
+        
+        const myNewElo = (yourColor === 'white') ? msg.newEloWhite : msg.newEloBlack;
+        const opponentNewElo = (yourColor === 'white') ? msg.newEloBlack : msg.newEloWhite;
+
+        // Format the ELO change text
+        const sign = myEloChange >= 0 ? '+' : '';
+        eloChangeText = `Elo: ${myNewElo} (${sign}${myEloChange})`;
+
+        // Update local player info with new ELO
+        if (player2Info) player2Info.elo = myNewElo;
+        if (player1Info) player1Info.elo = opponentNewElo;
+        
+        // Update the player bars immediately
+        updatePlayerBars();
+    }
+
+
     if (window.showGameOverPopup) {
-        window.showGameOverPopup(result, reason);
+        // Pass the eloChangeText to the popup
+        window.showGameOverPopup(result, reason, eloChangeText);
         const rematchBtn = document.getElementById('gameOverRematchBtn');
         if (rematchBtn) {
             rematchBtn.style.display = 'inline-block';
@@ -694,7 +717,7 @@ function onEndGame(msg) {
             rematchBtn.classList.remove('rematch-offer-pulse');
         }
     } else {
-        alert(`Kết quả: ${result} - Lý do: ${reason || 'Kết thúc trận'}`);
+        alert(`Kết quả: ${result} - Lý do: ${reason || 'Kết thúc trận'} ${eloChangeText}`);
     }
 
     if (statusEl) statusEl.textContent = "Trận đấu đã kết thúc.";

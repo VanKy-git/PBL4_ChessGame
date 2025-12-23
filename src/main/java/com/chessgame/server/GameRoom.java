@@ -29,6 +29,7 @@ public class GameRoom {
     private final List<Map<String, Object>> moveHistory = new CopyOnWriteArrayList<>();
     private final List<String> fenHistory = new CopyOnWriteArrayList<>();
     private String visibility; // "public" or "private"
+    private boolean isRanked;
 
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
@@ -46,6 +47,7 @@ public class GameRoom {
         this.serverRef = serverRef;
         this.fenHistory.add(this.validator.toFen()); // Add initial FEN
         this.visibility = "public"; // Default
+        this.isRanked = false;
     }
 
     public synchronized void startTimer() {
@@ -290,6 +292,9 @@ public class GameRoom {
     
     public synchronized String getVisibility() { return visibility; }
     public synchronized void setVisibility(String visibility) { this.visibility = visibility; }
+    
+    public synchronized boolean isRanked() { return isRanked; }
+    public synchronized void setRanked(boolean isRanked) { this.isRanked = isRanked; }
 
     @Override
     public String toString() {
