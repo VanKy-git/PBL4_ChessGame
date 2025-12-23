@@ -33,7 +33,7 @@ html,body{
     justify-content: center;
 }
 
-.elo-btn, .time-btn-ai {
+.elo-btn, .time-btn-ai, .time-btn-create, .visibility-btn {
     padding: 8px 15px;
     background: #3a3a3a;
     border: 1px solid #555;
@@ -43,15 +43,67 @@ html,body{
     flex: 1;
 }
 
-.elo-btn:hover, .time-btn-ai:hover {
+.elo-btn:hover, .time-btn-ai:hover, .time-btn-create:hover, .visibility-btn:hover {
     background: #555;
 }
 
-.elo-btn.selected, .time-btn-ai.selected {
+.elo-btn.selected, .time-btn-ai.selected, .time-btn-create.selected, .visibility-btn.selected {
     background: #81b64c; /* Màu xanh giống chess.com */
     border-color: #81b64c;
     font-weight: bold;
 }
+
+/* --- CSS CHO NÚT CHỌN MÀU --- */
+.color-options {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.color-btn {
+    padding: 8px 15px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.color-btn:hover {
+    background: #555;
+}
+
+/* Class selected cho nút chọn màu */
+.color-btn.selected {
+    background: #81b64c; /* Màu xanh giống chess.com */
+    border-color: #81b64c;
+    font-weight: bold;
+}
+
+/* Icon quân cờ nhỏ trong nút chọn màu (nếu có) */
+.white-piece-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background-color: #fff;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+}
+
+.black-piece-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background-color: #000;
+    border-radius: 50%;
+    border: 1px solid #fff;
+}
+
 .logo-image {
     width: 40px; /* Đặt chiều rộng mong muốn (ví dụ: 40px) */
     height: 40px; /* Đặt chiều cao mong muốn (ví dụ: 40px) */
@@ -361,7 +413,7 @@ html,body{
     flex-direction:column;
     gap:10px;
     align-items:center;
-    flex : 0 0 260px;
+    flex: 0 0 300px; /* Mở rộng thanh bên phải */
     box-shadow: 0 8px 25px rgba(255, 120, 0, 0.4);
     border: 1px solid rgba(255, 165, 0, 0.3);
   }
@@ -1203,4 +1255,7 @@ border: 1px solid rgba(255, 165, 0, 0.3);
     background: linear-gradient(135deg, #ef5350, #e53935);
     transform: translateY(-3px);
     box-shadow: 0 6px 18px rgba(211, 47, 47, 0.7);
+/* Ẩn nút cầu hòa khi chơi với AI */
+.ai-game-view #drawRequestBtn {
+    display: none;
 }

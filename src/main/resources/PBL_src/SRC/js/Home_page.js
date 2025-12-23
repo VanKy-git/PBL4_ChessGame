@@ -28,7 +28,6 @@ const timeControlOverlay = document.getElementById('time-control-overlay');
 const timeOptionsContainer = timeControlOverlay?.querySelector('.time-options');
 const cancelTimeSelectionBtn = document.getElementById('cancelTimeSelectionBtn');
 // 1. Lấy các Element
-const aiModeBtn = document.querySelector('.mode[data-mode="ai"]');
 const aiOverlay = document.getElementById('ai-setup-overlay');
 const startAiBtn = document.getElementById('startAiGameBtn');
 const cancelAiBtn = document.getElementById('cancelAiSetupBtn');
@@ -47,6 +46,24 @@ let matchmakingStartTime = 0;   // Thời điểm bắt đầu tìm trận
 let originalModesHTML = '';
 const rightPanel = document.querySelector('.right-panel');
 
+// === CÁC BIẾN CHO TẠO PHÒNG MỚI ===
+const createRoomPopup = document.getElementById('create-room-popup');
+const confirmCreateRoomBtn = document.getElementById('confirmCreateRoomBtn');
+const cancelCreateRoomBtn = document.getElementById('cancelCreateRoomBtn');
+const waitingRoomOverlay = document.getElementById('waiting-room-overlay');
+const waitingRoomIdDisplay = document.getElementById('waitingRoomIdDisplay');
+const cancelWaitingRoomBtn = document.getElementById('cancelWaitingRoomBtn');
+const roomListPopup = document.getElementById('room-list-popup');
+const roomListLink = document.getElementById('roomListLink');
+const closeRoomListBtn = document.getElementById('closeRoomListBtn');
+const roomListTabContent = document.getElementById('roomListTabContent');
+const roomListTabs = document.querySelectorAll('#room-list-popup .tab-btn');
+
+let selectedCreateTime = 300000; // Default 5 phút
+let selectedVisibility = 'public'; // Default public
+let currentRoomListTab = 'waiting'; // 'waiting' or 'playing'
+let allRooms = []; // Lưu trữ tất cả các phòng để filter
+
 
 // == CÁC HÀM TẠO VIEW (LẤY TỪ game_controller.js) ==
 
@@ -63,25 +80,39 @@ function getLobbyHTML() {
         <button id="matchmakingBtn" class="btnn" >Ghép trận ngẫu nhiên</button>
         
         <div id="lobbyStatus" class="status-lobby">Đang chờ kết nối...</div>
-        <div id="roomListContainer" class="room-list-container"></div>
     </div>`;
 }
 
+// Hàm này giờ sẽ cập nhật dữ liệu và gọi render
 function updateRoomList(rooms) {
-    const container = document.getElementById('roomListContainer');
-    if (!container) return;
+    allRooms = rooms || [];
+    renderRoomList(); // Render cho popup bên trái
+}
 
-    if (!rooms || rooms.length === 0) {
-        container.innerHTML = '<p class="muted">Không có phòng nào.</p>';
+// Hàm mới để render danh sách phòng vào popup bên trái
+function renderRoomList() {
+    if (!roomListTabContent) return;
+
+    const filteredRooms = allRooms.filter(room => {
+        if (currentRoomListTab === 'waiting') return room.status === 'waiting';
+        if (currentRoomListTab === 'playing') return room.status === 'playing';
+        return false;
+    });
+
+    if (filteredRooms.length === 0) {
+        roomListTabContent.innerHTML = '<p class="muted" style="text-align: center; padding: 20px;">Không có phòng nào.</p>';
         return;
     }
 
-    container.innerHTML = `
-        <h3 style="margin-top: 20px;">Các phòng đang chờ</h3>
+    roomListTabContent.innerHTML = `
         <ul class="room-list">
-            ${rooms.map(room => `
+            ${filteredRooms.map(room => `
                 <li class="room-item">
-                    <span>Phòng #${room.roomId} (${room.playerCount}/2)</span>
+                    <div class="room-info">
+                        <span class="room-id">Phòng #${room.roomId}</span>
+                        <span class="room-time"><i class="fa-regular fa-clock"></i> ${room.timeControl / 60000} phút</span>
+                        <span class="room-players"><i class="fa-solid fa-user"></i> ${room.players ? room.players.join(' vs ') : (room.playerCount + '/2')}</span>
+                    </div>
                     <div class="room-actions">
                         ${room.status === 'waiting' ? `<button class="btn-join-list" data-roomid="${room.roomId}">Vào chơi</button>` : ''}
                         ${room.status === 'playing' ? `<button class="btn-watch-list" data-roomid="${room.roomId}">Xem</button>` : ''}
@@ -92,12 +123,6 @@ function updateRoomList(rooms) {
     `;
 }
 
-if (aiModeBtn) {
-    aiModeBtn.addEventListener('click', () => {
-        aiOverlay.classList.remove('hidden');
-        aiOverlay.style.display = 'flex'; // Đảm bảo nó hiện lên nếu CSS dùng display none
-    });
-}
 
 // 3. Sự kiện đóng Popup
 if (cancelAiBtn) {
@@ -131,6 +156,7 @@ aiTimeBtns.forEach(btn => {
 // Logic chọn màu quân
 colorBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
+        // SỬA LỖI: Dùng e.currentTarget để đảm bảo lấy đúng nút (kể cả khi click vào icon bên trong)
         colorBtns.forEach(b => b.classList.remove('selected'));
         e.currentTarget.classList.add('selected');
         selectedColor = e.currentTarget.dataset.color;
@@ -154,7 +180,6 @@ if (startAiBtn) {
         aiOverlay.style.display = 'none';
 
         // Ẩn giao diện Lobby (nếu có), hiện bàn cờ
-        // (Logic này có thể đã được xử lý khi nhận message 'game_start' hoặc 'room_joined')
         window.showGameControlsView(true); // true để báo là game AI
     });
 }
@@ -180,8 +205,14 @@ function hideMatchmakingPopup() {
     }
     stopMatchmakingTimer();
 }
-// Gắn vào window để game_controller có thể gọi
-window.hideMatchmakingPopup = hideMatchmakingPopup;
+
+// *** HÀM GLOBAL ĐỂ ẨN TẤT CẢ OVERLAY CHỜ ***
+window.hideWaitingOverlays = function() {
+    if (waitingRoomOverlay) waitingRoomOverlay.classList.add('hidden');
+    if (matchmakingOverlay) matchmakingOverlay.classList.add('hidden');
+    stopMatchmakingTimer(); // Cũng dừng timer nếu có
+};
+
 
 // Hàm xử lý khi nhấn nút Hủy
 function handleCancelMatchmaking() {
@@ -199,6 +230,7 @@ function handleCancelMatchmaking() {
 }
 
 function getGameControlsHTML(isAiGame = false) {
+    // Nút Cầu hòa sẽ được ẩn bằng CSS nếu là game AI
     const aiButtons = isAiGame ? `
         <button id="takeBackBtn" class="btn-action">Đi lại</button>
     ` : '';
@@ -233,8 +265,6 @@ function getGameControlsHTML(isAiGame = false) {
 
 function showModesView() {
     if (rightPanel) rightPanel.innerHTML = originalModesHTML;
-    // Tùy chọn: Gửi tin nhắn ngắt kết nối
-    // sendMessage({ type: "disconnect" });
 }
 
 function showConfirmationPopup(title, message) {
@@ -293,7 +323,6 @@ function selectTimeControl() {
 
 function showLobbyView(selectedTimeMs = null) {
     if (rightPanel) rightPanel.innerHTML = getLobbyHTML();
-    sendMessage({ type: "get_rooms" });
 }
 
 window.showGameOverPopup = function(result, reason) {
@@ -327,7 +356,6 @@ window.showGameOverPopup = function(result, reason) {
 
     rematchBtn.onclick = () => {
         if (window.requestRematch) {
-            console.log(window.requestRematch);
             window.requestRematch(); // Gọi hàm gửi yêu cầu
         } else {
             console.error("Chưa có hàm window.requestRematch!");
@@ -348,7 +376,14 @@ window.showGameOverPopup = function(result, reason) {
 }
 
 window.showGameControlsView = function(isAiGame = false) {
-    if (rightPanel) rightPanel.innerHTML = getGameControlsHTML(isAiGame);
+    if (rightPanel) {
+        rightPanel.innerHTML = getGameControlsHTML(isAiGame);
+        if (isAiGame) {
+            rightPanel.classList.add('ai-game-view');
+        } else {
+            rightPanel.classList.remove('ai-game-view');
+        }
+    }
 
     const chatSendBtn = document.getElementById('chatSendBtnEl');
     if (chatSendBtn && window.sendChat) chatSendBtn.addEventListener('click', window.sendChat);
@@ -480,6 +515,120 @@ async function logout() {
     window.location.href = "../html/MainLogin.html";
 }
 
+// === LOGIC CHO CÁC POPUP MỚI ===
+
+// 1. Logic cho popup tạo phòng
+if (createRoomPopup) {
+    const timeBtns = createRoomPopup.querySelectorAll('.time-btn-create');
+    timeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            timeBtns.forEach(b => b.classList.remove('selected'));
+            e.currentTarget.classList.add('selected');
+            selectedCreateTime = parseInt(e.currentTarget.dataset.time);
+        });
+    });
+
+    const visBtns = createRoomPopup.querySelectorAll('.visibility-btn');
+    visBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            visBtns.forEach(b => b.classList.remove('selected'));
+            e.currentTarget.classList.add('selected');
+            selectedVisibility = e.currentTarget.dataset.vis;
+        });
+    });
+
+    if (confirmCreateRoomBtn) {
+        confirmCreateRoomBtn.addEventListener('click', () => {
+            sendMessage({
+                type: "create_room",
+                timeControl: selectedCreateTime,
+                visibility: selectedVisibility
+            });
+            createRoomPopup.classList.add('hidden');
+            if (waitingRoomOverlay) {
+                waitingRoomOverlay.classList.remove('hidden');
+                if (waitingRoomIdDisplay) waitingRoomIdDisplay.textContent = "Đang tạo...";
+            }
+        });
+    }
+
+    if (cancelCreateRoomBtn) {
+        cancelCreateRoomBtn.addEventListener('click', () => {
+            createRoomPopup.classList.add('hidden');
+        });
+    }
+}
+
+// 2. Logic cho overlay chờ
+if (cancelWaitingRoomBtn) {
+    cancelWaitingRoomBtn.addEventListener('click', () => {
+        const roomId = cancelWaitingRoomBtn.dataset.roomid;
+        if (roomId) {
+            sendMessage({ type: "cancel_waiting_room", roomId: roomId });
+        }
+        waitingRoomOverlay.classList.add('hidden');
+    });
+}
+
+// 3. Logic cho popup danh sách phòng (bên trái)
+if (roomListLink) {
+    roomListLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (roomListPopup) {
+            roomListPopup.classList.remove('hidden');
+            sendMessage({ type: "get_rooms" }); // Lấy danh sách mới nhất
+        }
+    });
+}
+
+if (closeRoomListBtn) {
+    closeRoomListBtn.addEventListener('click', () => {
+        if (roomListPopup) roomListPopup.classList.add('hidden');
+    });
+}
+
+if (roomListTabs) {
+    roomListTabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            roomListTabs.forEach(t => t.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            currentRoomListTab = e.currentTarget.dataset.tab;
+            renderRoomList(); // Render lại list với tab mới
+        });
+    });
+}
+
+// Ủy quyền sự kiện cho các nút trong danh sách phòng
+if (roomListTabContent) {
+    roomListTabContent.addEventListener('click', (e) => {
+        const joinBtn = e.target.closest('.btn-join-list');
+        if (joinBtn && window.joinRoom) {
+            const roomId = joinBtn.dataset.roomid;
+            if(rightPanel.querySelector('#joinRoomIdInput')) {
+                 rightPanel.querySelector('#joinRoomIdInput').value = roomId;
+                 window.joinRoom();
+            } else {
+                showLobbyView();
+                setTimeout(() => {
+                    if(rightPanel.querySelector('#joinRoomIdInput')) {
+                        rightPanel.querySelector('#joinRoomIdInput').value = roomId;
+                        window.joinRoom();
+                    }
+                }, 100);
+            }
+            if (roomListPopup) roomListPopup.classList.add('hidden');
+        }
+
+        const watchBtn = e.target.closest('.btn-watch-list');
+        if (watchBtn && window.watchRoom) {
+            const roomId = watchBtn.dataset.roomid;
+            window.watchRoom(roomId);
+            if (roomListPopup) roomListPopup.classList.add('hidden');
+        }
+    });
+}
+
+
 document.addEventListener('DOMContentLoaded', function () {
     if (!rightPanel) {
         console.error("Không tìm thấy '.right-panel'");
@@ -521,7 +670,6 @@ document.addEventListener('DOMContentLoaded', function () {
         easing: "easeOutExpo",   // Kiểu chuyển động mượt mà
         duration: 1400,          // Tổng thời gian animation
         delay: anime.stagger(100) // Mỗi chữ cái trễ 100ms so với chữ trước
-        // delay: (el, i) => 70 * i // Cách viết delay khác, tương tự stagger
     });
     // Lưu lại HTML ban đầu
     originalModesHTML = rightPanel.innerHTML;
@@ -551,8 +699,29 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    
+    // *** CHỈ ĐĂNG KÝ CÁC HANDLER LIÊN QUAN ĐẾN UI Ở ĐÂY ***
     registerHandler('room_list', (msg) => updateRoomList(msg.rooms));
     registerHandler('room_update', (msg) => updateRoomList(msg.rooms));
+
+    // Handler cho room_created, chỉ để cập nhật UI
+    registerHandler('room_created', (msg) => {
+        console.log("[Home_page] Received room_created, updating UI.");
+        if (waitingRoomIdDisplay) {
+            waitingRoomIdDisplay.textContent = msg.roomId;
+        }
+        if (cancelWaitingRoomBtn) {
+            cancelWaitingRoomBtn.dataset.roomid = msg.roomId;
+        }
+    });
+
+    // Handler cho game_start, chỉ để ẩn các overlay
+    registerHandler('game_start', (msg) => {
+        console.log("[Home_page] Received game_start, hiding overlays.");
+        if (window.hideWaitingOverlays) {
+            window.hideWaitingOverlays();
+        }
+    });
 
     // Sử dụng Ủy quyền sự kiện (Event Delegation)
     rightPanel.addEventListener('click', async function (event) {
@@ -563,6 +732,16 @@ document.addEventListener('DOMContentLoaded', function () {
             showLobbyView();
         }
 
+        // SỬA LỖI: Xử lý sự kiện click cho nút "Chơi với AI" bằng Event Delegation
+        const aiModeBtn = event.target.closest('.mode[data-mode="ai"]');
+        if (aiModeBtn) {
+            if (aiOverlay) {
+                aiOverlay.classList.remove('hidden');
+                aiOverlay.style.display = 'flex';
+            }
+            return;
+        }
+
         // 2. Click "Back"
         const backBtn = event.target.closest('#backToModes');
         if (backBtn) {
@@ -570,10 +749,12 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // 3. Click "Tạo phòng"
+        // 3. Click "Tạo phòng" -> Sửa để mở popup
         const createRoomBtn = event.target.closest('#createRoomBtn');
-        if (createRoomBtn && window.createRoom) {
-            window.createRoom(); // Gọi hàm từ game_controller
+        if (createRoomBtn) {
+            if (createRoomPopup) {
+                createRoomPopup.classList.remove('hidden');
+            }
             return;
         }
 
@@ -587,15 +768,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // 5. Click "Ghép trận"
         const matchmakingBtn = event.target.closest('#matchmakingBtn');
         if (matchmakingBtn && window.findNewGame) {
-            // ✅ HIỂN THỊ LẠI POPUP CHỌN THỜI GIAN
             const selectedTime = await selectTimeControl();
             if (selectedTime !== null) {
-                showMatchmakingPopup(); // Hiện popup chờ
+                showMatchmakingPopup();
                 matchmakingBtn.disabled = true;
                 matchmakingBtn.textContent = "Đang tìm...";
-                // Gửi yêu cầu tìm trận KÈM thời gian
                 sendMessage({
-                    type: "join", // Hoặc type khác tùy server
+                    type: "join",
                     playerName: playerName,
                     playerId: localStorage.getItem("playerId"),
                     timeControl: selectedTime
@@ -603,69 +782,48 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             return;
         }
-        // 6. Click "Cầu hòa" (#drawRequestBtn trong Game View)
+        // 6. Click "Cầu hòa"
         const drawBtn = event.target.closest('#drawRequestBtn');
         if (drawBtn && window.requestDraw) {
-            // ✅ HIỂN THỊ POPUP XÁC NHẬN TÙY CHỈNH
             const confirmed = await showConfirmationPopup(
                 "Xác nhận Cầu hòa",
                 "Bạn có chắc chắn muốn gửi lời đề nghị hòa đến đối thủ?"
             );
             if (confirmed) {
-                console.log("Đã gửi cầu hòa");
-                window.requestDraw(); // Chỉ gọi nếu nhấn Đồng ý
+                window.requestDraw();
             }
             return;
         }
 
-        // 7. Click "Đầu hàng" (#resignBtn trong Game View)
+        // 7. Click "Đầu hàng"
         const resignBtn = event.target.closest('#resignBtn');
         if (resignBtn && window.resignGame) {
-            // ✅ HIỂN THỊ POPUP XÁC NHẬN TÙY CHỈNH
             const confirmed = await showConfirmationPopup(
                 "Xác nhận Đầu hàng",
                 "Bạn có chắc chắn muốn đầu hàng trận đấu này không?"
             );
             if (confirmed) {
-                window.resignGame(); // Chỉ gọi nếu nhấn Đồng ý
+                window.resignGame();
             }
             return;
         }
 
-        // 8. Click "Thoát phòng" (#exitRoomBtn trong Game View)
+        // 8. Click "Thoát phòng"
         const exitBtn = event.target.closest('#exitRoomBtn');
         if (exitBtn) {
-            // ✅ HIỂN THỊ POPUP XÁC NHẬN TÙY CHỈNH
             const confirmed = await showConfirmationPopup(
                 "Xác nhận Thoát phòng",
                 "Bạn có chắc chắn muốn thoát khỏi phòng? (Nếu đang chơi, bạn sẽ bị xử thua)."
             );
             if (confirmed) {
                 if (window.leaveRoom) {
-                    window.leaveRoom(); // Gửi tin nhắn rời phòng
+                    window.leaveRoom();
                 }
-                showModesView(); // Quay về màn hình chọn chế độ
+                showModesView();
             }
             return;
         }
         
-        // 9. Click "Vào chơi" từ danh sách phòng
-        const joinListBtn = event.target.closest('.btn-join-list');
-        if (joinListBtn && window.joinRoom) {
-            const roomId = joinListBtn.dataset.roomid;
-            document.getElementById('joinRoomIdInput').value = roomId;
-            window.joinRoom();
-            return;
-        }
-
-        // 10. Click "Xem" từ danh sách phòng
-        const watchListBtn = event.target.closest('.btn-watch-list');
-        if (watchListBtn && window.watchRoom) {
-            const roomId = watchListBtn.dataset.roomid;
-            window.watchRoom(roomId);
-            return;
-        }
-
         // 11. Click "Đi lại" (Take Back) trong game AI
         const takeBackBtn = event.target.closest('#takeBackBtn');
         if (takeBackBtn && window.requestTakeBack) {

@@ -28,10 +28,9 @@ export function connectMainSocket(token, playerId) {
     mainSocket.onmessage = (event) => {
         try {
             const msg = JSON.parse(event.data);
-            // Xử lý ping/pong trước khi log và handle
             if (msg.type === 'ping') {
                 sendMessage({ type: 'pong' });
-                return; // Không cần xử lý thêm
+                return;
             }
             console.log('Received:', msg);
             handleMessage(msg);
@@ -51,7 +50,7 @@ export function connectMainSocket(token, playerId) {
 export function sendMessage(messageObject) {
     if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
         mainSocket.send(JSON.stringify(messageObject));
-        if (messageObject.type !== 'pong') { // Không log pong để tránh nhiễu
+        if (messageObject.type !== 'pong') {
              console.log(" Gửi tới server:", messageObject);
         }
         return true;
@@ -65,15 +64,27 @@ export function sendMessage(messageObject) {
 }
 
 export function registerHandler(type, handlerFunction) {
-    if (messageHandlers[type]) {
-        console.warn(`[Socket] Ghi đè handler cho type: ${type}`);
+    // Nếu chưa có mảng handler cho type này, tạo một mảng mới
+    if (!messageHandlers[type]) {
+        messageHandlers[type] = [];
     }
-    messageHandlers[type] = handlerFunction;
+    // Thêm handler mới vào mảng
+    messageHandlers[type].push(handlerFunction);
+    console.log(`[Socket] Registered handler for type: ${type}. Total handlers: ${messageHandlers[type].length}`);
 }
 
 function handleMessage(msg) {
+    // Nếu có mảng handler cho type này
     if (msg.type && messageHandlers[msg.type]) {
-        messageHandlers[msg.type](msg);
+        console.log(`[Socket] Executing ${messageHandlers[msg.type].length} handlers for type: ${msg.type}`);
+        // Gọi tất cả các handler trong mảng
+        messageHandlers[msg.type].forEach(handler => {
+            try {
+                handler(msg);
+            } catch (e) {
+                console.error(`[Socket] Lỗi khi thực thi handler cho type ${msg.type}:`, e);
+            }
+        });
     } else {
         console.warn(`[Socket] Không tìm thấy hàm xử lý cho tin nhắn loại: ${msg.type}`);
     }

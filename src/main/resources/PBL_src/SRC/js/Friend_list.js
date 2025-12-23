@@ -33,16 +33,39 @@ function renderFriendsList(friends) {
                 <span class="status-badge ${isOnline ? 'online' : 'offline'}">
                     ${friend.friend_status || 'Offline'}
                 </span>
+        const friendStatus = friend.friend_status;
+        let actionButton;
+
+        if (friendStatus === 'In Game') {
+            actionButton = `
+                <button class="btn-action spectate-btn" data-id="${friend.friend_id}">
+                    Xem trận
+                </button>`;
+        } else {
+            const isOnline = friendStatus === 'Online';
+            actionButton = `
+                <button class="btn-action invite-btn" 
+                    id="btn-invite-${friend.friend_id}"
+                    data-id="${friend.friend_id}" 
+                    data-name="${friend.friend_name}" 
+                    ${!isOnline ? 'disabled' : ''}>
+                    ${isOnline ? "Mời đấu" : "Offline"}
+                </button>`;
+        }
+
+        return `
+            <div class="friend-item" data-id="${friend.friend_id}">
+                <img src="${friend.avatar_url || '../../PBL4_imgs/icon/default_avatar.png'}" alt="Avatar" class="user-avatar-small">
+                <div class="friend-info">
+                    <strong>${friend.friend_name}</strong>
+                    <span class="status-badge ${friendStatus === 'Online' || friendStatus === 'In Game' ? 'online' : 'offline'}">
+                        ${friendStatus || 'Offline'}
+                    </span>
+                </div>
+                ${actionButton}
             </div>
-            <button class="btn-action invite-btn" 
-                id="btn-invite-${friend.friend_id}"
-                data-id="${friend.friend_id}" 
-                data-name="${friend.friend_name}" 
-                ${!isOnline ? 'disabled' : ''}>
-                ${btnText}
-            </button>
-        </div>
-    `}).join("");
+        `;
+    }).join("");
 }
 //
 // function renderSearchResults(users) {
@@ -67,6 +90,7 @@ function renderFriendsList(friends) {
 // }
 
     // thay mới
+
 function renderSearchResults(users) {
     friendsTabContent.innerHTML = `
         <div class="search-bar">
@@ -218,6 +242,12 @@ if (friendsTabContent) {
             const invitePopup = document.getElementById('invite-popup');
             if(invitePopup) invitePopup.classList.remove('hidden');
         }
+        // Spectate Game
+        else if (target.classList.contains('spectate-btn')) {
+            const friendId = target.dataset.id;
+            sendMessage({ type: 'spectate_game', friendId: parseInt(friendId) });
+            friendsPopup.style.display = 'none';
+        }
     });
 }
 
@@ -257,6 +287,10 @@ const acceptInviteBtn = document.getElementById('acceptInviteBtn');
 if (acceptInviteBtn) {
     acceptInviteBtn.addEventListener('click', () => {
         if (pendingGameInvite) {
+            // Nếu người chơi đang trong hàng đợi tìm trận, hủy nó đi
+            if (typeof handleCancelMatchmaking === 'function') {
+                handleCancelMatchmaking();
+            }
             sendMessage({ type: 'invite_response', accepted: true, opponentId: pendingGameInvite.fromPlayerId });
             document.getElementById('game-invite-popup').classList.add('hidden');
             pendingGameInvite = null;
