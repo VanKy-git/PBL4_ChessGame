@@ -562,7 +562,6 @@ public class NioWebSocketServer implements Runnable {
             gameRooms.put(roomId, room);
 
             sendMessage(player.getConnection(), Map.of("type", "room_created", "roomId", roomId, "color", player.getColor(), "isAiGame", true));
-            sendMessage(player.getConnection(), Map.of("type", "room_joined", "roomId", roomId, "color", player.getColor(), "isAiGame", true));
 
             startGame(room);
 

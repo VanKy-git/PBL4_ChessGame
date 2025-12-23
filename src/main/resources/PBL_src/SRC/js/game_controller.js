@@ -223,6 +223,10 @@ function onRoomCreated(msg) {
         roomId = msg.roomId; // QUAN TRỌNG: SET ROOM ID
         console.log("[game_controller] Room created. Room ID set to:", roomId);
     }
+    if (msg.isAiGame) {
+        isAiGame = true;
+        yourColor = msg.color;
+    }
     // Không làm gì thêm, chỉ chờ tin nhắn 'game_start'
 }
 
