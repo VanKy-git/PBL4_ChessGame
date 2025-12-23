@@ -184,7 +184,6 @@
     // --- THÊM MỚI: HÀM XỬ LÝ CHƠI VỚI TƯ CÁCH GUEST ---
     function playAsGuest() {
         // Lấy một tên Guest ngẫu nhiên để server có thể nhận diện
-        const randomId = Math.floor(Math.random() * 1000);
         localStorage.removeItem("playerId");
         localStorage.removeItem("playerName");
         localStorage.removeItem("token");
@@ -258,29 +257,17 @@
                 if (result.success) {
                     localStorage.setItem("token", result.data.token);
 
-                    // Lưu TOÀN BỘ thông tin user dạng JSON
-                    const userData = {
-                        userId: result.data.userId,
-                        username: result.data.username,
-                        email: result.data.email,
-                        avatar: result.data.avatar || '../../PBL4_imgs/icon/man.png',
-                        elo: result.data.elo || 1200,
-                        winCount: result.data.winCount || 0,
-                        lossCount: result.data.lossCount || 0,
-                        createdAt: result.data.createdAt || new Date().toISOString()
-                    };
-
                     // Lưu các item lẻ để tiện truy xuất
                     localStorage.setItem("token", result.data.token);
                     localStorage.setItem("playerId", result.data.userId);
                     localStorage.setItem("playerName", result.data.username);
-                    localStorage.setItem("avatarUrl", result.data.avatar || "../../PBL4_imgs/icon/man.png");
+                    localStorage.setItem("avatarUrl", result.data.avatarUrl || "../../PBL4_imgs/icon/man.png");
 
                     // Cache thêm cache userData để lần sau load nhanh
                     localStorage.setItem("userData", JSON.stringify({
                         playerId: result.data.userId,
                         username: result.data.username,
-                        avatarUrl: result.data.avatar || "../../PBL4_imgs/icon/man.png"
+                        avatarUrl: result.data.avatarUrl || "../../PBL4_imgs/icon/man.png"
                     }));
 
                     window.location.href = "Home_page.html";
@@ -295,7 +282,6 @@
         }
         else if (buttonTarget.classList.contains('btn-google')) {
             redirectToGoogleLogin(); // Gọi hàm chuyển hướng thay vì alert
-            return;
         }
         else if (buttonTarget.classList.contains('btn-guest')) {
             playAsGuest();

@@ -359,6 +359,7 @@ public class Computer {
     public String getRoomId() { return roomId; }
     public String getStatus() { return status; }
     public Player getHumanPlayer() { return humanPlayer; }
+    public DifficultyLevel getDifficulty() { return difficulty; }
 
     /**
      * Người chơi đầu hàng

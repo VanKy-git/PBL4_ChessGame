@@ -1,7 +1,6 @@
 package com.chessgame.server;
 
 import com.database.server.DAO.userDAO;
-import com.database.server.Entity.friends;
 import com.database.server.Entity.user;
 import com.database.server.Service.friendsService;
 import com.database.server.Service.userService;
@@ -28,9 +27,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class NioWebSocketServer implements Runnable {
-    private final int port;
     private final Selector selector;
-    private final ServerSocketChannel serverChannel;
     private final ManualThreadPool threadPool;
     private final Gson gson = new Gson();
     private final Map<SocketChannel, Player> connectionPlayerMap = new ConcurrentHashMap<>();
@@ -48,8 +45,6 @@ public class NioWebSocketServer implements Runnable {
 
 
     public NioWebSocketServer(int port) throws IOException {
-        this.port = port;
-
         int cores = Runtime.getRuntime().availableProcessors();
         this.threadPool = new ManualThreadPool(cores);
         System.out.println("HĐH: Khởi tạo Thread Pool với " + cores + " luồng worker.");
@@ -59,11 +54,11 @@ public class NioWebSocketServer implements Runnable {
         this.friendsService = new friendsService(emf);
 
         this.selector = Selector.open();
-        this.serverChannel = ServerSocketChannel.open();
-        this.serverChannel.bind(new InetSocketAddress(port));
-        this.serverChannel.configureBlocking(false);
+        ServerSocketChannel serverChannel = ServerSocketChannel.open();
+        serverChannel.bind(new InetSocketAddress(port));
+        serverChannel.configureBlocking(false);
 
-        this.serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+        serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         startHeartbeatAndTimeoutTask();
         System.out.println("Server đang chạy trên cổng " + port);
@@ -112,8 +107,7 @@ public class NioWebSocketServer implements Runnable {
         attachment.stagingBuffer = ByteBuffer.allocate(8192);
         attachment.lastActiveTime = System.currentTimeMillis();
 
-        SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ, attachment);
-        attachment.key = clientKey;
+        attachment.key = client.register(selector, SelectionKey.OP_READ, attachment);
 
         System.out.println("Client mới: " + client.getRemoteAddress());
     }
@@ -126,7 +120,7 @@ public class NioWebSocketServer implements Runnable {
             return null;
         }
 
-        byte b0 = buffer.get();
+        buffer.get(); // b0
         byte b1 = buffer.get();
 
         long payloadLength = (b1 & 0x7F);
@@ -205,9 +199,7 @@ public class NioWebSocketServer implements Runnable {
 
                         if (jsonMessage != null) {
                             final String finalJsonMessage = jsonMessage;
-                            threadPool.submit(() -> {
-                                handleGameLogic(client, attachment, finalJsonMessage);
-                            });
+                            threadPool.submit(() -> handleGameLogic(client, attachment, finalJsonMessage));
                         }
                     } else {
                         break;
@@ -767,9 +759,9 @@ public class NioWebSocketServer implements Runnable {
                 if (user2 != null) p2Data.put("elo", user2.getEloRating());
             }
             
-            if(room.getStockfishEngine() != null) {
-                if(p1.getPlayerName().startsWith("Stockfish")) p1Data.put("elo", room.getStockfishEngine().getElo());
-                if(p2.getPlayerName().startsWith("Stockfish")) p2Data.put("elo", room.getStockfishEngine().getElo());
+            if(room.getComputer() != null) {
+                if(p1.getPlayerName().startsWith("Stockfish")) p1Data.put("elo", room.getComputer().getDifficulty().getEloRating());
+                if(p2.getPlayerName().startsWith("Stockfish")) p2Data.put("elo", room.getComputer().getDifficulty().getEloRating());
             }
 
             gameStartData.put("playerWhite", p1Data);
@@ -801,9 +793,7 @@ public class NioWebSocketServer implements Runnable {
             final Player p1 = player;
             final Player p2 = opponent;
 
-            threadPool.submit(() -> {
-                startNewMatch(p1, p2, preferredTime, true);
-            });
+            threadPool.submit(() -> startNewMatch(p1, p2, preferredTime, true));
 
         } else {
             queue.offer(player);
@@ -1186,7 +1176,7 @@ public class NioWebSocketServer implements Runnable {
         ConcurrentLinkedQueue<Player> queue = waitingQueuesByTime.get(player.getPreferredTimeMs());
 
         if (queue != null) {
-            boolean removed = queue.remove(player);
+            queue.remove(player);
         }
     }
 
@@ -1213,7 +1203,7 @@ public class NioWebSocketServer implements Runnable {
         String roomId = (String) data.get("roomId");
         GameRoom room = gameRooms.get(roomId);
         Object acceptedObj = data.get("accepted");
-        if (room == null || acceptedObj == null || !(acceptedObj instanceof Boolean)) {
+        if (room == null || !(acceptedObj instanceof Boolean)) {
             sendErrorMessage(player.getConnection(), "Phản hồi cầu hòa không hợp lệ.");
             return;
         }

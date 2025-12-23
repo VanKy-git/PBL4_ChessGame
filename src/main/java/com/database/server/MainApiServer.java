@@ -19,13 +19,11 @@ public class MainApiServer {
         // 3. Cấu hình Javalin (CORS, JSON)
         Javalin app = Javalin.create(config -> {
             config.http.defaultContentType = "application/json";
-            config.bundledPlugins.enableCors(cors -> {
-                cors.addRule(rule -> {
-                    rule.anyHost(); // Cho phép mọi nguồn truy cập (Development)
-                    rule.exposeHeader("Content-Type");
-                    rule.exposeHeader("Authorization");
-                });
-            });
+            config.bundledPlugins.enableCors(cors -> cors.addRule(rule -> {
+                rule.anyHost(); // Cho phép mọi nguồn truy cập (Development)
+                rule.exposeHeader("Content-Type");
+                rule.exposeHeader("Authorization");
+            }));
         }).start(PORT);
 
         System.out.println("✅ Server started on port " + PORT);
@@ -116,7 +114,7 @@ public class MainApiServer {
         app.post("/api/updateStatus", ctx -> {
             String requestBody = ctx.body();
 
-            if (requestBody == null || requestBody.isEmpty()) {
+            if (requestBody.isEmpty()) {
                 ctx.status(400).result("{\"success\": false, \"message\": \"Request body is empty\"}");
                 return;
             }

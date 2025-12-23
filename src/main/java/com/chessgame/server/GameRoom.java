@@ -22,7 +22,7 @@ public class GameRoom {
     private long whiteTimeMs;
     private long blackTimeMs;
     private StockfishEngine stockfishEngine;
-    private final NioWebSocketServer serverRef; 
+    private final NioWebSocketServer serverRef;
     private transient ScheduledExecutorService timerService;
     private transient ScheduledFuture<?> timerTask;
     private String rematchRequestedByColor = null;
@@ -30,6 +30,7 @@ public class GameRoom {
     private final List<String> fenHistory = new CopyOnWriteArrayList<>();
     private String visibility; // "public" or "private"
     private boolean isRanked;
+    private Computer computer; // Thêm trường computer
 
 
     public GameRoom(String roomId, long initialTimeMs, NioWebSocketServer serverRef) {
@@ -51,14 +52,14 @@ public class GameRoom {
     }
 
     public synchronized void startTimer() {
-        stopTimer(); 
-        if (!"playing".equals(status)) return; 
+        stopTimer();
+        if (!"playing".equals(status)) return;
 
         if (timerService == null || timerService.isShutdown()) {
             timerService = Executors.newSingleThreadScheduledExecutor();
         }
 
-        System.out.println("Starting timer for room " + roomId); 
+        System.out.println("Starting timer for room " + roomId);
 
         timerTask = timerService.scheduleAtFixedRate(() -> {
             try {
@@ -69,7 +70,7 @@ public class GameRoom {
 
                 long timeDecrement = 1000;
                 long newTime;
-                String playerWithTurn = getCurrentTurn(); 
+                String playerWithTurn = getCurrentTurn();
 
                 if ("white".equals(playerWithTurn)) {
                     newTime = getWhiteTimeMs() - timeDecrement;
@@ -81,7 +82,7 @@ public class GameRoom {
 
                 if (newTime <= 0) {
                     System.out.println("Time out detected in GameRoom task for " + playerWithTurn);
-                    stopTimer(); 
+                    stopTimer();
 
                     String winnerColor = "white".equals(playerWithTurn) ? "black" : "white";
                     serverRef.handleTimeout(this, winnerColor);
@@ -89,7 +90,7 @@ public class GameRoom {
             } catch (Exception e) {
                 System.err.println("Lỗi trong timer task (GameRoom) phòng " + roomId + ": " + e.getMessage());
                 e.printStackTrace();
-                stopTimer(); 
+                stopTimer();
             }
         }, 1000, 1000, TimeUnit.MILLISECONDS);
     }
@@ -103,7 +104,7 @@ public class GameRoom {
     }
 
     public void shutdownTimerService() {
-        stopTimer(); 
+        stopTimer();
         if (timerService != null && !timerService.isShutdown()) {
             timerService.shutdown();
             System.out.println("Timer service shut down for room " + roomId);
@@ -133,7 +134,7 @@ public class GameRoom {
     }
 
     public void resetForRematch() {
-        stopTimer(); 
+        stopTimer();
         validator.resetBoard();
         this.currentTurn = "white";
         this.status = "playing";
@@ -213,7 +214,7 @@ public class GameRoom {
         // Remove last 2 FENs (player's move and AI's move)
         fenHistory.remove(fenHistory.size() - 1);
         fenHistory.remove(fenHistory.size() - 1);
-        
+
         // Remove last 2 moves from move history
         moveHistory.remove(moveHistory.size() - 1);
         moveHistory.remove(moveHistory.size() - 1);
@@ -221,7 +222,7 @@ public class GameRoom {
         // Restore the board to the state before the player's last move
         String previousFen = fenHistory.get(fenHistory.size() - 1);
         validator.setFromFen(previousFen);
-        
+
         // Update current turn from the restored FEN
         this.currentTurn = validator.getCurrentTurn();
 
@@ -289,13 +290,19 @@ public class GameRoom {
     public synchronized void setWhiteTimeMs(long whiteTimeMs) { this.whiteTimeMs = whiteTimeMs; }
     public synchronized long getBlackTimeMs() { return blackTimeMs; }
     public synchronized void setBlackTimeMs(long blackTimeMs) { this.blackTimeMs = blackTimeMs; }
-    
+
     public synchronized String getVisibility() { return visibility; }
     public synchronized void setVisibility(String visibility) { this.visibility = visibility; }
-    
+
     public synchronized boolean isRanked() { return isRanked; }
     public synchronized void setRanked(boolean isRanked) { this.isRanked = isRanked; }
+    public synchronized Computer getComputer() {
+        return computer;
+    }
 
+    public synchronized void setComputer(Computer computer) {
+        this.computer = computer;
+    }
     @Override
     public String toString() {
         return "GameRoom{" +
