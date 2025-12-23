@@ -195,6 +195,16 @@
         // **QUAN TRỌNG**: Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
     }
 
+    // HÀM MỚI: Chuyển đến trang Google Login
+    function redirectToGoogleLogin() {
+        // Lưu trạng thái hiện tại (login hoặc signup) để trang Google biết
+        localStorage.setItem("googleAuthMode", isSignup ? "signup" : "login");
+
+        // Chuyển đến trang Google Login
+        // **QUAN TRỌNG**: Thay đổi đường dẫn này cho phù hợp với cấu trúc thư mục của bạn
+        window.location.href = "ggAccount.html";
+    }
+
     formContent.addEventListener('click', async function(event) {
 
         // SỬA LỖI 1: Lấy đúng target
@@ -247,9 +257,34 @@
             if(respone.ok) {
                 if (result.success) {
                     localStorage.setItem("token", result.data.token);
-                    localStorage.setItem("playerName", result.data.username);
+
+                    // Lưu TOÀN BỘ thông tin user dạng JSON
+                    const userData = {
+                        userId: result.data.userId,
+                        username: result.data.username,
+                        email: result.data.email,
+                        avatar: result.data.avatar || '../../PBL4_imgs/icon/man.png',
+                        elo: result.data.elo || 1200,
+                        winCount: result.data.winCount || 0,
+                        lossCount: result.data.lossCount || 0,
+                        createdAt: result.data.createdAt || new Date().toISOString()
+                    };
+
+                    // Lưu các item lẻ để tiện truy xuất
+                    localStorage.setItem("token", result.data.token);
                     localStorage.setItem("playerId", result.data.userId);
-                    window.location.href = "Home_page.html";                }
+                    localStorage.setItem("playerName", result.data.username);
+                    localStorage.setItem("avatarUrl", result.data.avatar || "../../PBL4_imgs/icon/man.png");
+
+                    // Cache thêm cache userData để lần sau load nhanh
+                    localStorage.setItem("userData", JSON.stringify({
+                        playerId: result.data.userId,
+                        username: result.data.username,
+                        avatarUrl: result.data.avatar || "../../PBL4_imgs/icon/man.png"
+                    }));
+
+                    window.location.href = "Home_page.html";
+                }
                 else {
                     alert(result.error);
                 }
@@ -259,7 +294,8 @@
             }
         }
         else if (buttonTarget.classList.contains('btn-google')) {
-            alert("Chức năng Google Login chưa được kết nối!");
+            redirectToGoogleLogin(); // Gọi hàm chuyển hướng thay vì alert
+            return;
         }
         else if (buttonTarget.classList.contains('btn-guest')) {
             playAsGuest();

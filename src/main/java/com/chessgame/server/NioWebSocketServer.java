@@ -1463,44 +1463,134 @@ public class NioWebSocketServer implements Runnable {
         }, 10, 10, TimeUnit.SECONDS);
     }
 
+//    private void handleSearchUsers(Player player, Map<String, Object> data) {
+//        String keyword = (String) data.get("keyword");
+//        if (keyword == null || keyword.trim().isEmpty()) {
+//            sendMessage(player.getConnection(), Map.of("type", "search_results", "users", new ArrayList<>()));
+//            return;
+//        }
+//        userDAO dao = new userDAO(emf.createEntityManager());
+//        List<user> users = dao.searchUsers(keyword);
+//        List<Map<String, Object>> userDTOs = new ArrayList<>();
+//        for (user u : users) {
+//            Map<String, Object> dto = new HashMap<>();
+//            dto.put("userId", u.getUserId());
+//            dto.put("userName", u.getUserName());
+//            dto.put("elo", u.getEloRating());
+//            userDTOs.add(dto);
+//        }
+//        sendMessage(player.getConnection(), Map.of("type", "search_results", "users", userDTOs));
+//    }
+
+    // mới thay đổi
     private void handleSearchUsers(Player player, Map<String, Object> data) {
         String keyword = (String) data.get("keyword");
         if (keyword == null || keyword.trim().isEmpty()) {
             sendMessage(player.getConnection(), Map.of("type", "search_results", "users", new ArrayList<>()));
             return;
         }
+
+        int currentUserId = -1;
+        Set<Integer> friendIds = new HashSet<>();
+        Set<Integer> pendingIds = new HashSet<>(); // (Tùy chọn) Để check cả trạng thái đã gửi lời mời
+
+        // 1. Lấy danh sách ID bạn bè hiện tại của người dùng
+        if (!player.getPlayerId().startsWith("guest_")) {
+            try {
+                currentUserId = Integer.parseInt(player.getPlayerId());
+                List<Map<String, Object>> myFriends = friendsService.getFriendsOfUser(currentUserId);
+
+                for (Map<String, Object> f : myFriends) {
+                    String status = (String) f.get("status");
+                    int fid = (int) f.get("friend_id");
+
+                    if ("accepted".equalsIgnoreCase(status)) {
+                        friendIds.add(fid); // Đã là bạn bè
+                    } else if ("pending".equalsIgnoreCase(status)) {
+                        pendingIds.add(fid); // Đang chờ kết bạn
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         userDAO dao = new userDAO(emf.createEntityManager());
         List<user> users = dao.searchUsers(keyword);
+
         List<Map<String, Object>> userDTOs = new ArrayList<>();
+
         for (user u : users) {
+            // Bỏ qua chính mình
+            if (u.getUserId() == currentUserId) continue;
+
             Map<String, Object> dto = new HashMap<>();
             dto.put("userId", u.getUserId());
             dto.put("userName", u.getUserName());
             dto.put("elo", u.getEloRating());
+            dto.put("avatarUrl", u.getAvatarUrl());
+
+            // 2. Kiểm tra trạng thái bạn bè
+            if (friendIds.contains(u.getUserId())) {
+                dto.put("relationship", "friend"); // Đã là bạn
+            } else if (pendingIds.contains(u.getUserId())) {
+                dto.put("relationship", "pending"); // Đã gửi/nhận lời mời
+            } else {
+                dto.put("relationship", "none"); // Chưa kết bạn
+            }
+
             userDTOs.add(dto);
         }
+
         sendMessage(player.getConnection(), Map.of("type", "search_results", "users", userDTOs));
     }
 
-    private void handleGetFriends(Player player) {
-        List<friends> friendsList = friendsService.getFriendsOfUser(Integer.parseInt(player.getPlayerId()));
-        List<Map<String, Object>> friendDTOs = new ArrayList<>();
+//    private void handleGetFriends(Player player) {
+//        List<friends> friendsList = friendsService.getFriendsOfUser(Integer.parseInt(player.getPlayerId()));
+//        List<Map<String, Object>> friendDTOs = new ArrayList<>();
+//
+//        for (friends f : friendsList) {
+//            Map<String, Object> dto = new HashMap<>();
+//            dto.put("friendship_id", f.getFriendshipId());
+//            dto.put("status", f.getStatus());
+//
+//            user friendUser = (f.getUser1().getUserId() == Integer.parseInt(player.getPlayerId())) ? f.getUser2() : f.getUser1();
+//
+//            dto.put("friend_id", friendUser.getUserId());
+//            dto.put("friend_name", friendUser.getUserName());
+//            dto.put("friend_status", friendUser.getStatus());
+//
+//            friendDTOs.add(dto);
+//        }
+//
+//        sendMessage(player.getConnection(), Map.of("type", "friends_list", "friends", friendDTOs));
+//    }
 
-        for (friends f : friendsList) {
-            Map<String, Object> dto = new HashMap<>();
-            dto.put("friendship_id", f.getFriendshipId());
-            dto.put("status", f.getStatus());
-            
-            user friendUser = (f.getUser1().getUserId() == Integer.parseInt(player.getPlayerId())) ? f.getUser2() : f.getUser1();
-            
-            dto.put("friend_id", friendUser.getUserId());
-            dto.put("friend_name", friendUser.getUserName());
-            dto.put("friend_status", friendUser.getStatus());
-            
-            friendDTOs.add(dto);
+    //mới
+    private void handleGetFriends(Player player) {
+        // 1. Kiểm tra Guest
+        if (player.getPlayerId().startsWith("guest_")) {
+            sendMessage(player.getConnection(), Map.of("type", "friends_list", "friends", new ArrayList<>()));
+            return;
         }
 
-        sendMessage(player.getConnection(), Map.of("type", "friends_list", "friends", friendDTOs));
+        try {
+            int userId = Integer.parseInt(player.getPlayerId());
+
+            // 2. Gọi Service
+            // ✅ SỬA LỖI: Khai báo đúng kiểu List<Map<String, Object>>
+            // Service đã làm hết việc (lấy avatar, xác định sender_id) rồi.
+            List<Map<String, Object>> friendsList = friendsService.getFriendsOfUser(userId);
+
+            // 3. Gửi thẳng về Client (Không cần vòng lặp for nữa)
+            sendMessage(player.getConnection(), Map.of("type", "friends_list", "friends", friendsList));
+
+        } catch (NumberFormatException e) {
+            System.err.println("Lỗi ID người chơi: " + player.getPlayerId());
+        } catch (Exception e) {
+            e.printStackTrace();
+            sendErrorMessage(player.getConnection(), "Lỗi lấy danh sách bạn bè: " + e.getMessage());
+        }
     }
 
     private void handleFriendRequest(Player player, Map<String, Object> data) {
@@ -1531,18 +1621,54 @@ public class NioWebSocketServer implements Runnable {
         }
     }
 
+//    private void handleInviteFriend(Player player, Map<String, Object> data) {
+//        String friendId = String.valueOf(data.get("friendId"));
+//        Player friend = getPlayerById(friendId);
+//        if (friend != null && friend.getConnection() != null && friend.getConnection().isOpen()) {
+//            if (findRoomByPlayer(friend) != null) {
+//                sendErrorMessage(player.getConnection(), "Player is already in a game.");
+//                return;
+//            }
+//            sendMessage(friend.getConnection(), Map.of("type", "game_invite", "fromPlayerId", player.getPlayerId(), "fromPlayerName", player.getPlayerName()));
+//            sendMessage(player.getConnection(), Map.of("type", "invite_sent", "friendId", friendId));
+//        } else {
+//            sendErrorMessage(player.getConnection(), "Player is not online.");
+//        }
+//    }
+
+    //mới
     private void handleInviteFriend(Player player, Map<String, Object> data) {
         String friendId = String.valueOf(data.get("friendId"));
+
+        // Tìm người bạn trong danh sách kết nối
         Player friend = getPlayerById(friendId);
+
         if (friend != null && friend.getConnection() != null && friend.getConnection().isOpen()) {
             if (findRoomByPlayer(friend) != null) {
-                sendErrorMessage(player.getConnection(), "Player is already in a game.");
+                sendErrorMessage(player.getConnection(), "Người chơi đang trong trận đấu khác.");
                 return;
             }
-            sendMessage(friend.getConnection(), Map.of("type", "game_invite", "fromPlayerId", player.getPlayerId(), "fromPlayerName", player.getPlayerName()));
+
+            // 👇 LẤY AVATAR CỦA NGƯỜI MỜI (PLAYER) TỪ DB ĐỂ GỬI KÈM 👇
+            // Vì object Player trong RAM có thể không lưu avatar, nên lấy từ DB cho chắc
+            user senderInfo = userService.getUserById(Integer.parseInt(player.getPlayerId()));
+            String senderAvatar = (senderInfo != null) ? senderInfo.getAvatarUrl() : "";
+
+            // Tạo gói tin mời
+            Map<String, Object> inviteData = new HashMap<>();
+            inviteData.put("type", "game_invite");
+            inviteData.put("fromPlayerId", player.getPlayerId());
+            inviteData.put("fromPlayerName", player.getPlayerName());
+            inviteData.put("fromAvatarUrl", senderAvatar); // ✅ Gửi thêm Avatar
+            inviteData.put("timeControl", data.get("timeControl")); // Gửi kèm thời gian muốn chơi
+
+            // Gửi cho người bạn
+            sendMessage(friend.getConnection(), inviteData);
+
+            // Phản hồi cho người mời
             sendMessage(player.getConnection(), Map.of("type", "invite_sent", "friendId", friendId));
         } else {
-            sendErrorMessage(player.getConnection(), "Player is not online.");
+            sendErrorMessage(player.getConnection(), "Người chơi không online.");
         }
     }
 

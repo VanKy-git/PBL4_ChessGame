@@ -253,6 +253,7 @@ import com.google.gson.Gson;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -340,9 +341,35 @@ public class userController {
                 return errorResponse("ID token is required");
             }
 
-            user newUser = userService.registerWithGoogle(idToken); // có thể ném exception khi email đã tồn tại
+            // Gọi Service để tạo user mới
+            user newUser = userService.registerWithGoogle(idToken);
 
-            return successResponse(newUser);
+            // TẠO JWT TOKEN (giống như login)
+            long nowMillis = System.currentTimeMillis();
+            Date now = new Date(nowMillis);
+            Date exp = new Date(nowMillis + com.database.server.Utils.JwtConfig.JWT_EXPIRATION_MS);
+
+            String jwtToken = io.jsonwebtoken.Jwts.builder()
+                    .setSubject(String.valueOf(newUser.getUserId()))
+                    .claim("username", newUser.getUserName())
+                    .setIssuedAt(now)
+                    .setExpiration(exp)
+                    .signWith(com.database.server.Utils.JwtConfig.JWT_SECRET_KEY, io.jsonwebtoken.SignatureAlgorithm.HS256)
+                    .compact();
+
+            // Tạo response giống như login
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("token", jwtToken);
+            responseData.put("userId", newUser.getUserId());
+            responseData.put("username", newUser.getUserName());
+            responseData.put("email", newUser.getEmail());
+            responseData.put("avatar", newUser.getAvatarUrl());
+            responseData.put("picture", newUser.getAvatarUrl());
+            responseData.put("elo", newUser.getEloRating());
+            responseData.put("winCount", newUser.getWinCount());
+            responseData.put("lossCount", newUser.getLossCount());
+
+            return successResponse(responseData);
 
         } catch (RuntimeException e) {
             return errorResponse(e.getMessage());
@@ -360,14 +387,38 @@ public class userController {
                 return errorResponse("ID token is required");
             }
 
+            // Gọi Service để tìm user
             user existingUser = userService.loginWithGoogle(idToken);
 
             if (existingUser == null) {
-                // Không tìm thấy -> yêu cầu register
-                return errorResponse("User not found. Please register with Google first.");
+                return errorResponse("Tài khoản không tồn tại. Vui lòng đăng ký trước!");
             }
 
-            return successResponse(existingUser);
+            // TẠO JWT TOKEN
+            long nowMillis = System.currentTimeMillis();
+            Date now = new Date(nowMillis);
+            Date exp = new Date(nowMillis + com.database.server.Utils.JwtConfig.JWT_EXPIRATION_MS);
+
+            String jwtToken = io.jsonwebtoken.Jwts.builder()
+                    .setSubject(String.valueOf(existingUser.getUserId()))
+                    .claim("username", existingUser.getUserName())
+                    .setIssuedAt(now)
+                    .setExpiration(exp)
+                    .signWith(com.database.server.Utils.JwtConfig.JWT_SECRET_KEY, io.jsonwebtoken.SignatureAlgorithm.HS256)
+                    .compact();
+
+            // Tạo response
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("token", jwtToken);
+            responseData.put("userId", existingUser.getUserId());
+            responseData.put("username", existingUser.getUserName());
+            responseData.put("email", existingUser.getEmail());
+            responseData.put("avatar", existingUser.getAvatarUrl());
+            responseData.put("elo", existingUser.getEloRating());
+            responseData.put("winCount", existingUser.getWinCount());
+            responseData.put("lossCount", existingUser.getLossCount());
+
+            return successResponse(responseData);
 
         } catch (RuntimeException e) {
             return errorResponse(e.getMessage());
@@ -484,22 +535,130 @@ public class userController {
 
     // ========================= CẬP NHẬT TRẠNG THÁI =========================
 
+//    public String updateStatus(String requestJson) {
+//        try {
+//            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+//            int userId = ((Number) request.get("userId")).intValue();
+//            String status = (String) request.get("status");
+//
+//            boolean success = userService.updateStatus(userId, status);
+//            if (success) {
+//                return successResponse("Cập nhật trạng thái thành công");
+//            } else {
+//                return errorResponse("Cập nhật trạng thái thất bại");
+//            }
+//        } catch (Exception e) {
+//            return errorResponse("Lỗi: " + e.getMessage());
+//        }
+//    }
+    // Thay thế hàm updateStatus trong userController.java
     public String updateStatus(String requestJson) {
         try {
+            System.out.println("🔍 [CONTROLLER DEBUG] updateStatus called");
+            System.out.println("   Request JSON: " + requestJson);
+
+            // Parse JSON request
             Map<String, Object> request = gson.fromJson(requestJson, Map.class);
-            int userId = ((Number) request.get("userId")).intValue();
+
+            if (!request.containsKey("userId")) {
+                return errorResponse("Thiếu tham số userId!");
+            }
+
+            if (!request.containsKey("status")) {
+                return errorResponse("Thiếu tham số status!");
+            }
+
+            // Lấy userId (có thể là Double từ JSON)
+            Object userIdObj = request.get("userId");
+            int userId;
+            if (userIdObj instanceof Double) {
+                userId = ((Double) userIdObj).intValue();
+            } else if (userIdObj instanceof Integer) {
+                userId = (Integer) userIdObj;
+            } else {
+                userId = Integer.parseInt(userIdObj.toString());
+            }
+
             String status = (String) request.get("status");
 
+            System.out.println("✅ [CONTROLLER DEBUG] Parsed data:");
+            System.out.println("   User ID: " + userId);
+            System.out.println("   Status: " + status);
+
+            // Gọi Service
             boolean success = userService.updateStatus(userId, status);
+
             if (success) {
+                System.out.println("✅ [CONTROLLER DEBUG] Update successful");
                 return successResponse("Cập nhật trạng thái thành công");
             } else {
-                return errorResponse("Cập nhật trạng thái thất bại");
+                System.err.println("❌ [CONTROLLER DEBUG] Update failed");
+                return errorResponse("Cập nhật trạng thái thất bại - User không tồn tại");
             }
+
+        } catch (NumberFormatException e) {
+            System.err.println("❌ [CONTROLLER DEBUG] Invalid userId format: " + e.getMessage());
+            return errorResponse("userId phải là số nguyên!");
+        } catch (Exception e) {
+            System.err.println("❌ [CONTROLLER DEBUG] Error: " + e.getMessage());
+            e.printStackTrace();
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Cập nhật thông tin tài khoản (username, email, avatarUrl)
+     * Request: { "playerId": "1", "username": "newname", "email": "new@email.com", "avatarUrl": "url" }
+     */
+    public String updateAccount(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            int userId = Integer.parseInt(request.get("playerId").toString());
+            String username = (String) request.get("username");
+            String email = (String) request.get("email");
+            String avatarUrl = (String) request.get("avatarUrl");
+
+            boolean success = userService.updateAccount(userId, username, email, avatarUrl);
+
+            if (success) {
+                // Trả về dữ liệu mới sau khi update
+                user updatedUser = userService.getUserById(userId);
+                return successResponse(updatedUser);
+            } else {
+                return errorResponse("Cập nhật tài khoản thất bại");
+            }
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
         } catch (Exception e) {
             return errorResponse("Lỗi: " + e.getMessage());
         }
     }
+
+    /**
+     * Đổi mật khẩu
+     * Request: { "playerId": "1", "oldPassword": "old123", "newPassword": "new456" }
+     */
+    public String changePassword(String requestJson) {
+        try {
+            Map<String, Object> request = gson.fromJson(requestJson, Map.class);
+            int userId = Integer.parseInt(request.get("playerId").toString());
+            String oldPassword = (String) request.get("oldPassword");
+            String newPassword = (String) request.get("newPassword");
+
+            boolean success = userService.changePassword(userId, oldPassword, newPassword);
+
+            if (success) {
+                return successResponse("Đổi mật khẩu thành công");
+            } else {
+                return errorResponse("Đổi mật khẩu thất bại");
+            }
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage());
+        } catch (Exception e) {
+            return errorResponse("Lỗi: " + e.getMessage());
+        }
+    }
+
 
     // ========================= ROUTE HANDLER =========================
 
@@ -531,6 +690,11 @@ public class userController {
                 // Cập nhật
                 case "updateStatus":
                     return updateStatus(requestJson);
+
+                case "updateAccount":
+                    return updateAccount(requestJson);
+                case "changePassword":
+                    return changePassword(requestJson);
 
                 default:
                     return errorResponse("Action không hợp lệ: " + action);

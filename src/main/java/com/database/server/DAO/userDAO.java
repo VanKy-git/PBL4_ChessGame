@@ -28,7 +28,20 @@ public class userDAO {
         }
     }
 
+//    public user createUser(String username, String hashedPassword) {
+//        user newUser = new user();
+//        newUser.setUserName(username);
+//        newUser.setPassword(hashedPassword);
+//        newUser.setEloRating(1200);
+//        newUser.setWinCount(0);
+//        newUser.setLossCount(0);
+//        newUser.setStatus("Offline");
+//        newUser.setCreatedAt(LocalDateTime.now());
+//        em.persist(newUser);
+//        return newUser;
+//    }
     public user createUser(String username, String hashedPassword) {
+
         user newUser = new user();
         newUser.setUserName(username);
         newUser.setPassword(hashedPassword);
@@ -37,8 +50,18 @@ public class userDAO {
         newUser.setLossCount(0);
         newUser.setStatus("Offline");
         newUser.setCreatedAt(LocalDateTime.now());
-        em.persist(newUser);
-        return newUser;
+
+        try {
+            em.persist(newUser); // Lưu đối tượng mới vào DB
+            return newUser; // Trả về user vừa được tạo
+        } catch (Exception e) {
+            // Nếu có lỗi (ví dụ: username vi phạm ràng buộc UNIQUE), rollback
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            // Ném lỗi để Service xử lý
+            throw new RuntimeException("Không thể tạo user: " + e.getMessage(), e);
+        }
     }
 
     public boolean isUsernameExists(String username) {
@@ -72,6 +95,10 @@ public class userDAO {
         }
     }
 
+    public void insertUser(user u) {
+        em.persist(u);
+    }
+
     public user getUserByEmail(String email) {
         try {
             TypedQuery<user> query = em.createQuery(
@@ -85,20 +112,57 @@ public class userDAO {
     }
 
     public user createUserWithGoogle(String email, String googleId, String displayName, String avatarUrl) {
-        String username = generateUsernameFromEmail(email);
+        // KIỂM TRA DỮ LIỆU ĐẦU VÀO
+        if (email == null || email.isEmpty()) {
+            throw new IllegalArgumentException("Email không được rỗng!");
+        }
+        if (googleId == null || googleId.isEmpty()) {
+            throw new IllegalArgumentException("Google ID không được rỗng!");
+        }
+        if (displayName == null || displayName.isEmpty()) {
+            throw new IllegalArgumentException("Tên hiển thị không được rỗng!");
+        }
+
+        // ✅ DÙNG DISPLAY NAME TỪ GOOGLE LÀM USERNAME
+        // Loại bỏ ký tự đặc biệt, chỉ giữ chữ cái, số và khoảng trắng
+        String username = displayName.trim();
+
+        // Nếu username bị trùng, thêm số vào cuối
+        String finalUsername = username;
+        int counter = 1;
+        while (isUsernameExists(finalUsername)) {
+            finalUsername = username + counter++;
+        }
+
+        System.out.println("🔧 [DEBUG] Creating Google user with:");
+        System.out.println("   Display Name (from Google): " + displayName);
+        System.out.println("   Username (saved to DB): " + finalUsername);
+        System.out.println("   Email: " + email);
+        System.out.println("   Google ID: " + googleId);
+        System.out.println("   Avatar URL: " + avatarUrl);
+
+        // TẠO USER MỚI
         user newUser = new user();
-        newUser.setUserName(username);
-        newUser.setEmail(email);
+        newUser.setUserName(finalUsername);      // ✅ Dùng name từ Google
+        newUser.setEmail(email);                 // ✅ Lưu email vào trường email
         newUser.setProvider("google");
-        newUser.setProviderId(googleId);
+        newUser.setProviderId(googleId);         // ✅ Lưu Google ID vào provider_id
         newUser.setAvatarUrl(avatarUrl);
-        newUser.setPassword("oauth_default");
+        newUser.setPassword("oauth_default");    // Không cần password thật
         newUser.setEloRating(1200);
         newUser.setWinCount(0);
         newUser.setLossCount(0);
         newUser.setStatus("Offline");
         newUser.setCreatedAt(LocalDateTime.now());
+
+        // LƯU VÀO DATABASE
         em.persist(newUser);
+
+        System.out.println("✅ [DEBUG] Google user created successfully!");
+        System.out.println("   User ID: " + newUser.getUserId());
+        System.out.println("   Username: " + newUser.getUserName());
+        System.out.println("   Email: " + newUser.getEmail());
+
         return newUser;
     }
 
@@ -147,6 +211,18 @@ public class userDAO {
         return em.createQuery("SELECT u FROM user u", user.class).getResultList();
     }
 
+    public user getUserByUsername(String username) {
+        try {
+            TypedQuery<user> query = em.createQuery(
+                    "SELECT u FROM user u WHERE u.userName = :username", user.class
+            );
+            query.setParameter("username", username);
+            return query.getSingleResult();
+        } catch (NoResultException e) {
+            return null;
+        }
+    }
+
     public user getUserById(int id) {
         return em.find(user.class, id);
     }
@@ -157,13 +233,29 @@ public class userDAO {
     }
 
     public boolean updateStatus(int userId, String status) {
-        user u = em.find(user.class, userId);
-        if (u != null) {
+        System.out.println("🔍 [DAO] updateStatus - User ID: " + userId + ", Status: " + status);
+
+        try {
+            user u = em.find(user.class, userId);
+
+            if (u == null) {
+                System.err.println("❌ [DAO] User not found: " + userId);
+                return false;
+            }
+
+            System.out.println("✅ [DAO] Found user: " + u.getUserName() + " (current: " + u.getStatus() + ")");
+
             u.setStatus(status);
             em.merge(u);
+
+            System.out.println("✅ [DAO] Updated to: " + status);
             return true;
+
+        } catch (Exception e) {
+            System.err.println("❌ [DAO] Error: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-        return false;
     }
 
     public boolean updateEloRating(int userId, int newElo) {
@@ -207,5 +299,38 @@ public class userDAO {
         .setParameter("keyword", "%" + keyword + "%")
         .setMaxResults(20)
         .getResultList();
+    }
+    // ========================= THỐNG KÊ NGƯỜI DÙNG =========================
+
+    public UserStatistics getUserStatistics(int userId) {
+        user u = getUserById(userId);
+        if (u == null) return null;
+        int total = u.getWinCount() + u.getLossCount();
+        double rate = total > 0 ? (double) u.getWinCount() / total * 100 : 0;
+        return new UserStatistics(
+                u.getUserId(), u.getUserName(), u.getEloRating(),
+                u.getWinCount(), u.getLossCount(), total, rate
+        );
+    }
+
+    public static class UserStatistics {
+        public int userId;
+        public String username;
+        public int eloRating;
+        public int wins;
+        public int losses;
+        public int totalMatches;
+        public double winRate;
+
+        public UserStatistics(int userId, String username, int eloRating,
+                              int wins, int losses, int totalMatches, double winRate) {
+            this.userId = userId;
+            this.username = username;
+            this.eloRating = eloRating;
+            this.wins = wins;
+            this.losses = losses;
+            this.totalMatches = totalMatches;
+            this.winRate = winRate;
+        }
     }
 }
