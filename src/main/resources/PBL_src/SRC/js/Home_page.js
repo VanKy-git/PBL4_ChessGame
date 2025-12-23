@@ -462,10 +462,10 @@ async function loadSidebarUserInfo() {
             if (u.avatarUrl) localStorage.setItem("avatarUrl", u.avatarUrl);
         }
     } catch (err) {
-        console.warn("Không load được từ DB → dùng cache cũ:", err);
+        console.error("Failed to load user data from DB:", err);
         // Nếu API lỗi → mới dùng cache
         const cached = localStorage.getItem("playerName");
-        usernameEl.textContent = cached ? cached + " (offline)" : "Guest";
+        usernameEl.textContent = cached ? cached : "Guest";
         playerIdEl.textContent = `ID: #${playerId}`;
     }
 }

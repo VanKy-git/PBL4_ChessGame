@@ -1,4 +1,4 @@
-import { connectMainSocket, sendMessage, registerHandler } from './Connect_websocket.js';
+import { sendMessage, registerHandler } from './Connect_websocket.js';
 
 const friendsLink = document.getElementById('friendsLink');
 const friendsPopup = document.getElementById('friendsPopup');
@@ -17,22 +17,6 @@ function renderFriendsList(friends) {
         return;
     }
     friendsTabContent.innerHTML = friends.map(friend => {
-
-        console.log("Dữ liệu 1 người bạn:", friend);
-        console.log("Avatar URL:", friend.avatarUrl || friend.avatar_url);
-
-        // Chỉ cho phép mời nếu Online. Nếu đang In Game hoặc Offline thì disable
-        const isOnline = friend.friend_status === 'Online';
-        const btnText = isOnline ? "Mời đấu" : (friend.friend_status === 'In Game' ? "Đang chơi" : "Mời đấu");
-        
-        return `
-        <div class="friend-item" data-id="${friend.friend_id}">
-            <img src="${friend.avatar_url || '../../PBL4_imgs/icon/user.png'}" alt="Avatar" class="user-avatar-small">
-            <div class="friend-info">
-                <strong>${friend.friend_name}</strong>
-                <span class="status-badge ${isOnline ? 'online' : 'offline'}">
-                    ${friend.friend_status || 'Offline'}
-                </span>
         const friendStatus = friend.friend_status;
         let actionButton;
 
@@ -101,7 +85,7 @@ function renderSearchResults(users) {
             ${users && users.length > 0 ? users.map(user => {
 
         // Logic hiển thị nút bấm dựa trên quan hệ
-        let buttonHtml = '';
+        let buttonHtml;
 
         if (user.relationship === 'friend') {
             // Trạng thái: Đã là bạn bè -> Disable nút
@@ -368,17 +352,17 @@ registerHandler('search_results', (data) => {
     renderSearchResults(data.users);
 });
 
-registerHandler('friend_request_sent', (data) => {
+registerHandler('friend_request_sent', () => {
     // alert('Đã gửi lời mời kết bạn!');
 });
 
-registerHandler('friend_request_accepted', (data) => {
+registerHandler('friend_request_accepted', () => {
     if (currentTab === 'requests') {
         sendMessage({ type: 'get_friends' });
     }
 });
 
-registerHandler('friend_request_rejected', (data) => {
+registerHandler('friend_request_rejected', () => {
     if (currentTab === 'requests') {
         sendMessage({ type: 'get_friends' });
     }
@@ -393,7 +377,7 @@ registerHandler('game_invite', (data) => {
     if(gameInvitePopup) gameInvitePopup.classList.remove('hidden');
 });
 
-registerHandler('invite_sent', (data) => {
+registerHandler('invite_sent', () => {
     // Không alert nữa, vì nút đã đổi trạng thái
 });
 
